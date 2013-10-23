@@ -1,4 +1,4 @@
-package tput
+package cm
 
 import "github.com/cevian/go-stream/stream"
 import "github.com/cevian/disttopk"
@@ -7,8 +7,8 @@ import (
 	"fmt"
 )
 
-func NewPeer(list disttopk.ItemList, k int) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0}
+func NewPeer(list disttopk.ItemList, k int, eps float64, delta float64) *Peer {
+	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0, eps, delta}
 }
 
 type Peer struct {
@@ -18,6 +18,18 @@ type Peer struct {
 	list    disttopk.ItemList
 	k       int
 	id      int
+	eps     float64
+	delta   float64
+}
+
+type FirstRound struct {
+	list disttopk.ItemList
+	cm   *disttopk.CountMinSketch
+}
+
+type SecondRound struct {
+	thresh uint32
+	ucm    *disttopk.CountMinSketch
 }
 
 func (src *Peer) Run() error {
@@ -26,65 +38,39 @@ func (src *Peer) Run() error {
 	//fmt.Println("Sort", src.list[:10])
 
 	localtop := src.list[:src.k]
+
+	localcm := disttopk.NewCountMinSketchPb(src.eps, src.delta)
+	for _, v := range src.list {
+		localcm.AddInt(v.Id, uint32(v.Score))
+	}
+
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, localtop}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, localcm}}:
 	case <-src.StopNotifier:
 		return nil
 	}
 
-	thresh := float64(0)
-	select {
-	case obj := <-src.back:
-		thresh = obj.(float64)
-	case <-src.StopNotifier:
-		return nil
-	}
-
-	index := 0
-	for k, v := range src.list {
-		index = k
-		if v.Score < thresh {
-			break
-		}
-	}
-	//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index)
-	//v.Score >= thresh included
-
-	var secondlist disttopk.ItemList
-	if index > src.k {
-		secondlist = src.list[src.k:index]
-	}
-	select {
-	case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
-	case <-src.StopNotifier:
-		return nil
-	}
-
-	var ids []int
+	var sr SecondRound
 	select {
 	case obj := <-src.back:
-		ids = obj.([]int)
+		sr = obj.(SecondRound)
 	case <-src.StopNotifier:
 		return nil
 	}
-
-	m := src.list.AddToMap(nil)
 
 	exactlist := make([]disttopk.Item, 0)
-	for _, id := range ids {
-		score, ok := m[id]
-		_ = ok
-		if ok && score < thresh && score <= src.list[src.k].Score { //haven't sent before
-			exactlist = append(exactlist, disttopk.Item{id, m[id]})
+	for _, v := range src.list {
+		if v.Score <= src.list[src.k].Score && sr.ucm.QueryInt(v.Id) > sr.thresh {
+			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}
-	//fmt.Println("Peer ", src.id, " got ", ids, thresh)
 
 	select {
 	case src.forward <- disttopk.DemuxObject{src.id, disttopk.ItemList(exactlist)}:
 	case <-src.StopNotifier:
 		return nil
 	}
+
 	return nil
 }
 
@@ -123,16 +109,22 @@ func (src *Coord) Run() error {
 	nnodes := len(src.backPointers)
 	thresh := 0.0
 	items := 0
+	var ucm *disttopk.CountMinSketch
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
-			il := dobj.Obj.(disttopk.ItemList)
+			fr := dobj.Obj.(FirstRound)
+			il := fr.list
 			items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
+			if ucm == nil {
+				ucm = fr.cm
+			} else {
+				ucm.Merge(fr.cm)
+			}
 		case <-src.StopNotifier:
 			return nil
-
 		}
 	}
 
@@ -142,14 +134,17 @@ func (src *Coord) Run() error {
 		fmt.Println("ERROR k less than list")
 	}
 	thresh = il[src.k-1].Score
-	localthresh := thresh / float64(nnodes)
-	bytesRound := items * disttopk.RECORD_SIZE
-	fmt.Println("Round 1 tput: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
+	localthresh := thresh
+
+	cmItems := ucm.Hashes * ucm.Columns
+
+	bytesRound := items*disttopk.RECORD_SIZE + (nnodes * cmItems * 32)
+	fmt.Println("Round 1 cm: got ", items, " items, thresh ", thresh, ", items in cm", cmItems, ", bytes ", bytesRound)
 	bytes := bytesRound
 
 	for _, ch := range src.backPointers {
 		select {
-		case ch <- localthresh:
+		case ch <- SecondRound{uint32(localthresh), ucm}:
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -160,60 +155,18 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			il := dobj.Obj.(disttopk.ItemList)
+			m = il.AddToMap(m)
 			round2items += len(il)
-			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
 		case <-src.StopNotifier:
 			return nil
 		}
 	}
 
-	il = disttopk.MakeItemList(m)
-	il.Sort()
-	if len(il) < src.k {
-		fmt.Println("ERROR k less than list")
-	}
-	secondthresh := il[src.k-1].Score
-
-	ids := make([]int, 0)
-	for id, score := range m {
-		resp := mresp[id]
-		missing := nnodes - resp
-		upperBound := (float64(missing) * thresh) + score
-		if upperBound >= secondthresh {
-			ids = append(ids, id)
-		}
-	}
-
-	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * 32)
-	fmt.Println("Round 2 tput: got ", round2items, " items, thresh ", secondthresh, ", unique items fetching ", len(ids), " bytes ", bytesRound)
+	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * cmItems * 32)
+	fmt.Println("Round 2 cm: got ", round2items, " items, bytes", bytesRound)
 	bytes += bytesRound
-
-	for _, ch := range src.backPointers {
-		select {
-		case ch <- ids:
-		case <-src.StopNotifier:
-			return nil
-		}
-	}
-
-	round3items := 0
-	for cnt := 0; cnt < nnodes; cnt++ {
-		select {
-		case dobj := <-src.input:
-			il := dobj.Obj.(disttopk.ItemList)
-			m = il.AddToMap(m)
-			round3items += len(il)
-			mresp = il.AddToCountMap(mresp)
-		case <-src.StopNotifier:
-			return nil
-		}
-	}
-
-	bytesRound = round3items*disttopk.RECORD_SIZE + (nnodes * len(ids) * 32)
-	fmt.Println("Round 3 tput: got ", round3items, " items, bytes ", bytesRound)
-	bytes += bytesRound
-	fmt.Println("Total bytes tput: ", bytes)
+	fmt.Println("Total bytes cm: ", bytes)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
