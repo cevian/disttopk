@@ -8,16 +8,17 @@ import (
 	"fmt"
 )
 
-func NewNaivePeer(list []disttopk.Item) *NaivePeer {
-	return &NaivePeer{stream.NewHardStopChannelCloser(), nil, nil, list, 0}
+func NewNaivePeer(list []disttopk.Item, cutoff int) *NaivePeer {
+	return &NaivePeer{stream.NewHardStopChannelCloser(), nil, nil, list, 0, cutoff}
 }
 
 type NaivePeer struct {
 	*stream.HardStopChannelCloser
 	forward chan<- disttopk.DemuxObject
 	back    <-chan stream.Object
-	list    []disttopk.Item
+	list    disttopk.ItemList
 	id      int
+	cutoff  int
 }
 
 func (src *NaivePeer) Run() error {
@@ -25,6 +26,13 @@ func (src *NaivePeer) Run() error {
 	var rcv <-chan stream.Object
 	rcv = nil
 	sent := false
+
+	src.list.Sort()
+	list := src.list
+	if src.cutoff > 0 {
+		list = src.list[:src.cutoff]
+	}
+
 	for {
 		if sent == false {
 			rcv = nil
@@ -32,7 +40,7 @@ func (src *NaivePeer) Run() error {
 			rcv = src.back
 		}
 		select {
-		case src.forward <- disttopk.DemuxObject{src.id, src.list}:
+		case src.forward <- disttopk.DemuxObject{src.id, list}:
 			return nil
 		case <-rcv:
 			return errors.New("No second round in naive implementation")
@@ -42,16 +50,17 @@ func (src *NaivePeer) Run() error {
 	}
 }
 
-func NewNaiveCoord() *NaiveCoord {
-	return &NaiveCoord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil}
+func NewNaiveCoord(cutoff int) *NaiveCoord {
+	return &NaiveCoord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, cutoff}
 }
 
 type NaiveCoord struct {
 	*stream.HardStopChannelCloser
 	input        chan disttopk.DemuxObject
 	backPointers []chan<- stream.Object
-	lists        [][]disttopk.Item
+	lists        []disttopk.ItemList
 	FinalList    []disttopk.Item
+	cutoff       int
 }
 
 func (src *NaiveCoord) Add(p *NaivePeer) {
@@ -70,14 +79,16 @@ func (src *NaiveCoord) Run() error {
 		}
 	}()
 
-	src.lists = make([][]disttopk.Item, len(src.backPointers))
+	src.lists = make([]disttopk.ItemList, len(src.backPointers))
 	cnt := 0
+	items := 0
 	for {
 		select {
 		case dobj := <-src.input:
 			cnt++
-			list := dobj.Obj.([]disttopk.Item)
+			list := dobj.Obj.(disttopk.ItemList)
 			src.lists[dobj.Id] = list
+			items += len(list)
 			if cnt == len(src.backPointers) {
 				m := make(map[int]float64)
 				for _, l := range src.lists {
@@ -104,8 +115,11 @@ func (src *NaiveCoord) Run() error {
 					}
 					sort.Sort(sort.Reverse(il))*/
 				//fmt.Println("Sorted Global List: ", il[:10])
-				for _, it := range il[:10] {
-					fmt.Println("Resp: ", it.Id, it.Score) //, mresp[it.Id])
+				fmt.Printf("Total bytes naive (cutoff=%d): %E\n", src.cutoff, float64(items*disttopk.RECORD_SIZE))
+				if disttopk.OUTPUT_RESP {
+					for _, it := range il[:10] {
+						fmt.Println("Resp: ", it.Id, it.Score) //, mresp[it.Id])
+					}
 				}
 				src.FinalList = il
 				return nil

@@ -20,25 +20,16 @@ type Sketch interface {
 	Merge(Sketch)
 }
 
-type CountMinSketch struct {
+type CountMinHash struct {
 	Hashes  int
 	Columns int
-	Data    []uint32
 	hasha   []uint32
 	hashb   []uint32
 }
 
 /* error margin within err (over) with probability prob*/
 
-func NewCountMinSketchPb(err float64, prob float64) *CountMinSketch {
-	hashes := math.Ceil(math.Log(1.0 / prob))
-	columns := math.Ceil(math.E / err)
-	return NewCountMinSketch(int(hashes), int(columns))
-}
-
-// Create a new Sketch. Settings for hashes and columns affect performance
-// of Adding and Querying items, but also accuracy.
-func NewCountMinSketch(hashes int, columns int) *CountMinSketch {
+func NewCountMinHash(hashes int, columns int) *CountMinHash {
 	r := rand.New(rand.NewSource(99))
 
 	hasha := make([]uint32, hashes)
@@ -49,14 +40,51 @@ func NewCountMinSketch(hashes int, columns int) *CountMinSketch {
 		hashb[k] = r.Uint32()
 	}
 
-	s := CountMinSketch{
+	s := CountMinHash{
 		Hashes:  hashes,
 		Columns: columns,
-		Data:    make([]uint32, hashes*columns),
 		hasha:   hasha,
 		hashb:   hashb,
 	}
-	//println("Creating hash with columns", columns, "hashes", hashes)
+
+	return &s
+}
+
+func (s *CountMinHash) GetIndex(key []byte, hashNo uint32) uint32 {
+	a := s.hasha[hashNo]
+	b := s.hashb[hashNo]
+
+	h := fnv.New64a()
+	h.Write(key)
+	x := h.Sum64()
+
+	result := (uint64(a) * x) + uint64(b)
+	result = ((result >> 31) + result) & ((1 << 31) - 1)
+
+	columns := uint32(s.Columns)
+	index := uint32(result) % columns
+
+	return hashNo*columns + index
+}
+
+type CountMinSketch struct {
+	*CountMinHash
+	Data []uint32
+}
+
+func NewCountMinSketchPb(err float64, prob float64) *CountMinSketch {
+	hashes := math.Ceil(math.Log(1.0 / prob))
+	columns := math.Ceil(math.E / err)
+	return NewCountMinSketch(int(hashes), int(columns))
+}
+
+// Create a new Sketch. Settings for hashes and columns affect performance
+// of Adding and Querying items, but also accuracy.
+func NewCountMinSketch(hashes int, columns int) *CountMinSketch {
+	s := CountMinSketch{
+		NewCountMinHash(hashes, columns),
+		make([]uint32, hashes*columns),
+	}
 	return &s
 }
 
@@ -78,33 +106,6 @@ func (s *CountMinSketch) QueryInt(key int) uint32 {
 	tmp := make([]byte, 16)
 	binary.PutUvarint(tmp, uint64(key))
 	return s.Query(tmp)
-}
-
-func (s *CountMinSketch) GetIndex(key []byte, hashNo uint32) uint32 {
-	a := s.hasha[hashNo]
-	b := s.hashb[hashNo]
-
-	h := fnv.New64a()
-	h.Write(key)
-	x := h.Sum64()
-
-	result := (uint64(a) * x) + uint64(b)
-	result = ((result >> 31) + result) & ((1 << 31) - 1)
-
-	columns := uint32(s.Columns)
-	index := uint32(result) % columns
-
-	return hashNo*columns + index
-	/*
-		h := fnv.New64a()
-		h.Write(key)
-		binary.Write(h, binary.LittleEndian, uint32(hashNo))
-
-		var b []byte
-		columns := uint32(s.Columns)
-		index := crc32.ChecksumIEEE(h.Sum(b)) % columns
-
-		return hashNo*columns + index*/
 }
 
 func (s *CountMinSketch) Add(key []byte, count uint32) {

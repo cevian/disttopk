@@ -115,8 +115,8 @@ func GetListSet(nlists int, nitems uint32, param float64, overlap float64) [][]I
 
 	for k, l := range lists {
 		m := ItemList(l).AddToMap(nil)
-		v, ok := m[2553153660041385501]
-		println(v, ok)
+		//v, ok := m[2553153660041385501]
+		//println(v, ok)
 		l := MakeItemList(m)
 		l.Sort()
 		lists[k] = l

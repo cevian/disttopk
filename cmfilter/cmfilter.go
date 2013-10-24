@@ -1,4 +1,4 @@
-package cm
+package cmfilter
 
 import "github.com/cevian/go-stream/stream"
 import "github.com/cevian/disttopk"
@@ -28,8 +28,7 @@ type FirstRound struct {
 }
 
 type SecondRound struct {
-	thresh uint32
-	ucm    *disttopk.CountMinSketch
+	cmf *disttopk.CountMinFilter
 }
 
 func (src *Peer) Run() error {
@@ -60,7 +59,7 @@ func (src *Peer) Run() error {
 
 	exactlist := make([]disttopk.Item, 0)
 	for _, v := range src.list {
-		if v.Score <= src.list[src.k].Score && sr.ucm.QueryInt(v.Id) >= sr.thresh {
+		if v.Score <= src.list[src.k].Score && sr.cmf.QueryInt(v.Id) == true {
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}
@@ -139,12 +138,13 @@ func (src *Coord) Run() error {
 	cmItems := ucm.Hashes * ucm.Columns
 
 	bytesRound := items*disttopk.RECORD_SIZE + (nnodes * cmItems * 32)
+	fmt.Println("Count min: hashes ", ucm.Hashes, "Columns", ucm.Columns)
 	fmt.Println("Round 1 cm: got ", items, " items, thresh ", thresh, ", items in cm", cmItems, ", bytes ", bytesRound)
 	bytes := bytesRound
 
 	for _, ch := range src.backPointers {
 		select {
-		case ch <- SecondRound{uint32(localthresh), ucm}:
+		case ch <- SecondRound{disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh))}:
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -163,16 +163,18 @@ func (src *Coord) Run() error {
 		}
 	}
 
-	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * cmItems * 32)
+	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * cmItems)
 	fmt.Println("Round 2 cm: got ", round2items, " items, bytes", bytesRound)
 	bytes += bytesRound
-	fmt.Println("Total bytes cm: ", bytes)
+	fmt.Printf("Total bytes cm: %E\n", float64(bytes))
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
 	//fmt.Println("Sorted Global List: ", il[:src.k])
-	for _, it := range il[:src.k] {
-		fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
+	if disttopk.OUTPUT_RESP {
+		for _, it := range il[:src.k] {
+			fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
+		}
 	}
 	src.FinalList = il
 	return nil

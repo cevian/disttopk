@@ -213,13 +213,15 @@ func (src *Coord) Run() error {
 	bytesRound = round3items*disttopk.RECORD_SIZE + (nnodes * len(ids) * 32)
 	fmt.Println("Round 3 tput: got ", round3items, " items, bytes ", bytesRound)
 	bytes += bytesRound
-	fmt.Println("Total bytes tput: ", bytes)
+	fmt.Printf("Total bytes tput: %E\n", float64(bytes))
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
 	//fmt.Println("Sorted Global List: ", il[:src.k])
-	for _, it := range il[:src.k] {
-		fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
+	if disttopk.OUTPUT_RESP {
+		for _, it := range il[:src.k] {
+			fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
+		}
 	}
 	src.FinalList = il
 	return nil
