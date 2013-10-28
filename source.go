@@ -32,9 +32,14 @@ type Item struct {
 
 type ItemList []Item
 
-func (il ItemList) Swap(i, j int)      { il[i], il[j] = il[j], il[i] }
-func (il ItemList) Len() int           { return len(il) }
-func (il ItemList) Less(i, j int) bool { return il[i].Score < il[j].Score }
+func (il ItemList) Swap(i, j int) { il[i], il[j] = il[j], il[i] }
+func (il ItemList) Len() int      { return len(il) }
+func (il ItemList) Less(i, j int) bool {
+	if il[i].Score == il[j].Score {
+		return il[i].Id < il[j].Id
+	}
+	return il[i].Score < il[j].Score
+}
 
 func (il ItemList) Sort() { sort.Sort(sort.Reverse(il)) }
 
@@ -80,7 +85,7 @@ func (src *ZipfSource) GenerateItem(rank int, offset int) Item {
 	return Item{id, score}
 }
 
-func (src *ZipfSource) GetList(offset int) []Item {
+func (src *ZipfSource) GetList(offset int) ItemList {
 	l := make([]Item, 0, src.MaxItems)
 	i := uint32(1)
 	sum := 0.0
@@ -90,12 +95,12 @@ func (src *ZipfSource) GetList(offset int) []Item {
 		i++
 	}
 	//fmt.Println("sum = ", sum)
-	return l
+	return ItemList(l)
 }
 
-func GetListSet(nlists int, nitems uint32, param float64, overlap float64) [][]Item {
+func GetListSet(nlists int, nitems uint32, param float64, overlap float64) []ItemList {
 	src := NewZipfSource(nitems, param)
-	lists := make([][]Item, nlists)
+	lists := make([]ItemList, nlists)
 	for k, _ := range lists {
 		lists[k] = src.GetList(k)
 	}

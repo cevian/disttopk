@@ -29,7 +29,7 @@ func (src *NaivePeer) Run() error {
 
 	src.list.Sort()
 	list := src.list
-	if src.cutoff > 0 {
+	if src.cutoff > 0 && src.cutoff < len(src.list) {
 		list = src.list[:src.cutoff]
 	}
 

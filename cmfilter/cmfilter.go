@@ -36,6 +36,11 @@ func (src *Peer) Run() error {
 	src.list.Sort()
 	//fmt.Println("Sort", src.list[:10])
 
+	if src.k > len(src.list) {
+		fmt.Println("warning cmfilter: list shorter than k")
+		src.k = len(src.list)
+	}
+
 	localtop := src.list[:src.k]
 
 	localcm := disttopk.NewCountMinSketchPb(src.eps, src.delta)
@@ -58,8 +63,8 @@ func (src *Peer) Run() error {
 	}
 
 	exactlist := make([]disttopk.Item, 0)
-	for _, v := range src.list {
-		if v.Score <= src.list[src.k].Score && sr.cmf.QueryInt(v.Id) == true {
+	for index, v := range src.list {
+		if index >= src.k && sr.cmf.QueryInt(v.Id) == true {
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}

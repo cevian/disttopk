@@ -25,6 +25,11 @@ func (src *Peer) Run() error {
 	src.list.Sort()
 	//fmt.Println("Sort", src.list[:10])
 
+	if src.k > len(src.list) {
+		fmt.Println("warning tput: list shorter than k")
+		src.k = len(src.list)
+	}
+
 	localtop := src.list[:src.k]
 	select {
 	case src.forward <- disttopk.DemuxObject{src.id, localtop}:

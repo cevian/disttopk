@@ -59,8 +59,8 @@ func (src *Peer) Run() error {
 	}
 
 	exactlist := make([]disttopk.Item, 0)
-	for _, v := range src.list {
-		if v.Score <= src.list[src.k].Score && sr.ucm.QueryInt(v.Id) >= sr.thresh {
+	for index, v := range src.list {
+		if index >= src.k && sr.ucm.QueryInt(v.Id) >= sr.thresh {
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}
