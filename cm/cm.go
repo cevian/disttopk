@@ -138,7 +138,7 @@ func (src *Coord) Run() error {
 
 	cmItems := ucm.Hashes * ucm.Columns
 
-	bytesRound := items*disttopk.RECORD_SIZE + (nnodes * cmItems * 32)
+	bytesRound := items*disttopk.RECORD_SIZE + (nnodes * cmItems * 4)
 	fmt.Println("Round 1 cm: got ", items, " items, thresh ", thresh, ", items in cm", cmItems, ", bytes ", bytesRound)
 	bytes := bytesRound
 

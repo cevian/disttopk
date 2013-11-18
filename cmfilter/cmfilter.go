@@ -5,6 +5,7 @@ import "github.com/cevian/disttopk"
 
 import (
 	"fmt"
+	"math"
 )
 
 func NewPeer(list disttopk.ItemList, k int, eps float64, delta float64) *Peer {
@@ -24,7 +25,7 @@ type Peer struct {
 
 type FirstRound struct {
 	list disttopk.ItemList
-	cm   *disttopk.CountMinSketch
+	cm   interface{}
 }
 
 type SecondRound struct {
@@ -48,8 +49,11 @@ func (src *Peer) Run() error {
 		localcm.AddInt(v.Id, uint32(v.Score))
 	}
 
+	sendcm := disttopk.Compress(localcm)
+	//sendcm := localcm
+
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, localcm}}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, sendcm}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -113,6 +117,7 @@ func (src *Coord) Run() error {
 	nnodes := len(src.backPointers)
 	thresh := 0.0
 	items := 0
+	sketchsize := 0
 	var ucm *disttopk.CountMinSketch
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
@@ -122,11 +127,17 @@ func (src *Coord) Run() error {
 			items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
+
+			cm := disttopk.Decompress(fr.cm.(*disttopk.CMCompress))
+			sketchsize += fr.cm.(*disttopk.CMCompress).ByteSize()
+			//cm := fr.cm.(*disttopk.CountMinSketch)
+			//sketchsize += cm.ByteSize()
+
 			if ucm == nil {
-				ucm = fr.cm
-			} else {
-				ucm.Merge(fr.cm)
+				ucm = &disttopk.CountMinSketch{cm.CountMinHash, make([]uint32, len(cm.Data))}
 			}
+			ucm.Merge(cm)
+
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -142,9 +153,9 @@ func (src *Coord) Run() error {
 
 	cmItems := ucm.Hashes * ucm.Columns
 
-	bytesRound := items*disttopk.RECORD_SIZE + (nnodes * cmItems * 32)
+	bytesRound := items*disttopk.RECORD_SIZE + sketchsize
 	fmt.Println("Count min: hashes ", ucm.Hashes, "Columns", ucm.Columns)
-	fmt.Println("Round 1 cm: got ", items, " items, thresh ", thresh, ", items in cm", cmItems, ", bytes ", bytesRound)
+	fmt.Println("Round 1 cm: got ", items, " items, thresh ", thresh, "(log ", uint32(math.Log(localthresh)), "), items in cm", cmItems, ", bytes ", bytesRound)
 	bytes := bytesRound
 
 	for _, ch := range src.backPointers {

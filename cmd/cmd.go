@@ -8,12 +8,15 @@ import (
 	"github.com/cevian/disttopk/tput"
 	"github.com/cloudflare/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
+	"encoding/gob"
 	"fmt"
+	"os"
+	"runtime"
 )
 
 func runNaive(l []disttopk.ItemList, cutoff int) disttopk.ItemList {
 	runner := stream.NewRunner()
-	peers := make([]*naive.NaivePeer, 10)
+	peers := make([]*naive.NaivePeer, len(l))
 	coord := naive.NewNaiveCoord(cutoff)
 	runner.Add(coord)
 	for i, list := range l {
@@ -28,7 +31,7 @@ func runNaive(l []disttopk.ItemList, cutoff int) disttopk.ItemList {
 
 func runTput(l []disttopk.ItemList, k int) disttopk.ItemList {
 	runner := stream.NewRunner()
-	peers := make([]*tput.Peer, 10)
+	peers := make([]*tput.Peer, len(l))
 	coord := tput.NewCoord(k)
 	runner.Add(coord)
 	for i, list := range l {
@@ -43,7 +46,7 @@ func runTput(l []disttopk.ItemList, k int) disttopk.ItemList {
 
 func runCm(l []disttopk.ItemList, k int, eps float64, delta float64) disttopk.ItemList {
 	runner := stream.NewRunner()
-	peers := make([]*cm.Peer, 10)
+	peers := make([]*cm.Peer, len(l))
 	coord := cm.NewCoord(k)
 	runner.Add(coord)
 	for i, list := range l {
@@ -58,7 +61,7 @@ func runCm(l []disttopk.ItemList, k int, eps float64, delta float64) disttopk.It
 
 func runCmFilter(l []disttopk.ItemList, k int, eps float64, delta float64) disttopk.ItemList {
 	runner := stream.NewRunner()
-	peers := make([]*cmfilter.Peer, 10)
+	peers := make([]*cmfilter.Peer, len(l))
 	coord := cmfilter.NewCoord(k)
 	runner.Add(coord)
 	for i, list := range l {
@@ -71,9 +74,68 @@ func runCmFilter(l []disttopk.ItemList, k int, eps float64, delta float64) distt
 	return coord.FinalList
 }
 
+func getRecall(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
+	em := exact.AddToMap(nil)
+	found := 0
+	for i := 0; i < k; i++ {
+		item := approx[i]
+		_, ok := em[item.Id]
+		if ok {
+			found += 1
+		}
+	}
+	return float64(found) / float64(k)
+}
+
+func getScoreError(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
+	err := 0.0
+	for i := 0; i < k; i++ {
+		aitem := approx[i]
+		eitem := exact[i]
+		e := 0.0
+		if aitem.Score > eitem.Score {
+			e = aitem.Score - eitem.Score
+		} else {
+			e = eitem.Score - aitem.Score
+		}
+		err += e
+	}
+	return err / float64(k)
+}
+
+func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
+	err := 0.0
+	for i := 0; i < k; i++ {
+		aitem := approx[i]
+		eitem := exact[i]
+		e := 0.0
+		if aitem.Score > eitem.Score {
+			e = aitem.Score - eitem.Score
+		} else {
+			e = eitem.Score - aitem.Score
+		}
+		err += (e / eitem.Score)
+	}
+	return err / float64(k)
+}
+
 func main() {
 
-	l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/test_log")
+	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/test_log")
+	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/comp/wc*")
+
+	//f, err := os.Create("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
+	f, err := os.Open("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
+	if err != nil {
+		panic(err)
+	}
+	dec := gob.NewDecoder(f)
+	var l []disttopk.ItemList
+	if err = dec.Decode(&l); err != nil {
+		panic(err)
+	}
+	//enc := gob.NewEncoder(f)
+	//enc.Encode(l)
 
 	//l := disttopk.GetListSet(10, 10000, 0.8, 0.7)
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
@@ -88,16 +150,28 @@ func main() {
 		}
 	}
 
-	k := 100
-	eps := 0.001
+	k := 10
+	eps := 0.0001
 	fmt.Println("#Items ", items, ", #lists", len(l), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
 	naivel := runNaive(l, 0)
-	naivecutl := runNaive(l, k*5)
-	tputl := runTput(l, k)
+
+	info := ""
+	for _, knaive := range []int{10, 50, 100} {
+		for _, headroom := range []int{1, 2, 5, 10, 15} {
+			naivecutl := runNaive(l, knaive*headroom)
+			fmt.Println("Naiive k", knaive, " headroom", headroom, " recall ", getRecall(naivel, naivecutl, k), " Score err ", getScoreError(naivel, naivecutl, k), " Rel ", getScoreErrorRel(naivel, naivecutl, k))
+			info += fmt.Sprintln(knaive, headroom, getRecall(naivel, naivecutl, k), getScoreError(naivel, naivecutl, k), getScoreErrorRel(naivel, naivecutl, k))
+		}
+	}
+	fmt.Println(info)
+	runtime.GC()
+	runTput(l, k)
+	runtime.GC()
+
 	cml := runCmFilter(l, k, eps, 0.01)
 
-	_ = naivecutl
-	_ = tputl
+	//_ = naivecutl
+	//_ = tputl
 	_ = cml
 
 	match := true

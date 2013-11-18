@@ -72,6 +72,10 @@ type CountMinSketch struct {
 	Data []uint32
 }
 
+func (c *CountMinSketch) ByteSize() int {
+	return len(c.Data) * 4
+}
+
 func NewCountMinSketchPb(err float64, prob float64) *CountMinSketch {
 	hashes := math.Ceil(math.Log(1.0 / prob))
 	columns := math.Ceil(math.E / err)
@@ -112,6 +116,9 @@ func (s *CountMinSketch) Add(key []byte, count uint32) {
 	for hash := 0; hash < s.Hashes; hash++ {
 		index := s.GetIndex(key, uint32(hash))
 		s.Data[index] += count
+		/*if count > s.Data[index] {
+			s.Data[index] = count
+		}*/
 	}
 
 	/*// TODO: this is a bad implementation because we hash all twice in worst case.

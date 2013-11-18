@@ -74,12 +74,13 @@ func (src *Peer) Run() error {
 	}
 
 	m := src.list.AddToMap(nil)
+	ri := src.list.AddToReverseIndexMap(nil)
 
 	exactlist := make([]disttopk.Item, 0)
 	for _, id := range ids {
+		index, ok := ri[id]
 		score, ok := m[id]
-		_ = ok
-		if ok && score < thresh && score <= src.list[src.k].Score { //haven't sent before
+		if ok && score < thresh && index > src.k { //haven't sent before
 			exactlist = append(exactlist, disttopk.Item{id, m[id]})
 		}
 	}

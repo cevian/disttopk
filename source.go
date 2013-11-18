@@ -54,6 +54,16 @@ func (il ItemList) AddToMap(m map[int]float64) map[int]float64 {
 	return m
 }
 
+func (il ItemList) AddToReverseIndexMap(m map[int]int) map[int]int {
+	if m == nil {
+		m = make(map[int]int)
+	}
+	for index, item := range il {
+		m[item.Id] = index
+	}
+	return m
+}
+
 func (il ItemList) AddToCountMap(m map[int]int) map[int]int {
 	if m == nil {
 		m = make(map[int]int)
