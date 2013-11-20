@@ -106,16 +106,25 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 	}*/
 
 	topk := 10
-	//n := 33
-	//scorek := list[topk-1].Score
-	//minscore := uint32(scorek) / n
+	n := 33
+	scorek := list[topk-1].Score
+	minscore := uint32(scorek) / uint32(n)
 
-	perList := topk * 5
+	lastindex := len(list) - 1
+	for i, item := range list {
+		if uint32(item.Score) < minscore {
+			lastindex = i
+			break
+		}
+	}
+
+	perList := ((lastindex + 1) / len(b.Data)) + 1
 	perBloom := perList
 
 	//m := EstimateMSimple(perBloom, 0.0001)
 	m := EstimateM(2700000, perBloom, RECORD_SIZE)
-	//fmt.Println("M = ", m)
+
+	fmt.Println("perList = ", perList, " lastindex ", lastindex, "minscore", minscore, "score-k", scorek)
 
 	listindex := 0
 	for k, _ := range b.Data {
@@ -172,8 +181,34 @@ func (s *BloomSketch) Deb(key []byte) {
 
 }
 
+func (s *BloomSketch) LowestMax() uint32 {
+	return s.Data[len(s.Data)-1].max
+}
+
+func (s *BloomSketch) CutoffChangePop() uint32 {
+	if len(s.Data) > 0 {
+		return s.LowestMax() - s.Cutoff()
+	}
+	return 0
+}
+
+func (s *BloomSketch) Cutoff() uint32 {
+	return s.cutoff
+}
+
+func (s *BloomSketch) Pop() uint32 {
+	max := s.Data[len(s.Data)-1].max
+	s.Data = s.Data[:len(s.Data)-1]
+	old_cutoff := s.cutoff
+	s.cutoff = max
+	return max - old_cutoff
+}
+
 func (s *BloomSketch) GetIndexes(key []byte) []uint32 {
-	return s.Data[0].filter.GetIndexes(key)
+	if len(s.Data) > 0 {
+		return s.Data[0].filter.GetIndexes(key)
+	}
+	return nil
 }
 
 func (s *BloomSketch) QueryIndexes(idx []uint32) uint32 {
@@ -231,15 +266,37 @@ func (bc *BloomSketchCollection) ByteSize() int {
 	return t
 }
 
+func (bc *BloomSketchCollection) SetThresh(t uint32) {
+	bc.Thresh = t
+
+	cutoff := uint32(0)
+	for _, sk := range bc.sketches {
+		cutoff += sk.Cutoff()
+	}
+
+	none := false
+	for !none && cutoff < t {
+		none = true
+		for _, sk := range bc.sketches {
+			change := sk.CutoffChangePop()
+			if change > 0 && cutoff+change < t {
+				cutoff += sk.Pop()
+				none = false
+			}
+		}
+	}
+}
+
 func (bc *BloomSketchCollection) Merge(toadd Sketch) {
 	bs := toadd.(*BloomSketch)
 	bc.sketches = append(bc.sketches, bs)
 }
 
 func (bc *BloomSketchCollection) Query(key []byte) uint32 {
-	idx := bc.sketches[0].GetIndexes(key)
+	//idx := bc.sketches[0].GetIndexes(key)
 	t := uint32(0)
 	for _, sk := range bc.sketches {
+		idx := sk.GetIndexes(key)
 		t += sk.QueryIndexes(idx)
 	}
 	return t
@@ -264,9 +321,13 @@ func (s *BloomSketchCollection) Passes(key []byte) bool {
 }
 
 func (bc *BloomSketchCollection) GetInfo() string {
-	s := fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches))
-	/*for _, sk := range bc.sketches {
-		s += "\n" + sk.GetInfo()
-	}*/
+	s := ""
+	tot := uint32(0)
+	for k, sk := range bc.sketches {
+		s += fmt.Sprintln("\n k", k, "filters = ", len(sk.Data), "cutoff", sk.cutoff)
+		tot += sk.cutoff
+		//s += "\n" + sk.GetInfo()
+	}
+	s += fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches), "total cutoff", tot)
 	return s
 }

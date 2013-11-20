@@ -107,7 +107,7 @@ func NewBloomCoord(k int) *Coord {
 	guf := func(us UnionSketch, thresh uint32) UnionFilter {
 		//bs := us.(*disttopk.BloomSketch)
 		bs := us.(*disttopk.BloomSketchCollection)
-		bs.Thresh = thresh
+		bs.SetThresh(thresh)
 		return bs
 	}
 
@@ -134,6 +134,7 @@ type UnionSketch interface {
 type UnionFilter interface {
 	PassesInt(int) bool
 	ByteSize() int
+	GetInfo() string
 }
 
 type Coord struct {
@@ -210,8 +211,11 @@ func (src *Coord) Run() error {
 	bytes := bytesRound
 
 	total_back_bytes := 0
+	uf := src.getUnionFilter(ucm, uint32(localthresh))
+	fmt.Println(uf.GetInfo())
+
 	for _, ch := range src.backPointers {
-		uf := src.getUnionFilter(ucm, uint32(localthresh))
+		//uf := src.getUnionFilter(ucm, uint32(localthresh))
 		total_back_bytes += uf.ByteSize()
 		select {
 		case ch <- SecondRound{uf}:

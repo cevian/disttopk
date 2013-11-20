@@ -143,6 +143,7 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 
 func main() {
 
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/test_log")
 	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/comp/wc*")
 
