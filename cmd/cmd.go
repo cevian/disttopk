@@ -6,10 +6,12 @@ import (
 	"github.com/cevian/disttopk/cmfilter"
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
+	"github.com/cevian/disttopk/tworound"
 	"github.com/cloudflare/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
 	"encoding/gob"
 	"fmt"
+	"math"
 	"os"
 	"runtime"
 )
@@ -66,6 +68,26 @@ func runCmFilter(l []disttopk.ItemList, k int, eps float64, delta float64) distt
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = cmfilter.NewPeer(list, k, eps, delta)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList
+}
+
+func runBloomSketch(l []disttopk.ItemList, k int, numbloom int, N_est int) disttopk.ItemList {
+	runner := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := tworound.NewBloomCoord(k)
+	N_est = 100000 * 33
+	n := N_est / len(l)
+	m_alt := disttopk.EstimateM(N_est, numbloom, disttopk.RECORD_SIZE)
+	m := int(1.44*math.Log2(1.0/0.01)) * n
+	fmt.Println("Estimating m at", m, " alt ", m_alt)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = tworound.NewBloomPeer(list, k, m, N_est/len(l), numbloom)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
@@ -154,22 +176,25 @@ func main() {
 	eps := 0.0001
 	fmt.Println("#Items ", items, ", #lists", len(l), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
 	naivel := runNaive(l, 0)
-
-	info := ""
-	for _, knaive := range []int{10, 50, 100} {
-		for _, headroom := range []int{1, 2, 5, 10, 15} {
-			naivecutl := runNaive(l, knaive*headroom)
-			fmt.Println("Naiive k", knaive, " headroom", headroom, " recall ", getRecall(naivel, naivecutl, k), " Score err ", getScoreError(naivel, naivecutl, k), " Rel ", getScoreErrorRel(naivel, naivecutl, k))
-			info += fmt.Sprintln(knaive, headroom, getRecall(naivel, naivecutl, k), getScoreError(naivel, naivecutl, k), getScoreErrorRel(naivel, naivecutl, k))
+	/*
+		info := ""
+		for _, knaive := range []int{10, 50, 100} {
+			for _, headroom := range []int{1, 2, 5, 10, 15} {
+				naivecutl := runNaive(l, knaive*headroom)
+				fmt.Println("Naiive k", knaive, " headroom", headroom, " recall ", getRecall(naivel, naivecutl, k), " Score err ", getScoreError(naivel, naivecutl, k), " Rel ", getScoreErrorRel(naivel, naivecutl, k))
+				info += fmt.Sprintln(knaive, headroom, getRecall(naivel, naivecutl, k), getScoreError(naivel, naivecutl, k), getScoreErrorRel(naivel, naivecutl, k))
+			}
 		}
-	}
-	fmt.Println(info)
-	runtime.GC()
-	runTput(l, k)
-	runtime.GC()
+		fmt.Println(info)
+		runtime.GC()
+		runTput(l, k)
+		runtime.GC()
 
-	cml := runCmFilter(l, k, eps, 0.01)
-
+		cml := runCmFilter(l, k, eps, 0.01)
+	*/
+	//runTput(l, k)
+	runtime.GC()
+	cml := runBloomSketch(l, k, 10, 100000)
 	//_ = naivecutl
 	//_ = tputl
 	_ = cml

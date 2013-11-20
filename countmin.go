@@ -7,16 +7,17 @@ package disttopk
 
 import (
 	"encoding/binary"
+	"fmt"
 	"hash/fnv"
 	"math"
 	"math/rand"
 )
 
 type Sketch interface {
-	Add([]byte, uint32)
+	//Add([]byte, uint32)
 	Query([]byte) uint32
-	AddString(string, uint32)
-	QueryString(string) uint32
+	//AddString(string, uint32)
+	//QueryString(string) uint32
 	Merge(Sketch)
 }
 
@@ -50,7 +51,7 @@ func NewCountMinHash(hashes int, columns int) *CountMinHash {
 	return &s
 }
 
-func (s *CountMinHash) GetIndex(key []byte, hashNo uint32) uint32 {
+func (s *CountMinHash) GetIndexNoOffset(key []byte, hashNo uint32) uint32 {
 	a := s.hasha[hashNo]
 	b := s.hashb[hashNo]
 
@@ -64,7 +65,14 @@ func (s *CountMinHash) GetIndex(key []byte, hashNo uint32) uint32 {
 	columns := uint32(s.Columns)
 	index := uint32(result) % columns
 
-	return hashNo*columns + index
+	return index
+}
+
+func (s *CountMinHash) GetIndex(key []byte, hashNo uint32) uint32 {
+
+	columns := uint32(s.Columns)
+
+	return hashNo*columns + s.GetIndexNoOffset(key, hashNo)
 }
 
 type CountMinSketch struct {
@@ -74,6 +82,22 @@ type CountMinSketch struct {
 
 func (c *CountMinSketch) ByteSize() int {
 	return len(c.Data) * 4
+}
+
+func (c *CountMinSketch) GetInfo() string {
+	cmItems := c.Hashes * c.Columns
+
+	ret := fmt.Sprintln("Count min: hashes ", c.Hashes, "Columns", c.Columns, "Items", cmItems)
+
+	return ret
+
+}
+
+func (c *CountMinSketch) CreateFromList(list ItemList) {
+	for _, v := range list {
+		c.AddInt(v.Id, uint32(v.Score))
+	}
+
 }
 
 func NewCountMinSketchPb(err float64, prob float64) *CountMinSketch {

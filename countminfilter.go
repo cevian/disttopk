@@ -1,6 +1,9 @@
 package disttopk
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"math"
+)
 
 type CountMinFilter struct {
 	*CountMinHash
@@ -23,6 +26,10 @@ func NewCountMinFilterFromSketch(cms *CountMinSketch, thresh uint32) *CountMinFi
 	}
 
 	return cmf
+}
+
+func (c *CountMinFilter) ByteSize() int {
+	return int(math.Ceil((float64(len(c.Data)) / 8.0)))
 }
 
 func (s *CountMinFilter) QueryInt(key int) bool {
