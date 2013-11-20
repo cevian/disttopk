@@ -105,17 +105,25 @@ func NewBloomCoord(k int) *Coord {
 	}
 
 	guf := func(us UnionSketch, thresh uint32) UnionFilter {
-		bs := us.(*disttopk.BloomSketch)
+		//bs := us.(*disttopk.BloomSketch)
+		bs := us.(*disttopk.BloomSketchCollection)
 		bs.Thresh = thresh
 		return bs
 	}
 
-	return NewCoord(k, deserialize, guf)
+	gus := func(frs FirstRoundSketch) UnionSketch {
+		bs := frs.(*disttopk.BloomSketch)
+		bsc := disttopk.NewBloomSketchCollection()
+		bsc.Merge(bs)
+		return bsc
+	}
+
+	return NewCoord(k, deserialize, guf, gus)
 }
 
 func NewCoord(k int,
-	des func(FirstRoundSerialized) FirstRoundSketch, guf func(UnionSketch, uint32) UnionFilter) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, des, guf}
+	des func(FirstRoundSerialized) FirstRoundSketch, guf func(UnionSketch, uint32) UnionFilter, gus func(FirstRoundSketch) UnionSketch) *Coord {
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, des, guf, gus}
 }
 
 type UnionSketch interface {
@@ -137,6 +145,7 @@ type Coord struct {
 	k              int
 	deserialize    func(FirstRoundSerialized) FirstRoundSketch
 	getUnionFilter func(UnionSketch, uint32) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
+	getUnionSketch func(FirstRoundSketch) UnionSketch
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -178,7 +187,7 @@ func (src *Coord) Run() error {
 			//sketchsize += cm.ByteSize()
 
 			if ucm == nil {
-				ucm = cm.(UnionSketch)
+				ucm = src.getUnionSketch(cm)
 			} else {
 				ucm.Merge(cm.(disttopk.Sketch))
 			}

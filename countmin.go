@@ -18,7 +18,7 @@ type Sketch interface {
 	Query([]byte) uint32
 	//AddString(string, uint32)
 	//QueryString(string) uint32
-	Merge(Sketch)
+	//	Merge(Sketch)
 }
 
 type CountMinHash struct {

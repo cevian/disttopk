@@ -2,6 +2,7 @@ package disttopk
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 )
 
@@ -11,14 +12,15 @@ type Bloom struct {
 	k    int
 }
 
-func EstimateM(N_est int, numbloom int, penalty int) int {
-	n := N_est / numbloom
-	m := math.Ceil(1.44 * float64(n) * math.Log2(float64(penalty)*math.Log(2)*(float64(numbloom)-1.0)/1.44))
+func EstimateM(N_est int, n_est int, penalty int) int {
+	eps := (2.0 * 1.44) / (float64(penalty) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	m := EstimateMSimple(n_est, eps)
+	fmt.Println("eps = ", eps, " m = ", int(m), " bytes = ", int(m)/8)
 	return int(m)
 }
 
 func EstimateMSimple(n int, eps float64) int {
-	return int(1.44*math.Log2(1.0/eps)) * n
+	return int(math.Ceil(1.44*math.Log2(1.0/eps))) * n
 }
 
 func NewOptBloom(n int, N int, penalty int) *Bloom {
@@ -65,6 +67,27 @@ func (b *Bloom) Add(id []byte) {
 		index := b.GetIndexNoOffset(id, uint32(hash))
 		b.Data[index] = true
 	}
+}
+
+func (s *Bloom) GetIndexes(key []byte) []uint32 {
+	idx := make([]uint32, s.k)
+	for hash := 0; hash < s.k; hash++ {
+		index := s.GetIndexNoOffset(key, uint32(hash))
+		idx[hash] = index
+	}
+	return idx
+}
+
+func (s *Bloom) QueryIndexes(idx []uint32) bool {
+	if len(idx) != s.k {
+		panic("wrong num idx")
+	}
+	for _, id := range idx {
+		if false == s.Data[id] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Bloom) Query(key []byte) bool {

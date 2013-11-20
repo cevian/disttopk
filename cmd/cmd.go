@@ -165,16 +165,19 @@ func main() {
 
 	l1norm := 0.0
 	items := 0
+	ids := make(map[int]bool)
 	for _, list := range l {
 		items += len(list)
 		for _, item := range list {
 			l1norm += item.Score
+			ids[item.Id] = true
 		}
 	}
 
 	k := 10
 	eps := 0.0001
-	fmt.Println("#Items ", items, ", #lists", len(l), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
+	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(l), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
+	ids = make(map[int]bool)
 	naivel := runNaive(l, 0)
 	/*
 		info := ""
