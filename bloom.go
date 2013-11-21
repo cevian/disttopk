@@ -78,6 +78,23 @@ func (s *Bloom) GetIndexes(key []byte) []uint32 {
 	return idx
 }
 
+func (s *Bloom) NumberHashes() int {
+	return s.k
+}
+
+func (s *Bloom) QueryHashValues(hvs []uint32) bool {
+	if len(hvs) < s.k {
+		panic("wrong num idx")
+	}
+	cols := s.Columns
+	for _, hv := range hvs[:s.k] {
+		if false == s.Data[hv%uint32(cols)] {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Bloom) QueryIndexes(idx []uint32) bool {
 	if len(idx) != s.k {
 		panic("wrong num idx")

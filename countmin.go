@@ -51,7 +51,17 @@ func NewCountMinHash(hashes int, columns int) *CountMinHash {
 	return &s
 }
 
-func (s *CountMinHash) GetIndexNoOffset(key []byte, hashNo uint32) uint32 {
+func (s *CountMinHash) GetHashValues(key []byte) []uint32 {
+	hvs := make([]uint32, s.Hashes)
+	for hash := 0; hash < s.Hashes; hash++ {
+		index := s.GetIndexNoOffsetNoMod(key, uint32(hash))
+		hvs[hash] = index
+	}
+	return hvs
+
+}
+
+func (s *CountMinHash) GetIndexNoOffsetNoMod(key []byte, hashNo uint32) uint32 {
 	a := s.hasha[hashNo]
 	b := s.hashb[hashNo]
 
@@ -62,9 +72,14 @@ func (s *CountMinHash) GetIndexNoOffset(key []byte, hashNo uint32) uint32 {
 	result := (uint64(a) * x) + uint64(b)
 	result = ((result >> 31) + result) & ((1 << 31) - 1)
 
-	columns := uint32(s.Columns)
-	index := uint32(result) % columns
+	index := uint32(result)
+	return index
+}
 
+func (s *CountMinHash) GetIndexNoOffset(key []byte, hashNo uint32) uint32 {
+	columns := uint32(s.Columns)
+	result := s.GetIndexNoOffsetNoMod(key, hashNo)
+	index := result % columns
 	return index
 }
 

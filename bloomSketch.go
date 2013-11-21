@@ -3,6 +3,7 @@ package disttopk
 import (
 	"encoding/binary"
 	"fmt"
+	"sort"
 )
 
 type BloomEntry struct {
@@ -118,32 +119,90 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 		}
 	}
 
+	//count := lastindex + 1
+
 	perList := ((lastindex + 1) / len(b.Data)) + 1
-	perBloom := perList
+	//perBloom := perList
 
 	//m := EstimateMSimple(perBloom, 0.0001)
-	m := EstimateM(2700000, perBloom, RECORD_SIZE)
+	//m := EstimateM(2700000, perBloom, RECORD_SIZE)
 
 	fmt.Println("perList = ", perList, " lastindex ", lastindex, "minscore", minscore, "score-k", scorek)
 
 	listindex := 0
-	for k, _ := range b.Data {
-
-		b.Data[k] = &BloomEntry{NewBloomSimpleEst(m, perBloom), 0, 0}
-
-		first := true
+	items := topk
+	b.Data = make([]*BloomEntry, 0)
+	for listindex <= lastindex {
 		orig := listindex
-		for listindex < len(list) && (listindex <= (perList)*(k+1)) {
-			b.Data[k].filter.AddInt(list[listindex].Id)
+		corrected_items := items
+		if items > lastindex-listindex+1 {
+			corrected_items = lastindex - listindex + 1
+		}
+		m := EstimateM(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
+		entry := &BloomEntry{NewBloomSimpleEst(m, corrected_items), 0, 0}
+
+		endindex := listindex + corrected_items
+		first := true
+		for listindex < len(list) && (listindex < endindex) {
+			entry.filter.AddInt(list[listindex].Id)
 			if first {
-				b.Data[k].max = uint32(list[listindex].Score)
+				entry.max = uint32(list[listindex].Score)
 				first = false
 			}
 			listindex += 1
 		}
-		b.Data[k].n_max = listindex - orig
-		//fmt.Println("Interval", k, "max", b.Data[k].max, "min", list[listindex-1].Score, "#", listindex-orig)
+		entry.n_max = listindex - orig
+		b.Data = append(b.Data, entry)
+		fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[listindex-1].Score, "#", listindex-orig, "m", m)
+		items = (items << 2)
 	}
+
+	/*
+		for k, _ := range b.Data {
+
+			first := true
+			orig := listindex
+
+			totalblooms := len(b.Data)
+
+
+			//items := 0
+			//div := 3
+			//perlevel := (totalblooms - 1)/(div-1)
+			//if (k==0){
+			//	items = int(float64(count) * (1.0 / float64((totalblooms-1)*)))
+			//}
+
+
+
+
+			//items := perList
+			items := 0
+			if k == 0 {
+				items = int(float64(count) * (1.0 / float64((totalblooms-1)*2)))
+			} else {
+				items = int(float64(count) * (1.0 / float64((totalblooms-k)*2)))
+			}
+
+			m := EstimateM(2700000, items, RECORD_SIZE) // * (totalblooms - (k - 1))
+			b.Data[k] = &BloomEntry{NewBloomSimpleEst(m, items), 0, 0}
+
+			endindex := listindex + items
+			if k == len(b.Data)-1 && endindex < lastindex {
+				endindex = lastindex + 1
+			}
+
+			for listindex < len(list) && (listindex < endindex) {
+				b.Data[k].filter.AddInt(list[listindex].Id)
+				if first {
+					b.Data[k].max = uint32(list[listindex].Score)
+					first = false
+				}
+				listindex += 1
+			}
+			b.Data[k].n_max = listindex - orig
+			fmt.Println("Interval", k, "max", b.Data[k].max, "min", list[listindex-1].Score, "#", listindex-orig, "m", m, "items", items)
+		}*/
 	if listindex < len(list) {
 		b.cutoff = uint32(list[listindex].Score)
 	}
@@ -211,6 +270,42 @@ func (s *BloomSketch) GetIndexes(key []byte) []uint32 {
 	return nil
 }
 
+func (s *BloomSketch) NumberHashes() int {
+	max := 0
+	for _, entry := range s.Data {
+		if entry.filter.NumberHashes() > max {
+			max = entry.filter.NumberHashes()
+		}
+	}
+	return max
+}
+func (s *BloomSketch) GetHashValues(key []byte) []uint32 {
+	if len(s.Data) == 0 {
+		return nil
+	}
+
+	max := 0
+	index := 0
+	for i, entry := range s.Data {
+		if entry.filter.NumberHashes() > max {
+			max = entry.filter.NumberHashes()
+			index = i
+		}
+	}
+
+	return s.Data[index].filter.GetHashValues(key)
+
+}
+
+func (s *BloomSketch) QueryHashValues(hvs []uint32) uint32 {
+	for _, entry := range s.Data {
+		if entry.filter.QueryHashValues(hvs) {
+			return entry.max
+		}
+	}
+	return s.cutoff
+}
+
 func (s *BloomSketch) QueryIndexes(idx []uint32) uint32 {
 	for _, entry := range s.Data {
 		if entry.filter.QueryIndexes(idx) {
@@ -254,6 +349,25 @@ type BloomSketchCollection struct {
 	Thresh   uint32
 }
 
+// Len is part of sort.Interface.
+func (s *BloomSketchCollection) Len() int {
+	return len(s.sketches)
+}
+
+// Swap is part of sort.Interface.
+func (s *BloomSketchCollection) Swap(i, j int) {
+	s.sketches[i], s.sketches[j] = s.sketches[j], s.sketches[i]
+}
+
+// Less is part of sort.Interface. It is implemented by calling the "by" closure in the sorter.
+func (s *BloomSketchCollection) Less(i, j int) bool {
+	return s.sketches[i].CutoffChangePop() < s.sketches[j].CutoffChangePop()
+}
+
+func (s *BloomSketchCollection) Sort() {
+	sort.Sort(s)
+}
+
 func NewBloomSketchCollection() *BloomSketchCollection {
 	return &BloomSketchCollection{make([]*BloomSketch, 0), 0}
 }
@@ -277,6 +391,7 @@ func (bc *BloomSketchCollection) SetThresh(t uint32) {
 	none := false
 	for !none && cutoff < t {
 		none = true
+		bc.Sort()
 		for _, sk := range bc.sketches {
 			change := sk.CutoffChangePop()
 			if change > 0 && cutoff+change < t {
@@ -294,10 +409,23 @@ func (bc *BloomSketchCollection) Merge(toadd Sketch) {
 
 func (bc *BloomSketchCollection) Query(key []byte) uint32 {
 	//idx := bc.sketches[0].GetIndexes(key)
+	max := 0
+	index := 0
+	for i, sk := range bc.sketches {
+		if sk.NumberHashes() > max {
+			max = sk.NumberHashes()
+			index = i
+		}
+	}
+
+	hvs := bc.sketches[index].GetHashValues(key)
+
 	t := uint32(0)
 	for _, sk := range bc.sketches {
-		idx := sk.GetIndexes(key)
-		t += sk.QueryIndexes(idx)
+		//idx := sk.GetIndexes(key)
+
+		//t += sk.QueryIndexes(idx)
+		t += sk.QueryHashValues(hvs)
 	}
 	return t
 }
@@ -323,11 +451,18 @@ func (s *BloomSketchCollection) Passes(key []byte) bool {
 func (bc *BloomSketchCollection) GetInfo() string {
 	s := ""
 	tot := uint32(0)
+	tot_nmax := 0
 	for k, sk := range bc.sketches {
-		s += fmt.Sprintln("\n k", k, "filters = ", len(sk.Data), "cutoff", sk.cutoff)
+		max := 0
+		for _, entry := range sk.Data {
+			max += entry.n_max
+		}
+		tot_nmax += max
+
+		s += fmt.Sprintln("k", k, "filters = ", len(sk.Data), "cutoff", sk.cutoff, "n_max (total) ", max)
 		tot += sk.cutoff
 		//s += "\n" + sk.GetInfo()
 	}
-	s += fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches), "total cutoff", tot)
+	s += fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches), "total cutoff", tot, "total nmax", tot_nmax)
 	return s
 }
