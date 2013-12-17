@@ -10,6 +10,7 @@ type BloomEntry struct {
 	filter *Bloom
 	max    uint32
 	n_max  int
+	eps    float64
 }
 
 type BloomSketch struct {
@@ -138,8 +139,9 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 		if items > lastindex-listindex+1 {
 			corrected_items = lastindex - listindex + 1
 		}
-		m := EstimateM(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
-		entry := &BloomEntry{NewBloomSimpleEst(m, corrected_items), 0, 0}
+		m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
+		eps := EstimateEps(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
+		entry := &BloomEntry{NewBloomSimpleEst(m, corrected_items), 0, 0, eps}
 
 		endindex := listindex + corrected_items
 		first := true
@@ -153,7 +155,7 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 		}
 		entry.n_max = listindex - orig
 		b.Data = append(b.Data, entry)
-		fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[listindex-1].Score, "#", listindex-orig, "m", m)
+		fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[listindex-1].Score, "#", listindex-orig, "m", m, "k", entry.filter.Hashes)
 		items = (items << 2)
 	}
 
@@ -345,8 +347,10 @@ func (s *BloomSketch) Merge(toadd Sketch) {
 }*/
 
 type BloomSketchCollection struct {
-	sketches []*BloomSketch
-	Thresh   uint32
+	sketches      []*BloomSketch
+	Thresh        uint32
+	stats_queried int
+	stats_passed  int
 }
 
 // Len is part of sort.Interface.
@@ -369,7 +373,7 @@ func (s *BloomSketchCollection) Sort() {
 }
 
 func NewBloomSketchCollection() *BloomSketchCollection {
-	return &BloomSketchCollection{make([]*BloomSketch, 0), 0}
+	return &BloomSketchCollection{make([]*BloomSketch, 0), 0, 0, 0}
 }
 
 func (bc *BloomSketchCollection) ByteSize() int {
@@ -437,6 +441,7 @@ func (s *BloomSketchCollection) PassesInt(key int) bool {
 }
 
 func (s *BloomSketchCollection) Passes(key []byte) bool {
+	s.stats_queried += 1
 	if s.Thresh == 0 {
 		panic("Thresh not sent")
 	}
@@ -445,17 +450,44 @@ func (s *BloomSketchCollection) Passes(key []byte) bool {
 		s.Deb(key)
 		fmt.Println("Pass", s.Query(key), s.Thresh)
 	}*/
+	if pass {
+		s.stats_passed += 1
+	}
 	return pass
 }
+
+/*func (bc *BloomSketchCollection) GetInfo() string {
+	tot_nmax := 0
+	estimatedfp := 0.0
+	s := ""
+	for _, sk := range bc.sketches {
+		max := 0
+		for _, entry := range sk.Data {
+			max += entry.n_max
+			estimatedfp += float64(bc.stats_queried) * entry.eps
+		}
+		tot_nmax += max
+
+		//s += fmt.Sprintln("k", k, "filters = ", len(sk.Data), "cutoff", sk.cutoff, "n_max (total) ", max)
+		//tot += sk.cutoff
+		//s += "\n" + sk.GetInfo()
+	}
+	s += fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches), "queried", bc.stats_queried, "passed", bc.stats_passed, "fp", bc.stats_passed-tot_nmax, "estimated fp", estimatedfp)
+	return s
+}
+*/
 
 func (bc *BloomSketchCollection) GetInfo() string {
 	s := ""
 	tot := uint32(0)
 	tot_nmax := 0
+	items := 24000000
+	estimatedfp := 0.0
 	for k, sk := range bc.sketches {
 		max := 0
 		for _, entry := range sk.Data {
 			max += entry.n_max
+			estimatedfp += (float64(items)) * entry.eps
 		}
 		tot_nmax += max
 
@@ -463,6 +495,6 @@ func (bc *BloomSketchCollection) GetInfo() string {
 		tot += sk.cutoff
 		//s += "\n" + sk.GetInfo()
 	}
-	s += fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches), "total cutoff", tot, "total nmax", tot_nmax)
+	s += fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches), "total cutoff", tot, "total nmax (per sketch)", tot_nmax, "nmax sent by all", tot_nmax*33, " estimated fp", estimatedfp)
 	return s
 }

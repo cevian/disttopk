@@ -13,10 +13,15 @@ type Bloom struct {
 }
 
 func EstimateM(N_est int, n_est int, penalty int) int {
-	eps := (2.0 * 1.44) / (float64(penalty) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	eps := EstimateEps(N_est, n_est, penalty)
 	m := EstimateMSimple(n_est, eps)
 	fmt.Println("eps = ", eps, " m = ", int(m), " bytes = ", int(m)/8)
 	return int(m)
+}
+
+func EstimateEps(N_est int, n_est int, penalty int) float64 {
+	eps := (2.0 * 1.44) / (float64(penalty) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	return eps
 }
 
 func EstimateMSimple(n int, eps float64) int {

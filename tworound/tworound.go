@@ -90,6 +90,8 @@ func (src *Peer) Run() error {
 		}
 	}
 
+	//fmt.Println("SR", sr.cmf.GetInfo())
+
 	select {
 	case src.forward <- disttopk.DemuxObject{src.id, disttopk.ItemList(exactlist)}:
 	case <-src.StopNotifier:
@@ -108,7 +110,15 @@ func NewBloomCoord(k int) *Coord {
 		//bs := us.(*disttopk.BloomSketch)
 		bs := us.(*disttopk.BloomSketchCollection)
 		bs.SetThresh(thresh)
+
 		return bs
+	}
+
+	cuf := func(uf UnionFilter) UnionFilter {
+		bs := uf.(*disttopk.BloomSketchCollection)
+
+		copy_uf := *bs
+		return &copy_uf
 	}
 
 	gus := func(frs FirstRoundSketch) UnionSketch {
@@ -118,12 +128,12 @@ func NewBloomCoord(k int) *Coord {
 		return bsc
 	}
 
-	return NewCoord(k, deserialize, guf, gus)
+	return NewCoord(k, deserialize, guf, cuf, gus)
 }
 
 func NewCoord(k int,
-	des func(FirstRoundSerialized) FirstRoundSketch, guf func(UnionSketch, uint32) UnionFilter, gus func(FirstRoundSketch) UnionSketch) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, des, guf, gus}
+	des func(FirstRoundSerialized) FirstRoundSketch, guf func(UnionSketch, uint32) UnionFilter, cuf func(uf UnionFilter) UnionFilter, gus func(FirstRoundSketch) UnionSketch) *Coord {
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, des, guf, cuf, gus}
 }
 
 type UnionSketch interface {
@@ -139,14 +149,15 @@ type UnionFilter interface {
 
 type Coord struct {
 	*stream.HardStopChannelCloser
-	input          chan disttopk.DemuxObject
-	backPointers   []chan<- stream.Object
-	lists          [][]disttopk.Item
-	FinalList      []disttopk.Item
-	k              int
-	deserialize    func(FirstRoundSerialized) FirstRoundSketch
-	getUnionFilter func(UnionSketch, uint32) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
-	getUnionSketch func(FirstRoundSketch) UnionSketch
+	input           chan disttopk.DemuxObject
+	backPointers    []chan<- stream.Object
+	lists           [][]disttopk.Item
+	FinalList       []disttopk.Item
+	k               int
+	deserialize     func(FirstRoundSerialized) FirstRoundSketch
+	getUnionFilter  func(UnionSketch, uint32) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
+	copyUnionFilter func(UnionFilter) UnionFilter         //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
+	getUnionSketch  func(FirstRoundSketch) UnionSketch
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -212,13 +223,14 @@ func (src *Coord) Run() error {
 
 	total_back_bytes := 0
 	uf := src.getUnionFilter(ucm, uint32(localthresh))
-	fmt.Println(uf.GetInfo())
+	fmt.Println("Uf info: ", uf.GetInfo())
 
 	for _, ch := range src.backPointers {
 		//uf := src.getUnionFilter(ucm, uint32(localthresh))
+		cuf := src.copyUnionFilter(uf)
 		total_back_bytes += uf.ByteSize()
 		select {
-		case ch <- SecondRound{uf}:
+		case ch <- SecondRound{cuf}:
 		case <-src.StopNotifier:
 			return nil
 		}
