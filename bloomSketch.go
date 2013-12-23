@@ -133,10 +133,12 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 	listindex := 0
 	items := topk
 	b.Data = make([]*BloomEntry, 0)
-	for listindex <= lastindex {
+	i := 0
+	for listindex <= lastindex && i < 10 {
+		i += 1
 		orig := listindex
 		corrected_items := items
-		if items > lastindex-listindex+1 {
+		if items > lastindex-listindex+1 || i == 9 {
 			corrected_items = lastindex - listindex + 1
 		}
 		m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
@@ -156,7 +158,7 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 		entry.n_max = listindex - orig
 		b.Data = append(b.Data, entry)
 		fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[listindex-1].Score, "#", listindex-orig, "m", m, "k", entry.filter.Hashes)
-		items = (items << 2)
+		items = topk
 	}
 
 	/*
@@ -242,8 +244,16 @@ func (s *BloomSketch) Deb(key []byte) {
 
 }
 
+func (s *BloomSketch) LastEntry() *BloomEntry {
+	return s.Data[len(s.Data)-1]
+}
+
 func (s *BloomSketch) LowestMax() uint32 {
 	return s.Data[len(s.Data)-1].max
+}
+
+func (s *BloomSketch) ByteSizeLastFilter() int {
+	return s.Data[len(s.Data)-1].filter.ByteSize() + 4
 }
 
 func (s *BloomSketch) CutoffChangePop() uint32 {
@@ -363,9 +373,14 @@ func (s *BloomSketchCollection) Swap(i, j int) {
 	s.sketches[i], s.sketches[j] = s.sketches[j], s.sketches[i]
 }
 
+func (s *BloomSketchCollection) SketchScore(i int) float64 {
+	return float64(s.sketches[i].ByteSizeLastFilter()) / float64(s.sketches[i].CutoffChangePop())
+}
+
 // Less is part of sort.Interface. It is implemented by calling the "by" closure in the sorter.
 func (s *BloomSketchCollection) Less(i, j int) bool {
-	return s.sketches[i].CutoffChangePop() < s.sketches[j].CutoffChangePop()
+	return s.SketchScore(i) > s.SketchScore(j)
+	//return (float64(s.sketches[i].ByteSize()) / s.sketches[i].CutoffChangePop()) > (uint32(s.sketches[j].ByteSize()) / s.sketches[j].CutoffChangePop())
 }
 
 func (s *BloomSketchCollection) Sort() {
@@ -392,18 +407,26 @@ func (bc *BloomSketchCollection) SetThresh(t uint32) {
 		cutoff += sk.Cutoff()
 	}
 
-	none := false
-	for !none && cutoff < t {
-		none = true
-		bc.Sort()
-		for _, sk := range bc.sketches {
-			change := sk.CutoffChangePop()
-			if change > 0 && cutoff+change < t {
-				cutoff += sk.Pop()
-				none = false
-			}
-		}
+	/* cutoff the last, most expensive entry from each sketch */
+	count := 0
+	for cutoff < t && count < len(bc.sketches) {
+		cutoff += bc.sketches[count].Pop()
+		count++
 	}
+
+	/*
+		none := false
+		for !none && cutoff < t {
+			none = true
+			bc.Sort()
+			score := bc.SketchScore(0)
+			for score > 0.1 && cutoff+bc.sketches[0].CutoffChangePop() < (t) {
+				//fmt.Println("Popping", score, bc.sketches[0].ByteSizeLastFilter(), bc.sketches[0].CutoffChangePop(), bc.sketches[0].LastEntry().n_max)
+				cutoff += bc.sketches[0].Pop()
+				bc.Sort()
+				score = bc.SketchScore(0)
+			}
+		}*/
 }
 
 func (bc *BloomSketchCollection) Merge(toadd Sketch) {

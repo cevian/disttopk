@@ -215,4 +215,5 @@ func main() {
 	if match == true {
 		fmt.Println("Lists Match")
 	}
+	fmt.Println("The K'th Item:", naivel[k-1])
 }

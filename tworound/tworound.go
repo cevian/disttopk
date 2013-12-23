@@ -250,7 +250,7 @@ func (src *Coord) Run() error {
 	}
 
 	bytesRound = round2items*disttopk.RECORD_SIZE + total_back_bytes
-	fmt.Println("Round 2 cm: got ", round2items, " items, bytes", bytesRound)
+	fmt.Println("Round 2 cm: got ", round2items, " items, bytes record", round2items*disttopk.RECORD_SIZE, "bytes filter", total_back_bytes, " bytes", bytesRound)
 	bytes += bytesRound
 	fmt.Printf("Total bytes cm: %E\n", float64(bytes))
 
