@@ -88,6 +88,9 @@ func GolumbEncode(unsorted []int) []byte {
 }
 
 func GolumbParameter(sum uint, num_samples uint) uint {
+	//from Selecting the Golomb Parameter in Rice Coding by A. Kiely
+	//http://ipnpr.jpl.nasa.gov/progress_report/42-159/159E.pdf
+	//pg 11
 	a := uint(49)
 	b := uint(128)
 	k := uint(0)

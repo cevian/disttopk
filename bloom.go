@@ -6,10 +6,20 @@ import (
 	"math"
 )
 
+type BloomFilter interface {
+	//CreateNew() BloomFilter
+	ByteSize() int
+	Add(id []byte)
+	//AddInt(key int)
+	QueryHashValues(hvs []uint32) bool
+	Query(key []byte) bool
+	NumberHashes() int
+	GetHashValues(key []byte) []uint32
+}
+
 type Bloom struct {
 	*CountMinHash
 	Data []bool
-	k    int
 }
 
 func EstimateM(N_est int, n_est int, penalty int) int {
@@ -44,13 +54,12 @@ func NewBloom(k int, m int) *Bloom {
 	s := Bloom{
 		NewCountMinHash(k, m),
 		make([]bool, m),
-		k,
 	}
 	return &s
 }
 
 func (b *Bloom) CreateNew() *Bloom {
-	return NewBloom(b.k, len(b.Data))
+	return NewBloom(b.Hashes, len(b.Data))
 }
 
 func (b *Bloom) ByteSize() int {
@@ -68,15 +77,15 @@ func (s *Bloom) AddInt(key int) {
 }
 
 func (b *Bloom) Add(id []byte) {
-	for hash := 0; hash < b.k; hash++ {
+	for hash := 0; hash < b.NumberHashes(); hash++ {
 		index := b.GetIndexNoOffset(id, uint32(hash))
 		b.Data[index] = true
 	}
 }
 
 func (s *Bloom) GetIndexes(key []byte) []uint32 {
-	idx := make([]uint32, s.k)
-	for hash := 0; hash < s.k; hash++ {
+	idx := make([]uint32, s.NumberHashes())
+	for hash := 0; hash < s.NumberHashes(); hash++ {
 		index := s.GetIndexNoOffset(key, uint32(hash))
 		idx[hash] = index
 	}
@@ -84,15 +93,15 @@ func (s *Bloom) GetIndexes(key []byte) []uint32 {
 }
 
 func (s *Bloom) NumberHashes() int {
-	return s.k
+	return s.Hashes
 }
 
 func (s *Bloom) QueryHashValues(hvs []uint32) bool {
-	if len(hvs) < s.k {
+	if len(hvs) < s.NumberHashes() {
 		panic("wrong num idx")
 	}
 	cols := s.Columns
-	for _, hv := range hvs[:s.k] {
+	for _, hv := range hvs[:s.NumberHashes()] {
 		if false == s.Data[hv%uint32(cols)] {
 			return false
 		}
@@ -101,7 +110,7 @@ func (s *Bloom) QueryHashValues(hvs []uint32) bool {
 }
 
 func (s *Bloom) QueryIndexes(idx []uint32) bool {
-	if len(idx) != s.k {
+	if len(idx) != s.NumberHashes() {
 		panic("wrong num idx")
 	}
 	for _, id := range idx {
@@ -113,7 +122,7 @@ func (s *Bloom) QueryIndexes(idx []uint32) bool {
 }
 
 func (s *Bloom) Query(key []byte) bool {
-	for hash := 0; hash < s.k; hash++ {
+	for hash := 0; hash < s.NumberHashes(); hash++ {
 		index := s.GetIndexNoOffset(key, uint32(hash))
 		if false == s.Data[index] {
 			return false
@@ -136,7 +145,7 @@ func (s *Bloom) Merge(tom *Bloom) {
 	if len(s.Data) != len(tom.Data) {
 		panic("Data has to be the same length")
 	}
-	if s.k != tom.k {
+	if s.NumberHashes() != tom.NumberHashes() {
 		panic("k has to be the same")
 	}
 

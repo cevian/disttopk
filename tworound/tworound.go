@@ -8,16 +8,28 @@ import (
 	"math"
 )
 
-func NewBloomPeer(list disttopk.ItemList, k int, m int, n_est int, numbloom int) *Peer {
+func NewBloomPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
 	createSketch := func() FirstRoundSketch {
-		return disttopk.NewBloomSketch(numbloom, m, n_est)
+		return disttopk.NewBloomSketch(topk, numpeer, N_est)
 	}
 
 	serialize := func(c FirstRoundSketch) FirstRoundSerialized {
 		return c
 	}
 
-	return NewPeer(list, k, createSketch, serialize)
+	return NewPeer(list, topk, createSketch, serialize)
+}
+
+func NewBloomPeerGcs(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+	createSketch := func() FirstRoundSketch {
+		return disttopk.NewBloomSketchGcs(topk, numpeer, N_est)
+	}
+
+	serialize := func(c FirstRoundSketch) FirstRoundSerialized {
+		return c
+	}
+
+	return NewPeer(list, topk, createSketch, serialize)
 }
 
 func NewPeer(list disttopk.ItemList, k int, createSketch func() FirstRoundSketch, serialize func(FirstRoundSketch) FirstRoundSerialized) *Peer {

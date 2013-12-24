@@ -11,7 +11,6 @@ import (
 	//"github.com/cloudflare/go-stream/util/slog";
 	"encoding/gob"
 	"fmt"
-	"math"
 	"os"
 	"runtime"
 )
@@ -76,18 +75,32 @@ func runCmFilter(l []disttopk.ItemList, k int, eps float64, delta float64) distt
 	return coord.FinalList
 }
 
-func runBloomSketch(l []disttopk.ItemList, k int, numbloom int, N_est int) disttopk.ItemList {
+func runBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewBloomCoord(k)
-	N_est = 100000 * 33
-	n := N_est / len(l)
-	m_alt := disttopk.EstimateM(N_est, numbloom, disttopk.RECORD_SIZE)
-	m := int(1.44*math.Log2(1.0/0.01)) * n
-	fmt.Println("Estimating m at", m, " alt ", m_alt)
+	coord := tworound.NewBloomCoord(topk)
+	numpeer := 33
+	N_est := 2700000
 	runner.Add(coord)
 	for i, list := range l {
-		peers[i] = tworound.NewBloomPeer(list, k, m, N_est/len(l), numbloom)
+		peers[i] = tworound.NewBloomPeer(list, topk, numpeer, N_est)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList
+}
+
+func runBloomSketchGcs(l []disttopk.ItemList, topk int) disttopk.ItemList {
+	runner := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := tworound.NewBloomCoord(topk)
+	numpeer := 33
+	N_est := 2700000
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = tworound.NewBloomPeerGcs(list, topk, numpeer, N_est)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
@@ -148,6 +161,7 @@ func main() {
 	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/comp/wc*")
 
 	//f, err := os.Create("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
+	fmt.Println("Reading")
 	f, err := os.Open("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
 	if err != nil {
 		panic(err)
@@ -198,7 +212,7 @@ func main() {
 	*/
 	//runTput(l, k)
 	runtime.GC()
-	cml := runBloomSketch(l, k, 10, 100000)
+	cml := runBloomSketch(l, k)
 	//_ = naivecutl
 	//_ = tputl
 	_ = cml
