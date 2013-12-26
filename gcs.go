@@ -3,6 +3,7 @@ package disttopk
 import (
 	"encoding/binary"
 	//"fmt"
+	"io"
 	"math"
 	"sort"
 )
@@ -94,4 +95,41 @@ func (s *Gcs) contains(value uint32) bool {
 func (s *Gcs) Query(key []byte) bool {
 	index := s.GetIndexNoOffset(key, 0)
 	return s.contains(index)
+}
+
+func (p *Gcs) Serialize(w io.Writer) error {
+	m := p.CountMinHash.Columns
+
+	if err := SerializeIntAsU32(w, &m); err != nil {
+		return err
+	}
+
+	array := make([]int, len(p.Data))
+	for i, _ := range p.Data {
+		array[i] = int(p.Data[i])
+	}
+
+	return GolumbEncodeWriter(w, array)
+}
+
+func (p *Gcs) Deserialize(r io.Reader) error {
+
+	m := int(0)
+	if err := DeserializeIntAsU32(r, &m); err != nil {
+		return err
+	}
+
+	p.CountMinHash = NewCountMinHash(1, m)
+
+	array, err := GolumbDecodeReader(r)
+	if err != nil {
+		return err
+	}
+
+	p.Data = make([]uint32, len(array))
+	for i, _ := range array {
+		p.Data[i] = uint32(array[i])
+	}
+	return nil
+
 }

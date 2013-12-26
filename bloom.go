@@ -3,10 +3,14 @@ package disttopk
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 )
 
+var _ = fmt.Println
+
 type BloomFilter interface {
+	Serializer
 	//CreateNew() BloomFilter
 	ByteSize() int
 	Add(id []byte)
@@ -19,13 +23,13 @@ type BloomFilter interface {
 
 type Bloom struct {
 	*CountMinHash
-	Data []bool
+	Data *BitArray
 }
 
 func EstimateM(N_est int, n_est int, penalty int) int {
 	eps := EstimateEps(N_est, n_est, penalty)
 	m := EstimateMSimple(n_est, eps)
-	fmt.Println("eps = ", eps, " m = ", int(m), " bytes = ", int(m)/8)
+	//fmt.Println("eps = ", eps, " m = ", int(m), " bytes = ", int(m)/8)
 	return int(m)
 }
 
@@ -53,17 +57,17 @@ func NewBloomSimpleEst(m int, n_est int) *Bloom {
 func NewBloom(k int, m int) *Bloom {
 	s := Bloom{
 		NewCountMinHash(k, m),
-		make([]bool, m),
+		NewBitArray(uint(m)),
 	}
 	return &s
 }
 
 func (b *Bloom) CreateNew() *Bloom {
-	return NewBloom(b.Hashes, len(b.Data))
+	return NewBloom(b.Hashes, int(b.Data.NumBits()))
 }
 
 func (b *Bloom) ByteSize() int {
-	return (len(b.Data) / 8) + 4
+	return b.Data.ByteSize() + 8
 }
 
 func (s *Bloom) AddString(key string) {
@@ -79,7 +83,7 @@ func (s *Bloom) AddInt(key int) {
 func (b *Bloom) Add(id []byte) {
 	for hash := 0; hash < b.NumberHashes(); hash++ {
 		index := b.GetIndexNoOffset(id, uint32(hash))
-		b.Data[index] = true
+		b.Data.Set(uint(index))
 	}
 }
 
@@ -102,7 +106,9 @@ func (s *Bloom) QueryHashValues(hvs []uint32) bool {
 	}
 	cols := s.Columns
 	for _, hv := range hvs[:s.NumberHashes()] {
-		if false == s.Data[hv%uint32(cols)] {
+		index := uint(hv) % uint(cols)
+
+		if false == s.Data.Check(index) {
 			return false
 		}
 	}
@@ -114,7 +120,7 @@ func (s *Bloom) QueryIndexes(idx []uint32) bool {
 		panic("wrong num idx")
 	}
 	for _, id := range idx {
-		if false == s.Data[id] {
+		if false == s.Data.Check(uint(id)) {
 			return false
 		}
 	}
@@ -124,7 +130,7 @@ func (s *Bloom) QueryIndexes(idx []uint32) bool {
 func (s *Bloom) Query(key []byte) bool {
 	for hash := 0; hash < s.NumberHashes(); hash++ {
 		index := s.GetIndexNoOffset(key, uint32(hash))
-		if false == s.Data[index] {
+		if false == s.Data.Check(uint(index)) {
 			return false
 		}
 	}
@@ -142,14 +148,60 @@ func (s *Bloom) QueryInt(key int) bool {
 }
 
 func (s *Bloom) Merge(tom *Bloom) {
-	if len(s.Data) != len(tom.Data) {
-		panic("Data has to be the same length")
-	}
+
 	if s.NumberHashes() != tom.NumberHashes() {
 		panic("k has to be the same")
 	}
 
-	for k, v := range s.Data {
-		s.Data[k] = v || tom.Data[k]
-	}
+	s.Data.MergeOr(tom.Data)
 }
+
+func (p *Bloom) Serialize(w io.Writer) error {
+	if err := p.CountMinHash.Serialize(w); err != nil {
+		return err
+	}
+	return p.Data.Serialize(w)
+}
+
+func (p *Bloom) Deserialize(r io.Reader) error {
+	p.CountMinHash = &CountMinHash{}
+	if err := p.CountMinHash.Deserialize(r); err != nil {
+		return err
+	}
+	p.Data = &BitArray{}
+	return p.Data.Deserialize(r)
+
+}
+
+func (p *Bloom) Equal(obj *Bloom) bool {
+	return p.CountMinHash.Equal(obj.CountMinHash) && p.Data.Equal(obj.Data)
+}
+
+/*
+type bloomserialize struct {
+	CountMinHash **CountMinHash
+	Data         **BitArray
+}
+
+func (b *Bloom) export() *bloomserialize {
+	return &bloomserialize{CountMinHash: &b.CountMinHash, Data: &b.Data}
+}
+
+func (p *Bloom) GobEncode() ([]byte, error) {
+	prv := p.export()
+	buf := new(bytes.Buffer)
+	e := gob.NewEncoder(buf)
+	gob.Register(PlainFilterAdaptor{})
+	gob.Register(GcsFilterAdaptor{})
+	if err := e.Encode(prv); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (p *Bloom) GobDecode(b []byte) error {
+	prv := p.export()
+	buf := bytes.NewReader(b)
+	e := gob.NewDecoder(buf)
+	return e.Decode(&prv)
+}*/

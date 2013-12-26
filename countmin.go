@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math"
 	"math/rand"
 )
@@ -31,24 +32,35 @@ type CountMinHash struct {
 /* error margin within err (over) with probability prob*/
 
 func NewCountMinHash(hashes int, columns int) *CountMinHash {
+
+	s := CountMinHash{
+		Hashes:  hashes,
+		Columns: columns,
+	}
+
+	s.generateArrays()
+
+	return &s
+}
+
+type countMinHashSerialized struct {
+	Hashes  *int
+	Columns *int
+}
+
+func (s *CountMinHash) generateArrays() {
 	r := rand.New(rand.NewSource(99))
 
-	hasha := make([]uint32, hashes)
-	hashb := make([]uint32, hashes)
+	hasha := make([]uint32, s.Hashes)
+	hashb := make([]uint32, s.Hashes)
 
 	for k, _ := range hasha {
 		hasha[k] = r.Uint32()
 		hashb[k] = r.Uint32()
 	}
 
-	s := CountMinHash{
-		Hashes:  hashes,
-		Columns: columns,
-		hasha:   hasha,
-		hashb:   hashb,
-	}
-
-	return &s
+	s.hasha = hasha
+	s.hashb = hashb
 }
 
 func (s *CountMinHash) GetHashValues(key []byte) []uint32 {
@@ -88,6 +100,10 @@ func (s *CountMinHash) GetIndex(key []byte, hashNo uint32) uint32 {
 	columns := uint32(s.Columns)
 
 	return hashNo*columns + s.GetIndexNoOffset(key, hashNo)
+}
+
+func (s *CountMinHash) ByteSize() int {
+	return 8
 }
 
 type CountMinSketch struct {
@@ -214,3 +230,63 @@ func (s *CountMinSketch) Merge(toadd Sketch) {
 		s.Data[k] += cm.Data[k]
 	}
 }
+
+func (p *CountMinHash) Serialize(w io.Writer) error {
+	hashes := uint32(p.Hashes)
+	columns := uint32(p.Columns)
+
+	if err := binary.Write(w, binary.BigEndian, &hashes); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, &columns); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *CountMinHash) Deserialize(r io.Reader) error {
+	hashes := uint32(0)
+	columns := uint32(0)
+
+	if err := binary.Read(r, binary.BigEndian, &hashes); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &columns); err != nil {
+		return err
+	}
+	p.Hashes = int(hashes)
+	p.Columns = int(columns)
+	p.generateArrays()
+	return nil
+}
+
+func (p *CountMinHash) Equal(obj *CountMinHash) bool {
+	return p.Hashes == obj.Hashes && p.Columns == obj.Columns
+}
+
+/*
+func (b *CountMinHash) export() *countMinHashSerialized {
+	return &countMinHashSerialized{Hashes: &b.Hashes, Columns: &b.Columns}
+}
+
+func (p *CountMinHash) GobEncode() ([]byte, error) {
+	prv := p.export()
+	buf := new(bytes.Buffer)
+	e := gob.NewEncoder(buf)
+	if err := e.Encode(prv); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (p *CountMinHash) GobDecode(b []byte) error {
+	prv := p.export()
+	buf := bytes.NewReader(b)
+	e := gob.NewDecoder(buf)
+	err := e.Decode(prv)
+	if err != nil {
+		return err
+	}
+	p.generateArrays()
+	return nil
+}*/

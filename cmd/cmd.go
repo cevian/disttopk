@@ -212,7 +212,8 @@ func main() {
 	*/
 	//runTput(l, k)
 	runtime.GC()
-	cml := runBloomSketch(l, k)
+	//cml := runBloomSketch(l, k)
+	cml := runBloomSketchGcs(l, k)
 	//_ = naivecutl
 	//_ = tputl
 	_ = cml

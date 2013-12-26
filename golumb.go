@@ -53,7 +53,7 @@ type GolumbDecoder struct {
 
 func NewGolumbDecoder(r io.Reader, m_bits uint) *GolumbDecoder {
 	if m_bits < 1 || m_bits > 63 {
-		panic("m_bits needs to be between 1 and 63")
+		panic(fmt.Sprintln("m_bits needs to be between 1 and 63. is ", m_bits))
 	}
 	m := uint(1 << m_bits)
 	br := NewBitReader(r)
@@ -84,7 +84,15 @@ func (g *GolumbDecoder) Read() (uint, error) {
 
 func GolumbEncode(unsorted []int) []byte {
 	sort.Ints(unsorted)
-	return GolumbEncodeSorted(unsorted)
+	bytestream := &bytes.Buffer{}
+	if err := GolumbEncodeSortedWriter(bytestream, unsorted); err != nil {
+		panic(err)
+	}
+	return bytestream.Bytes()
+}
+func GolumbEncodeWriter(w io.Writer, unsorted []int) error {
+	sort.Ints(unsorted)
+	return GolumbEncodeSortedWriter(w, unsorted)
 }
 
 func GolumbParameter(sum uint, num_samples uint) uint {
@@ -100,7 +108,7 @@ func GolumbParameter(sum uint, num_samples uint) uint {
 	return k
 }
 
-func GolumbEncodeSorted(sorted []int) []byte {
+func GolumbEncodeSortedWriter(w io.Writer, sorted []int) error {
 	if sorted[len(sorted)-1] < start_offset {
 		panic("Illegal input")
 	}
@@ -109,44 +117,60 @@ func GolumbEncodeSorted(sorted []int) []byte {
 
 	m_bits := GolumbParameter(sum_of_increments, num_increments)
 
-	bytestream := &bytes.Buffer{}
-	binary.Write(bytestream, binary.BigEndian, uint32(m_bits))
-	egs := NewGolumbEncoder(bytestream, m_bits)
+	m_bits8 := uint8(m_bits)
+	if err := binary.Write(w, binary.BigEndian, &m_bits8); err != nil {
+		return err
+	}
+
+	//have to encode length and not rely on stream eof cause there may be other stuff in stream
+	sortedl := uint32(len(sorted))
+	if err := binary.Write(w, binary.BigEndian, &sortedl); err != nil {
+		return err
+	}
+
+	egs := NewGolumbEncoder(w, m_bits)
 
 	prev := start_offset
 	for _, i := range sorted {
 		delta := i - prev
 		prev = i
-		egs.Write(uint(delta))
+		if err := egs.Write(uint(delta)); err != nil {
+			return err
+		}
 	}
-	egs.Close()
+	return egs.Close()
 
-	return bytestream.Bytes()
+}
+
+func GolumbDecodeReader(r io.Reader) ([]int, error) {
+	var m_bits uint8
+	if err := binary.Read(r, binary.BigEndian, &m_bits); err != nil {
+		return nil, err
+	}
+
+	var length uint32
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return nil, err
+	}
+
+	decoder := NewGolumbDecoder(r, uint(m_bits))
+
+	val := start_offset
+	res := make([]int, length)
+	for i := uint32(0); i < length; i++ {
+		n, err := decoder.Read()
+		if err != nil {
+			return res, err
+		}
+
+		val = val + int(n)
+		res[i] = val
+	}
+	return res, nil
 }
 
 func GolumbDecode(compressed []byte) ([]int, error) {
 	r := bytes.NewReader(compressed)
-	var m_bits uint32
-	err := binary.Read(r, binary.BigEndian, &m_bits)
+	return GolumbDecodeReader(r)
 
-	if err != nil {
-		return nil, err
-	}
-	decoder := NewGolumbDecoder(r, uint(m_bits))
-
-	val := start_offset
-	res := make([]int, 0)
-	for {
-		n, err := decoder.Read()
-		if err == nil {
-			val = val + int(n)
-			res = append(res, val)
-		}
-		if err != nil {
-			if err == io.EOF {
-				return res, nil
-			}
-			return res, err
-		}
-	}
 }

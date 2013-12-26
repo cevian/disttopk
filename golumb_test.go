@@ -6,7 +6,7 @@ import "io"
 import "math/rand"
 import "sort"
 
-func TestGolumbInts(t *testing.T) {
+func TestGolumbReaderWriter(t *testing.T) {
 	var b bytes.Buffer
 	n := 1000
 

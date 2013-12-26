@@ -3,48 +3,72 @@ package disttopk
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"sort"
 )
 
 type BloomEntry struct {
 	filter BloomFilter
 	max    uint32
-	n_max  int
-	eps    float64
+	n_max  int     //debug
+	eps    float64 //debug
+}
+
+func (c *BloomEntry) GetInfo() string {
+	if SAVE_DEBUG {
+		return fmt.Sprintln("BloomEntry: max ", c.max, "k ", c.filter.NumberHashes(), "size", c.filter.ByteSize(), "n_max", c.n_max, "eps", c.eps)
+	} else {
+		return fmt.Sprintln("BloomEntry: max ", c.max, "k ", c.filter.NumberHashes(), "size", c.filter.ByteSize())
+	}
+}
+
+type FilterAdaptor interface {
+	CreateBloomEntryFilter(N_est int, n int) (BloomFilter, float64)
+	CreateBloomFilterToDeserialize() BloomFilter
+}
+
+type PlainFilterAdaptor struct{}
+
+func (p PlainFilterAdaptor) CreateBloomEntryFilter(N_est int, n int) (BloomFilter, float64) {
+	m := EstimateM(N_est, n, RECORD_SIZE)     // * (totalblooms - (k - 1))
+	eps := EstimateEps(N_est, n, RECORD_SIZE) // * (totalblooms - (k - 1))
+	entry := NewBloomSimpleEst(m, n)
+	return entry, eps
+}
+
+func (p PlainFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
+	return &Bloom{}
+}
+
+type GcsFilterAdaptor struct{}
+
+func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int) (BloomFilter, float64) {
+	eps := EstimateEpsGcs(N_est, n, RECORD_SIZE)
+	m := EstimateMGcs(n, eps)
+	entry := NewGcs(m)
+	return entry, eps
+}
+
+func (p GcsFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
+	return &Gcs{}
 }
 
 type BloomSketch struct {
-	Data                   []*BloomEntry
-	CreateBloomEntryFilter func(N_est int, n int) (BloomFilter, float64)
-	topk                   int
-	numpeers               int
-	N_est                  int
-	cutoff                 uint32
-	Thresh                 uint32
-	m                      int //debug
-	n_est                  int //debug
+	FilterAdaptor
+	Data     []*BloomEntry
+	topk     int
+	numpeers int
+	N_est    int
+	cutoff   uint32
+	Thresh   uint32
 }
 
 func NewBloomSketchGcs(topk int, numpeers int, N_est int) *BloomSketch {
-	cbe := func(N_est int, n int) (BloomFilter, float64) {
-		eps := EstimateEpsGcs(N_est, n, RECORD_SIZE)
-		m := EstimateMGcs(n, eps)
-		entry := NewGcs(m)
-		return entry, eps
-	}
-
-	return &BloomSketch{nil, cbe, topk, numpeers, N_est, 0, 0, 0, 0}
+	return &BloomSketch{GcsFilterAdaptor{}, nil, topk, numpeers, N_est, 0, 0}
 }
 
 func NewBloomSketch(topk int, numpeers int, N_est int) *BloomSketch {
-	cbe := func(N_est int, n int) (BloomFilter, float64) {
-		m := EstimateM(N_est, n, RECORD_SIZE)     // * (totalblooms - (k - 1))
-		eps := EstimateEps(N_est, n, RECORD_SIZE) // * (totalblooms - (k - 1))
-		entry := NewBloomSimpleEst(m, n)
-		return entry, eps
-	}
-
-	return &BloomSketch{nil, cbe, topk, numpeers, N_est, 0, 0, 0, 0}
+	return &BloomSketch{PlainFilterAdaptor{}, nil, topk, numpeers, N_est, 0, 0}
 }
 
 func (b *BloomSketch) ByteSize() int {
@@ -56,10 +80,18 @@ func (b *BloomSketch) ByteSize() int {
 }
 
 func (c *BloomSketch) GetInfo() string {
-	ret := fmt.Sprintln("bloom sketch: numblooms", len(c.Data), " m ", c.m, " n_est", c.n_est, " k ", c.Data[0].filter.NumberHashes(), "cutoff", c.cutoff)
-	for _, v := range c.Data {
-		ret += fmt.Sprintln("\n", "max ", v.max, " with cutoff ", v.max+c.cutoff, "size", v.filter.ByteSize(), "n_max", v.n_max)
+	//ret := fmt.Sprintf("BloomSketch: buckets", len(c.Data))
+
+	ret := ""
+	if SAVE_DEBUG {
+		ret = fmt.Sprintln("bloom sketch: numblooms", len(c.Data), "cutoff", c.cutoff)
+	} else {
+		ret = fmt.Sprintln("bloom sketch: numblooms", len(c.Data), "cutoff", c.cutoff)
 	}
+	/*
+		for _, v := range c.Data {
+			ret += v.GetInfo()
+		}*/
 	return ret
 
 }
@@ -78,8 +110,9 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 		}
 	}
 
-	fmt.Println("lastindex ", lastindex, "minscore", minscore, "score-k", scorek)
-
+	if PRINT_BUCKETS {
+		fmt.Println("lastindex ", lastindex, "minscore", minscore, "score-k", scorek)
+	}
 	listindex := 0
 	items := b.topk
 	b.Data = make([]*BloomEntry, 0)
@@ -110,7 +143,9 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 		}
 		entry.n_max = listindex - orig
 		b.Data = append(b.Data, entry)
-		fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[listindex-1].Score, "#", listindex-orig, "k", entry.filter.NumberHashes())
+		if PRINT_BUCKETS {
+			fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[listindex-1].Score, "#", listindex-orig, "k", entry.filter.NumberHashes())
+		}
 		items = b.topk
 	}
 	if listindex < len(list) {
@@ -266,8 +301,8 @@ func (s *BloomSketch) Merge(toadd Sketch) {
 type BloomSketchCollection struct {
 	sketches      []*BloomSketch
 	Thresh        uint32
-	stats_queried int
-	stats_passed  int
+	stats_queried int //debug
+	stats_passed  int //debug
 }
 
 // Len is part of sort.Interface.
@@ -404,7 +439,59 @@ func (s *BloomSketchCollection) Passes(key []byte) bool {
 	return s
 }
 */
+func (bc *BloomSketchCollection) TruePositives() int {
+	if SAVE_DEBUG {
+		items := 0
+		for _, sk := range bc.sketches {
+			for _, entry := range sk.Data {
+				items += entry.n_max
+			}
+		}
+		return items
+	}
+	return 0
+}
 
+//This is estimated off of all items, so no need to multiply by num peers
+func (bc *BloomSketchCollection) EstimatedFp() float64 {
+	if SAVE_DEBUG {
+		allItems := 24000000
+		estimatedFp := 0.0
+		for _, sk := range bc.sketches {
+			for _, entry := range sk.Data {
+				estimatedFp += (float64(allItems)) * entry.eps
+			}
+		}
+		return estimatedFp
+	}
+	return 0
+}
+
+func (bc *BloomSketchCollection) TotalCutoff() int {
+	cutoff := 0
+	for _, sk := range bc.sketches {
+		cutoff += int(sk.Cutoff())
+	}
+	return cutoff
+}
+
+func (bc *BloomSketchCollection) TotalFilters() int {
+	filters := 0
+	for _, sk := range bc.sketches {
+		filters += len(sk.Data)
+
+	}
+	return filters
+}
+
+func (bc *BloomSketchCollection) GetInfo() string {
+	if SAVE_DEBUG {
+		return fmt.Sprintln("Bloom sketch collection, # sketches: ", len(bc.sketches), "total cutoff", bc.TotalCutoff(), "num filters", bc.TotalFilters(), "true positives", bc.TruePositives(), "TP sent", bc.TruePositives()*33, " estimated fp", bc.EstimatedFp())
+	}
+	return fmt.Sprintln("Bloom sketch collection, # sketches: ", len(bc.sketches), "total cutoff", bc.TotalCutoff(), "num filters", bc.TotalFilters())
+}
+
+/*
 func (bc *BloomSketchCollection) GetInfo() string {
 	s := ""
 	tot := uint32(0)
@@ -425,4 +512,305 @@ func (bc *BloomSketchCollection) GetInfo() string {
 	}
 	s += fmt.Sprintln("Bloom collection sketch sketches: ", len(bc.sketches), "total cutoff", tot, "total nmax (per sketch)", tot_nmax, "nmax sent by all", tot_nmax*33, " estimated fp", estimatedfp)
 	return s
+}*/
+
+/////////////////////////serialization stuff//////////////////////
+
+func (p *BloomEntry) Serialize(w io.Writer) error {
+	if err := p.filter.Serialize(w); err != nil {
+		return err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, &p.max); err != nil {
+		return err
+	}
+	if SAVE_DEBUG {
+		if err := SerializeIntAsU32(w, &p.n_max); err != nil {
+			return err
+		}
+		if err := binary.Write(w, binary.BigEndian, &p.eps); err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
+func (p *BloomEntry) Deserialize(r io.Reader) error {
+	if p.filter == nil {
+		panic("Have to initialize filter beforehand")
+	}
+	if err := p.filter.Deserialize(r); err != nil {
+		return err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &p.max); err != nil {
+		return err
+	}
+
+	if SAVE_DEBUG {
+		if err := DeserializeIntAsU32(r, &p.n_max); err != nil {
+			return err
+		}
+		if err := binary.Read(r, binary.BigEndian, &p.eps); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func getFilterAdaptorId(f FilterAdaptor) uint8 {
+	switch f.(type) {
+	case PlainFilterAdaptor:
+		return 1
+	case GcsFilterAdaptor:
+		return 2
+	default:
+		panic("Unknown filter type")
+	}
+}
+
+func getFilterAdaptorById(id uint8) FilterAdaptor {
+	switch id {
+	case 1:
+		return PlainFilterAdaptor{}
+	case 2:
+		return GcsFilterAdaptor{}
+	default:
+		panic("Unknown filter type")
+	}
+}
+
+func (p *BloomSketch) Serialize(w io.Writer) error {
+	filterid := getFilterAdaptorId(p.FilterAdaptor)
+	if err := binary.Write(w, binary.BigEndian, &filterid); err != nil {
+		return err
+	}
+
+	datal := uint32(len(p.Data))
+	if err := binary.Write(w, binary.BigEndian, &datal); err != nil {
+		return err
+	}
+
+	for _, v := range p.Data {
+		if err := v.Serialize(w); err != nil {
+			return err
+		}
+	}
+
+	if err := SerializeIntAsU32(w, &p.topk); err != nil {
+		return err
+	}
+	if err := SerializeIntAsU32(w, &p.numpeers); err != nil {
+		return err
+	}
+	if err := SerializeIntAsU32(w, &p.N_est); err != nil {
+		return err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, &p.cutoff); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, &p.Thresh); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *BloomSketch) Deserialize(r io.Reader) error {
+	filterid := uint8(0)
+	if err := binary.Read(r, binary.BigEndian, &filterid); err != nil {
+		return err
+	}
+	filter := getFilterAdaptorById(filterid)
+	p.FilterAdaptor = filter
+
+	datal := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &datal); err != nil {
+		return err
+	}
+	p.Data = make([]*BloomEntry, datal)
+	for i := uint32(0); i < datal; i++ {
+		entry := &BloomEntry{filter: p.CreateBloomFilterToDeserialize()}
+		entry.Deserialize(r)
+		p.Data[i] = entry
+	}
+
+	if err := DeserializeIntAsU32(r, &p.topk); err != nil {
+		return err
+	}
+	if err := DeserializeIntAsU32(r, &p.numpeers); err != nil {
+		return err
+	}
+	if err := DeserializeIntAsU32(r, &p.N_est); err != nil {
+		return err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &p.cutoff); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &p.Thresh); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *BloomSketchCollection) Serialize(w io.Writer) error {
+	sketchesl := uint32(len(p.sketches))
+	if err := binary.Write(w, binary.BigEndian, &sketchesl); err != nil {
+		return err
+	}
+
+	for _, v := range p.sketches {
+		if err := v.Serialize(w); err != nil {
+			return err
+		}
+	}
+
+	if err := binary.Write(w, binary.BigEndian, &p.Thresh); err != nil {
+		return err
+	}
+
+	if err := SerializeIntAsU32(w, &p.stats_queried); err != nil {
+		return err
+	}
+	if err := SerializeIntAsU32(w, &p.stats_passed); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *BloomSketchCollection) Deserialize(r io.Reader) error {
+	sketchesl := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &sketchesl); err != nil {
+		return err
+	}
+
+	p.sketches = make([]*BloomSketch, sketchesl)
+	for i := uint32(0); i < sketchesl; i++ {
+		sketch := &BloomSketch{}
+		sketch.Deserialize(r)
+		p.sketches[i] = sketch
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &p.Thresh); err != nil {
+		return err
+	}
+
+	if err := DeserializeIntAsU32(r, &p.stats_queried); err != nil {
+		return err
+	}
+	if err := DeserializeIntAsU32(r, &p.stats_passed); err != nil {
+		return err
+	}
+	return nil
+}
+
+/*
+func (p *Bloom) Deserialize(r io.Reader) error {
+	p.CountMinHash = &CountMinHash{}
+	if err := p.CountMinHash.Deserialize(r); err != nil {
+		return err
+	}
+	p.Data = &BitArray{}
+	return p.Data.Deserialize(r)
+
+}*/
+
+/*type bloomsketchserialize struct {
+	Adaptor  *FilterAdaptor
+	Data     *[]*BloomEntry
+	Topk     *int
+	NumPeers *int
+	N_est    *int
+	Cutoff   *uint32
+	Thresh   *uint32
+	M        *int
+	Nn_est   *int
+}
+
+func (b *BloomSketch) export() *bloomsketchserialize {
+	return &bloomsketchserialize{Adaptor: &b.FilterAdaptor, Data: &b.Data, Topk: &b.topk, NumPeers: &b.numpeers, N_est: &b.N_est, Cutoff: &b.cutoff, Thresh: &b.Thresh, M: &b.m, Nn_est: &b.n_est}
+}
+
+func (p *BloomSketch) GobEncode() ([]byte, error) {
+	prv := p.export()
+	buf := new(bytes.Buffer)
+	e := gob.NewEncoder(buf)
+	gob.Register(PlainFilterAdaptor{})
+	gob.Register(GcsFilterAdaptor{})
+	if err := e.Encode(prv); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (p *BloomSketch) GobDecode(b []byte) error {
+	prv := p.export()
+	buf := bytes.NewReader(b)
+	e := gob.NewDecoder(buf)
+	return e.Decode(&prv)
+}
+
+type bloomentryserialize struct {
+	Filter *BloomFilter
+	Max    *uint32
+	N_max  *int
+	Eps    *float64
+}
+
+func (b *BloomEntry) export() *bloomentryserialize {
+	return &bloomentryserialize{Filter: &b.filter, Max: &b.max, N_max: &b.n_max, Eps: &b.eps}
+}
+
+func (p *BloomEntry) GobEncode() ([]byte, error) {
+	prv := p.export()
+	buf := new(bytes.Buffer)
+	e := gob.NewEncoder(buf)
+	gob.Register(&Bloom{})
+	gob.Register(&Gcs{})
+	if err := e.Encode(prv); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (p *BloomEntry) GobDecode(b []byte) error {
+	prv := p.export()
+	buf := bytes.NewReader(b)
+	e := gob.NewDecoder(buf)
+	//gob.Register(Bloom{})
+	//gob.Register(Gcs{})
+	err := e.Decode(&prv)
+	return err
+}
+
+type bloomsketchcollectionserialize struct {
+	Sketches      *[]*BloomSketch
+	Thresh        *uint32
+	Stats_queried *int
+	Stats_passed  *int
+}
+
+func (b *BloomSketchCollection) export() *bloomsketchcollectionserialize {
+	return &bloomsketchcollectionserialize{Sketches: &b.sketches, Thresh: &b.Thresh, Stats_queried: &b.stats_queried, Stats_passed: &b.stats_passed}
+}
+
+func (p *BloomSketchCollection) GobEncode() ([]byte, error) {
+	prv := p.export()
+	buf := new(bytes.Buffer)
+	e := gob.NewEncoder(buf)
+	if err := e.Encode(prv); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (p *BloomSketchCollection) GobDecode(b []byte) error {
+	prv := p.export()
+	buf := bytes.NewReader(b)
+	e := gob.NewDecoder(buf)
+	return e.Decode(prv)
+}*/
