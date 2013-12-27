@@ -6,6 +6,7 @@ import "github.com/cevian/disttopk"
 import (
 	"fmt"
 	"math"
+	"runtime"
 )
 
 type ByteSlice []byte
@@ -15,83 +16,128 @@ func (b ByteSlice) ByteSize() int {
 }
 
 func NewBloomPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-	createSketch := func() FirstRoundSketch {
-		return disttopk.NewBloomSketch(topk, numpeer, N_est)
-	}
 
-	serialize := func(c FirstRoundSketch) Serialized {
-		obj, ok := c.(*disttopk.BloomSketch)
-		if !ok {
-			panic("Unexpected")
-		}
-		b, err := disttopk.SerializeObject(obj)
-		if err != nil {
-			panic(err)
-		}
-		return ByteSlice(b)
-		//return c
-	}
-
-	deserializeSecondRound := func(s Serialized) UnionFilter {
-		bs := s.(ByteSlice)
-		obj := &disttopk.BloomSketchCollection{}
-		err := disttopk.DeserializeObject(obj, []byte(bs))
-		if err != nil {
-			panic(err)
-		}
-		return obj
-
-	}
-
-	return NewPeer(list, topk, createSketch, serialize, deserializeSecondRound)
+	return NewPeer(list, &DefaultPeerAdaptor{topk, numpeer, N_est}, topk)
 }
 
 func NewBloomPeerGcs(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-	createSketch := func() FirstRoundSketch {
-		return disttopk.NewBloomSketchGcs(topk, numpeer, N_est)
-	}
 
-	serialize := func(c FirstRoundSketch) Serialized {
-		obj, ok := c.(*disttopk.BloomSketch)
-		if !ok {
-			panic("Unexpected")
-		}
-		b, err := disttopk.SerializeObject(obj)
-		if err != nil {
-			panic(err)
-		}
-		return ByteSlice(b)
-		//return c
-	}
-
-	deserializeSecondRound := func(s Serialized) UnionFilter {
-		bs := s.(ByteSlice)
-		obj := &disttopk.BloomSketchCollection{}
-		err := disttopk.DeserializeObject(obj, []byte(bs))
-		if err != nil {
-			panic(err)
-		}
-		return obj
-
-	}
-
-	return NewPeer(list, topk, createSketch, serialize, deserializeSecondRound)
+	return NewPeer(list, &GcsPeerAdaptor{&DefaultPeerAdaptor{topk, numpeer, N_est}}, topk)
 }
 
-func NewPeer(list disttopk.ItemList, k int, createSketch func() FirstRoundSketch, serialize func(FirstRoundSketch) Serialized, dsr func(Serialized) UnionFilter) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0, createSketch, serialize, dsr}
+func NewPeer(list disttopk.ItemList, pa PeerAdaptor, k int) *Peer {
+	return &Peer{stream.NewHardStopChannelCloser(), pa, nil, nil, list, k, 0}
+}
+
+type PeerAdaptor interface {
+	createSketch() FirstRoundSketch
+	serialize(FirstRoundSketch) Serialized
+	deserializeSecondRound(Serialized) UnionFilter
+	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) []disttopk.Item
+}
+
+type DefaultPeerAdaptor struct {
+	topk    int
+	numpeer int
+	N_est   int
+}
+
+func (t *DefaultPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) []disttopk.Item {
+	exactlist := make([]disttopk.Item, 0)
+	for index, v := range list {
+		if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
+			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
+		}
+	}
+	return exactlist
+}
+
+func (t *DefaultPeerAdaptor) createSketch() FirstRoundSketch {
+	return disttopk.NewBloomSketch(t.topk, t.numpeer, t.N_est)
+}
+
+func (*DefaultPeerAdaptor) serialize(c FirstRoundSketch) Serialized {
+	obj, ok := c.(*disttopk.BloomSketch)
+	if !ok {
+		panic("Unexpected")
+	}
+	b, err := disttopk.SerializeObject(obj)
+	if err != nil {
+		panic(err)
+	}
+	return ByteSlice(b)
+	//return c
+}
+
+func (*DefaultPeerAdaptor) deserializeSecondRound(s Serialized) UnionFilter {
+	bs := s.(ByteSlice)
+	obj := &disttopk.BloomSketchCollection{}
+	err := disttopk.DeserializeObject(obj, []byte(bs))
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+type GcsPeerAdaptor struct {
+	*DefaultPeerAdaptor
+}
+
+func (t *GcsPeerAdaptor) createSketch() FirstRoundSketch {
+	return disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
+}
+
+func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) []disttopk.Item {
+	//fmt.Println("entering get round two list")
+	list_items := list.Len()
+	ht_bits := uint8(math.Ceil(math.Log2(float64(list_items))))
+	//ht_bits = 26 //CHANGE ME
+	ht := disttopk.NewHashTable(ht_bits)
+
+	for _, v := range list {
+		ht.Insert(v.Id, v.Score)
+	}
+	hvs_sent := disttopk.NewHashValueSlice()
+	for i := 0; i < cutoff_sent; i++ {
+		hvs_sent.Insert(uint32(list[i].Id))
+	}
+
+	bsc := uf.(*disttopk.BloomSketchCollection)
+	hvf := disttopk.NewHashValueFilter()
+	bsc.AddToHashValueFilter(hvf)
+
+	//fmt.Println("entering for loops get round two list")
+
+	exactlist := make([]disttopk.Item, 0)
+	items_tested := 0
+	random_access := 0
+	for mod_bits, hvslice := range hvf.GetFilters() {
+		//println("Mod 2", mod_bits, hvslice.Len())
+		for _, hv := range hvslice.GetSlice() {
+			items_map, ra := ht.GetByHashValue(uint(hv), mod_bits)
+			random_access += ra
+			items_tested += len(items_map)
+			for id, score := range items_map {
+				if !hvs_sent.Contains(uint32(id)) && uf.PassesInt(id) == true {
+					exactlist = append(exactlist, disttopk.Item{id, score})
+					hvs_sent.Insert(uint32(id))
+				}
+			}
+		}
+	}
+
+	fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
+	return exactlist
 }
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	forward                chan<- disttopk.DemuxObject
-	back                   <-chan stream.Object
-	list                   disttopk.ItemList
-	k                      int
-	id                     int
-	createSketch           func() FirstRoundSketch
-	serialize              func(FirstRoundSketch) Serialized
-	deserializeSecondRound func(Serialized) UnionFilter
+	PeerAdaptor
+	forward chan<- disttopk.DemuxObject
+	back    <-chan stream.Object
+	list    disttopk.ItemList
+	k       int
+	id      int
 }
 
 type FirstRoundSketch interface {
@@ -142,12 +188,14 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	exactlist := make([]disttopk.Item, 0)
+	exactlist := src.getRoundTwoList(uf, src.list, src.k)
+	runtime.GC()
+	/*exactlist := make([]disttopk.Item, 0)
 	for index, v := range src.list {
 		if index >= src.k && uf.PassesInt(v.Id) == true {
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
-	}
+	}*/
 
 	//fmt.Println("SR", sr.cmf.GetInfo())
 

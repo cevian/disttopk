@@ -5,19 +5,82 @@ import (
 	//"fmt"
 	"io"
 	"math"
-	"sort"
+
+//	"sort"
 )
 
 type Gcs struct {
 	*CountMinHash
-	Data []uint32
+	Data *HashValueSlice
 }
 
-type DataSlice []uint32
+/*
+type HashValueSlice struct {
+	hvs []uint32
+}
 
-func (p DataSlice) Len() int           { return len(p) }
-func (p DataSlice) Less(i, j int) bool { return p[i] < p[j] }
-func (p DataSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func NewHashValueSlice() *HashValueSlice {
+	return &HashValueSlice{make([]uint32, 0)}
+}
+
+func (p HashValueSlice) Len() int            { return len(p.hvs) }
+func (p HashValueSlice) Less(i, j int) bool  { return p.hvs[i] < p.hvs[j] }
+func (p *HashValueSlice) Swap(i, j int)      { p.hvs[i], p.hvs[j] = p.hvs[j], p.hvs[i] }
+func (p *HashValueSlice) GetSlice() []uint32 { return p.hvs }
+func (t *HashValueSlice) Insert(v uint32) {
+	if !t.Contains(v) {
+		t.hvs = append(t.hvs, v)
+		sort.Sort(t)
+	}
+}
+func (t *HashValueSlice) Merge(n *HashValueSlice) {
+	for _, v := range n.hvs {
+		t.Insert(v)
+	}
+}
+
+func (t *HashValueSlice) Contains(value uint32) bool {
+	ret := sort.Search(len(t.hvs), func(i int) bool { return t.hvs[i] >= value })
+	if ret < len(t.hvs) && t.hvs[ret] == value {
+		return true
+	}
+	return false
+}*/
+
+type HashValueSlice struct {
+	hvs map[uint32]bool
+}
+
+func NewHashValueSlice() *HashValueSlice {
+	return &HashValueSlice{make(map[uint32]bool)}
+}
+
+func NewHashValueSliceLen(n int) *HashValueSlice {
+	return &HashValueSlice{make(map[uint32]bool)}
+}
+
+func (p *HashValueSlice) Len() int { return len(p.hvs) }
+
+func (p *HashValueSlice) GetSlice() []uint32 {
+	slice := make([]uint32, 0, p.Len())
+	for k, _ := range p.hvs {
+		slice = append(slice, k)
+	}
+	return slice
+}
+func (t *HashValueSlice) Insert(v uint32) {
+	t.hvs[v] = true
+}
+
+func (t *HashValueSlice) Merge(n *HashValueSlice) {
+	for k, _ := range n.hvs {
+		t.Insert(k)
+	}
+}
+
+func (t *HashValueSlice) Contains(value uint32) bool {
+	return t.hvs[value]
+}
 
 func EstimateEpsGcs(N_est int, n_est int, penalty int) float64 {
 	//TODO change!
@@ -40,7 +103,7 @@ func EstimateMGcs(n int, eps float64) int {
 func NewGcs(m int) *Gcs {
 	s := Gcs{
 		NewCountMinHash(1, m),
-		make([]uint32, 0),
+		NewHashValueSlice(),
 	}
 	return &s
 }
@@ -50,7 +113,7 @@ func (b *Gcs) CreateNew() *Gcs {
 }
 
 func (b *Gcs) ByteSize() int {
-	return (len(b.Data) * 4)
+	return (b.Data.Len() * 4)
 }
 
 func (s *Gcs) AddString(key string) {
@@ -65,10 +128,15 @@ func (s *Gcs) AddInt(key int) {
 
 func (b *Gcs) Add(id []byte) {
 	index := b.GetIndexNoOffset(id, 0)
-	if !b.contains(index) {
-		b.Data = append(b.Data, index)
-		sort.Sort(DataSlice(b.Data))
-	}
+	b.Data.Insert(index)
+}
+
+func (b *Gcs) HashValues() *HashValueSlice {
+	return b.Data
+}
+
+func (b *Gcs) GetM() uint {
+	return uint(b.Columns)
 }
 
 func (s *Gcs) NumberHashes() int {
@@ -81,20 +149,12 @@ func (s *Gcs) QueryHashValues(hvs []uint32) bool {
 	}
 	cols := s.Columns
 	index := hvs[0] % uint32(cols)
-	return s.contains(index)
-}
-
-func (s *Gcs) contains(value uint32) bool {
-	ret := sort.Search(len(s.Data), func(i int) bool { return s.Data[i] >= value })
-	if ret < len(s.Data) && s.Data[ret] == value {
-		return true
-	}
-	return false
+	return s.Data.Contains(index)
 }
 
 func (s *Gcs) Query(key []byte) bool {
 	index := s.GetIndexNoOffset(key, 0)
-	return s.contains(index)
+	return s.Data.Contains(index)
 }
 
 func (p *Gcs) Serialize(w io.Writer) error {
@@ -104,9 +164,9 @@ func (p *Gcs) Serialize(w io.Writer) error {
 		return err
 	}
 
-	array := make([]int, len(p.Data))
-	for i, _ := range p.Data {
-		array[i] = int(p.Data[i])
+	array := make([]int, p.Data.Len())
+	for i, v := range p.Data.GetSlice() {
+		array[i] = int(v)
 	}
 
 	return GolumbEncodeWriter(w, array)
@@ -126,9 +186,9 @@ func (p *Gcs) Deserialize(r io.Reader) error {
 		return err
 	}
 
-	p.Data = make([]uint32, len(array))
+	p.Data = NewHashValueSliceLen(len(array))
 	for i, _ := range array {
-		p.Data[i] = uint32(array[i])
+		p.Data.Insert(uint32(array[i]))
 	}
 	return nil
 

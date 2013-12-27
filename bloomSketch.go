@@ -4,8 +4,48 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"sort"
 )
+
+type HashValueFilter struct {
+	filters map[uint8]*HashValueSlice
+}
+
+func NewHashValueFilter() *HashValueFilter {
+	return &HashValueFilter{make(map[uint8]*HashValueSlice)}
+}
+
+func (t *HashValueFilter) GetFilters() map[uint8]*HashValueSlice {
+	return t.filters
+}
+
+func (t *HashValueFilter) GetModulusBits(modulus uint) uint8 {
+	l := math.Log2(float64(modulus))
+	i, f := math.Modf(l)
+	if f != 0.0 {
+		panic("Modulus has to be a power of 2")
+	}
+	return uint8(i)
+}
+
+func (t *HashValueFilter) Insert(modulus_bits uint8, hv uint32) {
+	hvs := t.filters[modulus_bits]
+	if hvs == nil {
+		t.filters[modulus_bits] = NewHashValueSlice()
+		hvs = t.filters[modulus_bits]
+	}
+	hvs.Insert(hv)
+}
+
+func (t *HashValueFilter) InsertHashValueSlice(modulus_bits uint8, nhvs *HashValueSlice) {
+	hvs := t.filters[modulus_bits]
+	if hvs == nil {
+		t.filters[modulus_bits] = NewHashValueSlice()
+		hvs = t.filters[modulus_bits]
+	}
+	hvs.Merge(nhvs)
+}
 
 type BloomEntry struct {
 	filter BloomFilter
@@ -20,6 +60,21 @@ func (c *BloomEntry) GetInfo() string {
 	} else {
 		return fmt.Sprintln("BloomEntry: max ", c.max, "k ", c.filter.NumberHashes(), "size", c.filter.ByteSize())
 	}
+}
+
+func (c *BloomEntry) AddToHashValueFilter(hvf *HashValueFilter) {
+	gcs := c.filter.(*Gcs)
+	m_bits := hvf.GetModulusBits(gcs.GetM())
+	hvs := gcs.HashValues()
+	/*h := hvf.filters[m_bits]
+	old_len := 0
+	if h != nil {
+		old_len = h.Len()
+	}*/
+	hvf.InsertHashValueSlice(m_bits, hvs)
+	/*h = hvf.filters[m_bits]
+
+			println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -45,6 +100,12 @@ type GcsFilterAdaptor struct{}
 func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int) (BloomFilter, float64) {
 	eps := EstimateEpsGcs(N_est, n, RECORD_SIZE)
 	m := EstimateMGcs(n, eps)
+	m_log := math.Log2(float64(m))
+	m_log_rounded, frac := math.Modf(m_log)
+	if frac >= 0.5 {
+		m_log_rounded++
+	}
+	m = (1 << (uint(m_log_rounded)))
 	entry := NewGcs(m)
 	return entry, eps
 }
@@ -77,6 +138,12 @@ func (b *BloomSketch) ByteSize() int {
 		sz += v.filter.ByteSize() + 4
 	}
 	return sz + 4 + 4
+}
+
+func (c *BloomSketch) AddToHashValueFilter(hvf *HashValueFilter) {
+	for _, v := range c.Data {
+		v.AddToHashValueFilter(hvf)
+	}
 }
 
 func (c *BloomSketch) GetInfo() string {
@@ -339,6 +406,12 @@ func (bc *BloomSketchCollection) ByteSize() int {
 		t += sk.ByteSize()
 	}
 	return t
+}
+
+func (c *BloomSketchCollection) AddToHashValueFilter(hvf *HashValueFilter) {
+	for _, v := range c.sketches {
+		v.AddToHashValueFilter(hvf)
+	}
 }
 
 func (bc *BloomSketchCollection) SetThresh(t uint32) {
