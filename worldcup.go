@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 var _ = fmt.Println
@@ -21,29 +20,12 @@ type Request struct {
 	Server    uint8
 }
 
-func ReadWCFile(filename string) []ItemList {
-	files, err := filepath.Glob(filename)
-	if err != nil {
-		panic(err)
-	}
-
-	mn := make(map[uint8]map[int]float64)
-	for _, f := range files {
-		enterWCFile(f, mn)
-	}
-
-	il := make([]ItemList, 0, len(mn))
-	for _, v := range mn {
-		//m := v.AddToMap(nil)
-		l := MakeItemList(v)
-		l.Sort()
-		//fmt.Println(l)
-		il = append(il, l)
-	}
-	return il
+type WcFileSourceAdaptor struct {
+	KeyOnClient bool
 }
 
-func enterWCFile(filename string, m map[uint8]map[int]float64) {
+func (this *WcFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]map[int]float64) {
+
 	fmt.Println("Processing file", filename)
 	file, err := os.Open(filename) // For read access.
 	if err != nil {
@@ -60,14 +42,17 @@ func enterWCFile(filename string, m map[uint8]map[int]float64) {
 	for err == nil {
 		r := &Request{}
 		err = binary.Read(gz, binary.LittleEndian, r)
-		s := r.Server
+		s := uint32(r.Server)
 		mi, ok := m[s]
 		if !ok {
 			m[s] = make(map[int]float64)
 			mi = m[s]
 		}
-		//mi[int(r.ObjectID)] += 1
-		mi[int(r.ClientID)] += 1
+		if this.KeyOnClient {
+			mi[int(r.ClientID)] += 1
+		} else {
+			mi[int(r.ObjectID)] += 1
+		}
 	}
 
 }

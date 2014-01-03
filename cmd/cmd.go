@@ -9,7 +9,6 @@ import (
 	"github.com/cevian/disttopk/tworound"
 	"github.com/cloudflare/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
-	"encoding/gob"
 	"fmt"
 	"os"
 	"runtime"
@@ -154,15 +153,22 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
-func main() {
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/test_log")
-	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/comp/wc*")
-
-	//f, err := os.Create("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
-	fmt.Println("Reading")
-	f, err := os.Open("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
+/*
+func ReadWcCache() []disttopk.ItemList {
+	filename := "/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache.wc.all"
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		fmt.Println("Generating cache", filename)
+		l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/comp/wc*")
+		f, err := os.Create(filename)
+		if err != nil {
+			panic(err)
+		}
+		enc := gob.NewEncoder(f)
+		enc.Encode(l)
+		f.Close()
+		fmt.Println("Finished Generating cache", filename)
+	}
+	f, err := os.Open(filename)
 	if err != nil {
 		panic(err)
 	}
@@ -171,6 +177,63 @@ func main() {
 	if err = dec.Decode(&l); err != nil {
 		panic(err)
 	}
+	return l
+}
+
+
+func ReadUcbCache() []disttopk.ItemList {
+	filename := "/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache.ucb.client"
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		fmt.Println("Generating cache", filename)
+		l := disttopk.ReadUcbFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/ucb/UCB-test*")
+		f, err := os.Create(filename)
+		if err != nil {
+			panic(err)
+		}
+		enc := gob.NewEncoder(f)
+		enc.Encode(l)
+		f.Close()
+		fmt.Println("Finished Generating cache", filename)
+	}
+	f, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	dec := gob.NewDecoder(f)
+	var l []disttopk.ItemList
+	if err = dec.Decode(&l); err != nil {
+		panic(err)
+	}
+	return l
+}*/
+
+func main() {
+
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/test_log")
+	//l := disttopk.ReadWCFile("/home/arye/go-stream/src/github.com/cevian/disttopk/data/comp/wc*")
+
+	//f, err := os.Create("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
+	fmt.Println("Reading")
+	//l := ReadWcCache()
+
+	//fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false}}
+	//l := fs.ReadFilesAndCache("/home/arye/go-stream/src/github.com/cevian/disttopk/data/ucb/UCB-test*", "/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache.ucb.client")
+
+	fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
+	l := fs.ReadFilesAndCache("/home/arye/go-stream/src/github.com/cevian/disttopk/data/wc/wc*", "/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache.wc.client")
+
+	os.Exit(1)
+
+	/*f, err := os.Open("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
+	if err != nil {
+		panic(err)
+	}
+	dec := gob.NewDecoder(f)
+	var l []disttopk.ItemList
+	if err = dec.Decode(&l); err != nil {
+		panic(err)
+	}*/
 	//enc := gob.NewEncoder(f)
 	//enc.Encode(l)
 
@@ -210,7 +273,7 @@ func main() {
 
 		cml := runCmFilter(l, k, eps, 0.01)
 	*/
-	//runTput(l, k)
+	runTput(l, k)
 	runtime.GC()
 	//cml := runBloomSketch(l, k)
 	cml := runBloomSketchGcs(l, k)
