@@ -80,14 +80,14 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 		}
 		r.Url = string(buf)
 
-		s := r.Sip
+		s := r.Sip%512
 		mi, ok := m[s]
 		if !ok {
 			m[s] = make(map[int]float64)
 			mi = m[s]
 		}
 		if this.KeyOnClient {
-			fmt.Println("data:", r.Sip, r.Cip)
+			//fmt.Println("data:", r.Sip, r.Cip)
 			mi[int(r.Cip)] += 1
 		} else {
 			parts := strings.SplitN(r.Url, " ", 3)
@@ -99,7 +99,7 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("data:", r.Sip, objectid, int(objectid))
+			//fmt.Println("data:", r.Sip, objectid, int(objectid))
 			mi[int(objectid)] += 1
 		}
 	}

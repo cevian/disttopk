@@ -14,6 +14,10 @@ import (
 	"runtime"
 )
 
+var _ = os.Exit
+
+const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
+
 func runNaive(l []disttopk.ItemList, cutoff int) disttopk.ItemList {
 	runner := stream.NewRunner()
 	peers := make([]*naive.NaivePeer, len(l))
@@ -217,13 +221,13 @@ func main() {
 	fmt.Println("Reading")
 	//l := ReadWcCache()
 
-	//fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false}}
-	//l := fs.ReadFilesAndCache("/home/arye/go-stream/src/github.com/cevian/disttopk/data/ucb/UCB-test*", "/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache.ucb.client")
+	fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false}}
+	l := fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache.ucb.client")
 
-	fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
-	l := fs.ReadFilesAndCache("/home/arye/go-stream/src/github.com/cevian/disttopk/data/wc/wc*", "/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache.wc.client")
+	//fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
+	//l := fs.ReadFilesAndCache("/home/arye/go-stream/src/github.com/cevian/disttopk/data/wc/wc*", "/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache.wc.client")
 
-	os.Exit(1)
+	//os.Exit(1)
 
 	/*f, err := os.Open("/home/arye/go-stream/src/github.com/cevian/disttopk/data/cache")
 	if err != nil {
