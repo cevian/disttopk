@@ -33,7 +33,7 @@ type PeerAdaptor interface {
 	createSketch() FirstRoundSketch
 	serialize(FirstRoundSketch) Serialized
 	deserializeSecondRound(Serialized) UnionFilter
-	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) []disttopk.Item
+	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *AccessAccounting)
 }
 
 type DefaultPeerAdaptor struct {
@@ -42,14 +42,14 @@ type DefaultPeerAdaptor struct {
 	N_est   int
 }
 
-func (t *DefaultPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) []disttopk.Item {
+func (t *DefaultPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *AccessAccounting) {
 	exactlist := make([]disttopk.Item, 0)
 	for index, v := range list {
 		if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}
-	return exactlist
+	return exactlist, &AccessAccounting{serial_items: len(list), length: len(list)}
 }
 
 func (t *DefaultPeerAdaptor) createSketch() FirstRoundSketch {
@@ -87,7 +87,7 @@ func (t *GcsPeerAdaptor) createSketch() FirstRoundSketch {
 	return disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
 }
 
-func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) []disttopk.Item {
+func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *AccessAccounting) {
 	//fmt.Println("entering get round two list")
 	list_items := list.Len()
 
@@ -129,8 +129,8 @@ func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList,
 			}
 		}
 
-		fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
-		return exactlist
+		//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
+		return exactlist, &AccessAccounting{serial_items: 0, random_access: random_access, random_items: items_tested, length: len(list)}
 	} else {
 		exactlist := make([]disttopk.Item, 0)
 		for index, v := range list {
@@ -138,8 +138,8 @@ func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList,
 				exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 			}
 		}
-		fmt.Println("Round two list items used serial test, total items (all sequential tested)", len(list))
-		return exactlist
+		//fmt.Println("Round two list items used serial test, total items (all sequential tested)", len(list))
+		return exactlist, &AccessAccounting{serial_items: len(list), random_access: 0, random_items: 0, length: len(list)}
 	}
 }
 
@@ -169,6 +169,25 @@ type FirstRound struct {
 
 type SecondRound struct {
 	ufser Serialized
+}
+
+type SecondRoundPeerReply struct {
+	list   disttopk.ItemList
+	access *AccessAccounting
+}
+
+type AccessAccounting struct {
+	serial_items  int
+	random_access int
+	random_items  int
+	length        int
+}
+
+func (t *AccessAccounting) Merge(other AccessAccounting) {
+	t.serial_items += other.serial_items
+	t.random_access += other.random_access
+	t.random_items += other.random_items
+	t.length += other.length
 }
 
 func (src *Peer) Run() error {
@@ -201,7 +220,7 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	exactlist := src.getRoundTwoList(uf, src.list, src.k)
+	exactlist, round2Access := src.getRoundTwoList(uf, src.list, src.k)
 	runtime.GC()
 	/*exactlist := make([]disttopk.Item, 0)
 	for index, v := range src.list {
@@ -213,7 +232,7 @@ func (src *Peer) Run() error {
 	//fmt.Println("SR", sr.cmf.GetInfo())
 
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, disttopk.ItemList(exactlist)}:
+	case src.forward <- disttopk.DemuxObject{src.id, SecondRoundPeerReply{disttopk.ItemList(exactlist), round2Access}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -358,7 +377,7 @@ func (src *Coord) Run() error {
 
 	bytesRound := items*disttopk.RECORD_SIZE + sketchsize
 	fmt.Println(ucm.GetInfo())
-	fmt.Println("Round 1 cm: got ", items, " items, thresh ", thresh, "(log ", uint32(math.Log(localthresh)), "), bytes ", bytesRound)
+	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "(log ", uint32(math.Log(localthresh)), "), bytes ", bytesRound)
 	bytes := bytesRound
 
 	total_back_bytes := 0
@@ -378,22 +397,26 @@ func (src *Coord) Run() error {
 	}
 
 	round2items := 0
+	round2Access := &AccessAccounting{}
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
-			il := dobj.Obj.(disttopk.ItemList)
+			srpr := dobj.Obj.(SecondRoundPeerReply)
+			il := srpr.list
 			m = il.AddToMap(m)
 			round2items += len(il)
 			mresp = il.AddToCountMap(mresp)
+			round2Access.Merge(*srpr.access)
 		case <-src.StopNotifier:
 			return nil
 		}
 	}
 
 	bytesRound = round2items*disttopk.RECORD_SIZE + total_back_bytes
-	fmt.Println("Round 2 cm: got ", round2items, " items, bytes record", round2items*disttopk.RECORD_SIZE, "bytes filter", total_back_bytes, " bytes", bytesRound)
+	fmt.Println("Round 2 tr: got ", round2items, " items, bytes record", round2items*disttopk.RECORD_SIZE, "bytes filter", total_back_bytes, " bytes", bytesRound)
+	fmt.Printf("Round 2 tr: access %+v\n", round2Access)
 	bytes += bytesRound
-	fmt.Printf("Total bytes cm: %E\n", float64(bytes))
+	fmt.Printf("Total bytes tr: %E\n", float64(bytes))
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()

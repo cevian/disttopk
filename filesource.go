@@ -23,6 +23,11 @@ func (this *FileSource) ReadFiles(fileglob string) []ItemList {
 	}
 
 	mn := make(map[uint32]map[int]float64)
+
+	if len(files) == 0 {
+		panic(fmt.Sprintln("Cannot find files in", fileglob))
+	}
+
 	for _, f := range files {
 		this.FillMapFromFile(f, mn)
 	}
