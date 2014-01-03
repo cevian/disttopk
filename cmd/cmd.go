@@ -169,7 +169,7 @@ func main() {
 	l := fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
 
 	//fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
-	//l := fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc*", BASE_DATA_PATH+"cache")
+	//l := fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
 
 	//os.Exit(1)
 
