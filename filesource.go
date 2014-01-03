@@ -9,6 +9,7 @@ import (
 
 type FileSourceAdaptor interface {
 	FillMapFromFile(filename string, m map[uint32]map[int]float64)
+	CacheFileNameSuffix() string
 }
 
 type FileSource struct {
@@ -37,7 +38,8 @@ func (this *FileSource) ReadFiles(fileglob string) []ItemList {
 	return il
 }
 
-func (this *FileSource) ReadFilesAndCache(fileglob string, cachefilename string) []ItemList {
+func (this *FileSource) ReadFilesAndCache(fileglob string, cachebase string) []ItemList {
+	cachefilename := cachebase + this.CacheFileNameSuffix()
 	if _, err := os.Stat(cachefilename); os.IsNotExist(err) {
 		fmt.Println("Generating cache", cachefilename)
 		l := this.ReadFiles(fileglob)

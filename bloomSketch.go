@@ -20,6 +20,14 @@ func (t *HashValueFilter) GetFilters() map[uint8]*HashValueSlice {
 	return t.filters
 }
 
+func (t *HashValueFilter) NumHashValues() int {
+	l := 0
+	for _, hvs := range t.filters {
+		l += hvs.Len()
+	}
+	return l
+}
+
 func (t *HashValueFilter) GetModulusBits(modulus uint) uint8 {
 	l := math.Log2(float64(modulus))
 	i, f := math.Modf(l)
@@ -74,7 +82,7 @@ func (c *BloomEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-			println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+						println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {

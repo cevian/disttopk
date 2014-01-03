@@ -24,6 +24,16 @@ type WcFileSourceAdaptor struct {
 	KeyOnClient bool
 }
 
+func (this *WcFileSourceAdaptor) CacheFileNameSuffix() string {
+	s := ".wc"
+	if this.KeyOnClient {
+		s += ".client"
+	} else {
+		s += ".object"
+	}
+	return s
+}
+
 func (this *WcFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]map[int]float64) {
 
 	fmt.Println("Processing file", filename)

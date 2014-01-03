@@ -42,6 +42,18 @@ type UcbTrace struct {
 
 type UcbFileSourceAdaptor struct {
 	KeyOnClient bool
+	ModServers  int
+}
+
+func (this *UcbFileSourceAdaptor) CacheFileNameSuffix() string {
+	s := ".ucb"
+	if this.KeyOnClient {
+		s += ".client"
+	} else {
+		s += ".object"
+	}
+	s += "." + strconv.Itoa(this.ModServers)
+	return s
 }
 
 func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]map[int]float64) {
@@ -80,7 +92,7 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 		}
 		r.Url = string(buf)
 
-		s := r.Sip%512
+		s := r.Sip % uint32(this.ModServers)
 		mi, ok := m[s]
 		if !ok {
 			m[s] = make(map[int]float64)
