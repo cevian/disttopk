@@ -57,7 +57,7 @@ func (t *DefaultPeerAdaptor) createSketch() FirstRoundSketch {
 }
 
 func (*DefaultPeerAdaptor) serialize(c FirstRoundSketch) Serialized {
-	obj, ok := c.(*disttopk.BloomSketch)
+	obj, ok := c.(*disttopk.BloomHistogram)
 	if !ok {
 		panic("Unexpected")
 	}
@@ -71,7 +71,7 @@ func (*DefaultPeerAdaptor) serialize(c FirstRoundSketch) Serialized {
 
 func (*DefaultPeerAdaptor) deserializeSecondRound(s Serialized) UnionFilter {
 	bs := s.(ByteSlice)
-	obj := &disttopk.BloomSketchCollection{}
+	obj := &disttopk.BloomHistogramCollection{}
 	err := disttopk.DeserializeObject(obj, []byte(bs))
 	if err != nil {
 		panic(err)
@@ -91,7 +91,7 @@ func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList,
 	//fmt.Println("entering get round two list")
 	list_items := list.Len()
 
-	bsc := uf.(*disttopk.BloomSketchCollection)
+	bsc := uf.(*disttopk.BloomHistogramCollection)
 	hvf := disttopk.NewHashValueFilter()
 	bsc.AddToHashValueFilter(hvf)
 
@@ -243,7 +243,7 @@ func (src *Peer) Run() error {
 func NewBloomCoord(k int) *Coord {
 	deserialize := func(frs Serialized) FirstRoundSketch {
 		bs := frs.(ByteSlice)
-		obj := &disttopk.BloomSketch{}
+		obj := &disttopk.BloomHistogram{}
 		err := disttopk.DeserializeObject(obj, []byte(bs))
 		if err != nil {
 			panic(err)
@@ -254,21 +254,21 @@ func NewBloomCoord(k int) *Coord {
 
 	guf := func(us UnionSketch, thresh uint32) UnionFilter {
 		//bs := us.(*disttopk.BloomSketch)
-		bs := us.(*disttopk.BloomSketchCollection)
+		bs := us.(*disttopk.BloomHistogramCollection)
 		bs.SetThresh(thresh)
 
 		return bs
 	}
 
 	cuf := func(uf UnionFilter) UnionFilter {
-		bs := uf.(*disttopk.BloomSketchCollection)
+		bs := uf.(*disttopk.BloomHistogramCollection)
 
 		copy_uf := *bs
 		return &copy_uf
 	}
 
 	suf := func(uf UnionFilter) Serialized {
-		obj, ok := uf.(*disttopk.BloomSketchCollection)
+		obj, ok := uf.(*disttopk.BloomHistogramCollection)
 		if !ok {
 			panic("Unexpected")
 		}
@@ -280,7 +280,7 @@ func NewBloomCoord(k int) *Coord {
 	}
 
 	gus := func(frs FirstRoundSketch) UnionSketch {
-		bs := frs.(*disttopk.BloomSketch)
+		bs := frs.(*disttopk.BloomHistogram)
 		bsc := disttopk.NewBloomSketchCollection()
 		bsc.Merge(bs)
 		return bsc

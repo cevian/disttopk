@@ -55,14 +55,14 @@ func (t *HashValueFilter) InsertHashValueSlice(modulus_bits uint8, nhvs *HashVal
 	hvs.Merge(nhvs)
 }
 
-type BloomEntry struct {
+type BloomHistogramEntry struct {
 	filter BloomFilter
 	max    uint32
 	n_max  int     //debug
 	eps    float64 //debug
 }
 
-func (c *BloomEntry) GetInfo() string {
+func (c *BloomHistogramEntry) GetInfo() string {
 	if SAVE_DEBUG {
 		return fmt.Sprintln("BloomEntry: max ", c.max, "k ", c.filter.NumberHashes(), "size", c.filter.ByteSize(), "n_max", c.n_max, "eps", c.eps)
 	} else {
@@ -70,7 +70,7 @@ func (c *BloomEntry) GetInfo() string {
 	}
 }
 
-func (c *BloomEntry) AddToHashValueFilter(hvf *HashValueFilter) {
+func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	gcs := c.filter.(*Gcs)
 	m_bits := hvf.GetModulusBits(gcs.GetM())
 	hvs := gcs.HashValues()
@@ -82,7 +82,7 @@ func (c *BloomEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-						println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+									println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -122,9 +122,9 @@ func (p GcsFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
 	return &Gcs{}
 }
 
-type BloomSketch struct {
+type BloomHistogram struct {
 	FilterAdaptor
-	Data     []*BloomEntry
+	Data     []*BloomHistogramEntry
 	topk     int
 	numpeers int
 	N_est    int
@@ -132,15 +132,15 @@ type BloomSketch struct {
 	Thresh   uint32
 }
 
-func NewBloomSketchGcs(topk int, numpeers int, N_est int) *BloomSketch {
-	return &BloomSketch{GcsFilterAdaptor{}, nil, topk, numpeers, N_est, 0, 0}
+func NewBloomSketchGcs(topk int, numpeers int, N_est int) *BloomHistogram {
+	return &BloomHistogram{GcsFilterAdaptor{}, nil, topk, numpeers, N_est, 0, 0}
 }
 
-func NewBloomSketch(topk int, numpeers int, N_est int) *BloomSketch {
-	return &BloomSketch{PlainFilterAdaptor{}, nil, topk, numpeers, N_est, 0, 0}
+func NewBloomSketch(topk int, numpeers int, N_est int) *BloomHistogram {
+	return &BloomHistogram{PlainFilterAdaptor{}, nil, topk, numpeers, N_est, 0, 0}
 }
 
-func (b *BloomSketch) ByteSize() int {
+func (b *BloomHistogram) ByteSize() int {
 	sz := 0
 	for _, v := range b.Data {
 		sz += v.filter.ByteSize() + 4
@@ -148,13 +148,13 @@ func (b *BloomSketch) ByteSize() int {
 	return sz + 4 + 4
 }
 
-func (c *BloomSketch) AddToHashValueFilter(hvf *HashValueFilter) {
+func (c *BloomHistogram) AddToHashValueFilter(hvf *HashValueFilter) {
 	for _, v := range c.Data {
 		v.AddToHashValueFilter(hvf)
 	}
 }
 
-func (c *BloomSketch) GetInfo() string {
+func (c *BloomHistogram) GetInfo() string {
 	//ret := fmt.Sprintf("BloomSketch: buckets", len(c.Data))
 
 	ret := ""
@@ -171,7 +171,7 @@ func (c *BloomSketch) GetInfo() string {
 
 }
 
-func (b *BloomSketch) CreateFromList(list ItemList) {
+func (b *BloomHistogram) CreateFromList(list ItemList) {
 	//topk := 10
 	//n := 33
 	scorek := list[b.topk-1].Score
@@ -190,7 +190,7 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 	}
 	listindex := 0
 	items := b.topk
-	b.Data = make([]*BloomEntry, 0)
+	b.Data = make([]*BloomHistogramEntry, 0)
 	i := 0
 	for listindex <= lastindex && i < 10 {
 		i += 1
@@ -204,7 +204,7 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 
 		//m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
 		//eps := EstimateEps(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
-		entry := &BloomEntry{filter, 0, 0, eps}
+		entry := &BloomHistogramEntry{filter, 0, 0, eps}
 
 		endindex := listindex + corrected_items
 		first := true
@@ -229,13 +229,13 @@ func (b *BloomSketch) CreateFromList(list ItemList) {
 
 }
 
-func (s *BloomSketch) PassesInt(key int) bool {
+func (s *BloomHistogram) PassesInt(key int) bool {
 	tmp := make([]byte, 16)
 	binary.PutUvarint(tmp, uint64(key))
 	return s.Passes(tmp)
 }
 
-func (s *BloomSketch) Passes(key []byte) bool {
+func (s *BloomHistogram) Passes(key []byte) bool {
 	if s.Thresh == 0 {
 		panic("Thresh not sent")
 	}
@@ -248,7 +248,7 @@ func (s *BloomSketch) Passes(key []byte) bool {
 
 }
 
-func (s *BloomSketch) Deb(key []byte) {
+func (s *BloomHistogram) Deb(key []byte) {
 	total := uint32(0)
 	for k, entry := range s.Data {
 		if entry.filter.Query(key) {
@@ -260,30 +260,30 @@ func (s *BloomSketch) Deb(key []byte) {
 
 }
 
-func (s *BloomSketch) LastEntry() *BloomEntry {
+func (s *BloomHistogram) LastEntry() *BloomHistogramEntry {
 	return s.Data[len(s.Data)-1]
 }
 
-func (s *BloomSketch) LowestMax() uint32 {
+func (s *BloomHistogram) LowestMax() uint32 {
 	return s.Data[len(s.Data)-1].max
 }
 
-func (s *BloomSketch) ByteSizeLastFilter() int {
+func (s *BloomHistogram) ByteSizeLastFilter() int {
 	return s.Data[len(s.Data)-1].filter.ByteSize() + 4
 }
 
-func (s *BloomSketch) CutoffChangePop() uint32 {
+func (s *BloomHistogram) CutoffChangePop() uint32 {
 	if len(s.Data) > 0 {
 		return s.LowestMax() - s.Cutoff()
 	}
 	return 0
 }
 
-func (s *BloomSketch) Cutoff() uint32 {
+func (s *BloomHistogram) Cutoff() uint32 {
 	return s.cutoff
 }
 
-func (s *BloomSketch) Pop() uint32 {
+func (s *BloomHistogram) Pop() uint32 {
 	max := s.Data[len(s.Data)-1].max
 	s.Data = s.Data[:len(s.Data)-1]
 	old_cutoff := s.cutoff
@@ -299,7 +299,7 @@ func (s *BloomSketch) GetIndexes(key []byte) []uint32 {
 	return nil
 }
 */
-func (s *BloomSketch) NumberHashes() int {
+func (s *BloomHistogram) NumberHashes() int {
 	max := 0
 	for _, entry := range s.Data {
 		if entry.filter.NumberHashes() > max {
@@ -308,7 +308,7 @@ func (s *BloomSketch) NumberHashes() int {
 	}
 	return max
 }
-func (s *BloomSketch) GetHashValues(key []byte) []uint32 {
+func (s *BloomHistogram) GetHashValues(key []byte) []uint32 {
 	if len(s.Data) == 0 {
 		return nil
 	}
@@ -326,7 +326,7 @@ func (s *BloomSketch) GetHashValues(key []byte) []uint32 {
 
 }
 
-func (s *BloomSketch) QueryHashValues(hvs []uint32) uint32 {
+func (s *BloomHistogram) QueryHashValues(hvs []uint32) uint32 {
 	for _, entry := range s.Data {
 		if entry.filter.QueryHashValues(hvs) {
 			return entry.max
@@ -344,7 +344,7 @@ func (s *BloomSketch) QueryHashValues(hvs []uint32) uint32 {
 	return s.cutoff
 }*/
 
-func (s *BloomSketch) Query(key []byte) uint32 {
+func (s *BloomHistogram) Query(key []byte) uint32 {
 	//total := uint32(0)
 	for _, entry := range s.Data {
 		if entry.filter.Query(key) {
@@ -373,42 +373,42 @@ func (s *BloomSketch) Merge(toadd Sketch) {
 	s.cutoff += bs.cutoff
 }*/
 
-type BloomSketchCollection struct {
-	sketches      []*BloomSketch
+type BloomHistogramCollection struct {
+	sketches      []*BloomHistogram
 	Thresh        uint32
 	stats_queried int //debug
 	stats_passed  int //debug
 }
 
 // Len is part of sort.Interface.
-func (s *BloomSketchCollection) Len() int {
+func (s *BloomHistogramCollection) Len() int {
 	return len(s.sketches)
 }
 
 // Swap is part of sort.Interface.
-func (s *BloomSketchCollection) Swap(i, j int) {
+func (s *BloomHistogramCollection) Swap(i, j int) {
 	s.sketches[i], s.sketches[j] = s.sketches[j], s.sketches[i]
 }
 
-func (s *BloomSketchCollection) SketchScore(i int) float64 {
+func (s *BloomHistogramCollection) SketchScore(i int) float64 {
 	return float64(s.sketches[i].ByteSizeLastFilter()) / float64(s.sketches[i].CutoffChangePop())
 }
 
 // Less is part of sort.Interface. It is implemented by calling the "by" closure in the sorter.
-func (s *BloomSketchCollection) Less(i, j int) bool {
+func (s *BloomHistogramCollection) Less(i, j int) bool {
 	return s.SketchScore(i) > s.SketchScore(j)
 	//return (float64(s.sketches[i].ByteSize()) / s.sketches[i].CutoffChangePop()) > (uint32(s.sketches[j].ByteSize()) / s.sketches[j].CutoffChangePop())
 }
 
-func (s *BloomSketchCollection) Sort() {
+func (s *BloomHistogramCollection) Sort() {
 	sort.Sort(s)
 }
 
-func NewBloomSketchCollection() *BloomSketchCollection {
-	return &BloomSketchCollection{make([]*BloomSketch, 0), 0, 0, 0}
+func NewBloomSketchCollection() *BloomHistogramCollection {
+	return &BloomHistogramCollection{make([]*BloomHistogram, 0), 0, 0, 0}
 }
 
-func (bc *BloomSketchCollection) ByteSize() int {
+func (bc *BloomHistogramCollection) ByteSize() int {
 	t := 0
 	for _, sk := range bc.sketches {
 		t += sk.ByteSize()
@@ -416,13 +416,13 @@ func (bc *BloomSketchCollection) ByteSize() int {
 	return t
 }
 
-func (c *BloomSketchCollection) AddToHashValueFilter(hvf *HashValueFilter) {
+func (c *BloomHistogramCollection) AddToHashValueFilter(hvf *HashValueFilter) {
 	for _, v := range c.sketches {
 		v.AddToHashValueFilter(hvf)
 	}
 }
 
-func (bc *BloomSketchCollection) SetThresh(t uint32) {
+func (bc *BloomHistogramCollection) SetThresh(t uint32) {
 	bc.Thresh = t
 
 	cutoff := uint32(0)
@@ -452,12 +452,12 @@ func (bc *BloomSketchCollection) SetThresh(t uint32) {
 		}*/
 }
 
-func (bc *BloomSketchCollection) Merge(toadd Sketch) {
-	bs := toadd.(*BloomSketch)
+func (bc *BloomHistogramCollection) Merge(toadd Sketch) {
+	bs := toadd.(*BloomHistogram)
 	bc.sketches = append(bc.sketches, bs)
 }
 
-func (bc *BloomSketchCollection) Query(key []byte) uint32 {
+func (bc *BloomHistogramCollection) Query(key []byte) uint32 {
 	//idx := bc.sketches[0].GetIndexes(key)
 	max := 0
 	index := 0
@@ -480,11 +480,11 @@ func (bc *BloomSketchCollection) Query(key []byte) uint32 {
 	return t
 }
 
-func (s *BloomSketchCollection) PassesInt(key int) bool {
+func (s *BloomHistogramCollection) PassesInt(key int) bool {
 	return s.Passes(IntKeyToByteKey(key))
 }
 
-func (s *BloomSketchCollection) Passes(key []byte) bool {
+func (s *BloomHistogramCollection) Passes(key []byte) bool {
 	s.stats_queried += 1
 	if s.Thresh == 0 {
 		panic("Thresh not sent")
@@ -520,7 +520,7 @@ func (s *BloomSketchCollection) Passes(key []byte) bool {
 	return s
 }
 */
-func (bc *BloomSketchCollection) TruePositives() int {
+func (bc *BloomHistogramCollection) TruePositives() int {
 	if SAVE_DEBUG {
 		items := 0
 		for _, sk := range bc.sketches {
@@ -534,7 +534,7 @@ func (bc *BloomSketchCollection) TruePositives() int {
 }
 
 //This is estimated off of all items, so no need to multiply by num peers
-func (bc *BloomSketchCollection) EstimatedFp() float64 {
+func (bc *BloomHistogramCollection) EstimatedFp() float64 {
 	if SAVE_DEBUG {
 		allItems := 24000000
 		estimatedFp := 0.0
@@ -548,7 +548,7 @@ func (bc *BloomSketchCollection) EstimatedFp() float64 {
 	return 0
 }
 
-func (bc *BloomSketchCollection) TotalCutoff() int {
+func (bc *BloomHistogramCollection) TotalCutoff() int {
 	cutoff := 0
 	for _, sk := range bc.sketches {
 		cutoff += int(sk.Cutoff())
@@ -556,7 +556,7 @@ func (bc *BloomSketchCollection) TotalCutoff() int {
 	return cutoff
 }
 
-func (bc *BloomSketchCollection) TotalFilters() int {
+func (bc *BloomHistogramCollection) TotalFilters() int {
 	filters := 0
 	for _, sk := range bc.sketches {
 		filters += len(sk.Data)
@@ -565,7 +565,7 @@ func (bc *BloomSketchCollection) TotalFilters() int {
 	return filters
 }
 
-func (bc *BloomSketchCollection) GetInfo() string {
+func (bc *BloomHistogramCollection) GetInfo() string {
 	if SAVE_DEBUG {
 		return fmt.Sprintln("Bloom sketch collection, # sketches: ", len(bc.sketches), "total cutoff", bc.TotalCutoff(), "num filters", bc.TotalFilters(), "true positives", bc.TruePositives(), "TP sent", bc.TruePositives()*33, " estimated fp", bc.EstimatedFp())
 	}
@@ -597,7 +597,7 @@ func (bc *BloomSketchCollection) GetInfo() string {
 
 /////////////////////////serialization stuff//////////////////////
 
-func (p *BloomEntry) Serialize(w io.Writer) error {
+func (p *BloomHistogramEntry) Serialize(w io.Writer) error {
 	if err := p.filter.Serialize(w); err != nil {
 		return err
 	}
@@ -616,7 +616,7 @@ func (p *BloomEntry) Serialize(w io.Writer) error {
 	return nil
 }
 
-func (p *BloomEntry) Deserialize(r io.Reader) error {
+func (p *BloomHistogramEntry) Deserialize(r io.Reader) error {
 	if p.filter == nil {
 		panic("Have to initialize filter beforehand")
 	}
@@ -662,7 +662,7 @@ func getFilterAdaptorById(id uint8) FilterAdaptor {
 	}
 }
 
-func (p *BloomSketch) Serialize(w io.Writer) error {
+func (p *BloomHistogram) Serialize(w io.Writer) error {
 	filterid := getFilterAdaptorId(p.FilterAdaptor)
 	if err := binary.Write(w, binary.BigEndian, &filterid); err != nil {
 		return err
@@ -699,7 +699,7 @@ func (p *BloomSketch) Serialize(w io.Writer) error {
 	return nil
 }
 
-func (p *BloomSketch) Deserialize(r io.Reader) error {
+func (p *BloomHistogram) Deserialize(r io.Reader) error {
 	filterid := uint8(0)
 	if err := binary.Read(r, binary.BigEndian, &filterid); err != nil {
 		return err
@@ -711,9 +711,9 @@ func (p *BloomSketch) Deserialize(r io.Reader) error {
 	if err := binary.Read(r, binary.BigEndian, &datal); err != nil {
 		return err
 	}
-	p.Data = make([]*BloomEntry, datal)
+	p.Data = make([]*BloomHistogramEntry, datal)
 	for i := uint32(0); i < datal; i++ {
-		entry := &BloomEntry{filter: p.CreateBloomFilterToDeserialize()}
+		entry := &BloomHistogramEntry{filter: p.CreateBloomFilterToDeserialize()}
 		entry.Deserialize(r)
 		p.Data[i] = entry
 	}
@@ -738,7 +738,7 @@ func (p *BloomSketch) Deserialize(r io.Reader) error {
 	return nil
 }
 
-func (p *BloomSketchCollection) Serialize(w io.Writer) error {
+func (p *BloomHistogramCollection) Serialize(w io.Writer) error {
 	sketchesl := uint32(len(p.sketches))
 	if err := binary.Write(w, binary.BigEndian, &sketchesl); err != nil {
 		return err
@@ -763,15 +763,15 @@ func (p *BloomSketchCollection) Serialize(w io.Writer) error {
 	return nil
 }
 
-func (p *BloomSketchCollection) Deserialize(r io.Reader) error {
+func (p *BloomHistogramCollection) Deserialize(r io.Reader) error {
 	sketchesl := uint32(0)
 	if err := binary.Read(r, binary.BigEndian, &sketchesl); err != nil {
 		return err
 	}
 
-	p.sketches = make([]*BloomSketch, sketchesl)
+	p.sketches = make([]*BloomHistogram, sketchesl)
 	for i := uint32(0); i < sketchesl; i++ {
-		sketch := &BloomSketch{}
+		sketch := &BloomHistogram{}
 		sketch.Deserialize(r)
 		p.sketches[i] = sketch
 	}
