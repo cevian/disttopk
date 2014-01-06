@@ -184,9 +184,12 @@ func main() {
 	} else if source == "WC" {
 		fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
+	} else {
+		fmt.Println("Source should be 'WC', 'zipf', or 'UCB'. Default is zipf.
+		os.Exit(1)
+
 	}
 	
-	//os.Exit(1)
 
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
