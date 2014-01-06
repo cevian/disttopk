@@ -191,7 +191,7 @@ func (src *Coord) Run() error {
 		}
 	}
 
-	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * 32)
+	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * 4)
 	fmt.Println("Round 2 tput: got ", round2items, " items, thresh ", secondthresh, ", unique items fetching ", len(ids), " bytes ", bytesRound)
 	bytes += bytesRound
 
@@ -216,7 +216,7 @@ func (src *Coord) Run() error {
 		}
 	}
 
-	bytesRound = round3items*disttopk.RECORD_SIZE + (nnodes * len(ids) * 32)
+	bytesRound = round3items*disttopk.RECORD_SIZE + (nnodes * len(ids) * 4)
 	fmt.Println("Round 3 tput: got ", round3items, " items, bytes ", bytesRound)
 	bytes += bytesRound
 	fmt.Printf("Total bytes tput: %E\n", float64(bytes))
