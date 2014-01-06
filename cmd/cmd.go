@@ -185,9 +185,8 @@ func main() {
 		fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
 	} else {
-		fmt.Println("Source should be 'WC', 'zipf', or 'UCB'. Default is zipf.
+		fmt.Println("Source should be 'WC', 'zipf', or 'UCB'. Default is zipf.")
 		os.Exit(1)
-
 	}
 	
 
