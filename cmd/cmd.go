@@ -4,6 +4,7 @@ import (
 	"github.com/cevian/disttopk"
 	"github.com/cevian/disttopk/cm"
 	"github.com/cevian/disttopk/cmfilter"
+	"github.com/cevian/disttopk/klee"
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
 	"github.com/cevian/disttopk/tworound"
@@ -42,6 +43,21 @@ func runTput(l []disttopk.ItemList, k int) disttopk.ItemList {
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = tput.NewPeer(list, k)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList
+}
+
+func runKlee(l []disttopk.ItemList, k int) disttopk.ItemList {
+	runner := stream.NewRunner()
+	peers := make([]*klee.Peer, len(l))
+	coord := klee.NewCoord(k)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = klee.NewPeer(list, k)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
@@ -159,10 +175,8 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
-
-
 func main() {
-	args := os.Args;
+	args := os.Args
 	var source string
 	if len(args) > 1 {
 		source = args[1]
@@ -170,17 +184,16 @@ func main() {
 		source = "zipf"
 	}
 
-  
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	fmt.Println("Reading from " + source)
-	var l []disttopk.ItemList 
-		//l is a list of lists; each top-level list is the data from each peer.
+	var l []disttopk.ItemList
+	//l is a list of lists; each top-level list is the data from each peer.
 	if source == "zipf" {
-		l = disttopk.GetListSet(10, 10000, 0.8, 0.7)	
+		l = disttopk.GetListSet(10, 10000, 0.8, 0.7)
 	} else if source == "UCB" {
 		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
-		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")	
+		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
 	} else if source == "WC" {
 		fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
@@ -188,7 +201,6 @@ func main() {
 		fmt.Println("Source should be 'WC', 'zipf', or 'UCB'. Default is zipf.")
 		os.Exit(1)
 	}
-	
 
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
@@ -228,7 +240,9 @@ func main() {
 	runTput(l, k)
 	runtime.GC()
 	//cml := runBloomSketch(l, k)
-	cml := runBloomSketchGcs(l, k)
+	//cml := runBloomSketchGcs(l, k)
+	cml := runKlee(l, k)
+	fmt.Println("Klee stats, recall:", getRecall(naivel, cml, k), getScoreError(naivel, cml, k), getScoreErrorRel(naivel, cml, k))
 	//_ = naivecutl
 	//_ = tputl
 	_ = cml
