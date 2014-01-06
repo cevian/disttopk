@@ -7,7 +7,7 @@ import (
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
 	"github.com/cevian/disttopk/tworound"
-	"github.com/cloudflare/go-stream/stream"
+	"github.com/cevian/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
 	"fmt"
 	"os"
@@ -159,21 +159,35 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
-func main() {
 
+
+func main() {
+	args := os.Args;
+	var source string
+	if len(args) > 1 {
+		source = args[1]
+	} else {
+		source = "zipf"
+	}
+
+  
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	fmt.Println("Reading")
-
-	fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
-	l := fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
-
-	//fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
-	//l := fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
-
+	fmt.Println("Reading from " + source)
+	var l []disttopk.ItemList 
+		//l is a list of lists; each top-level list is the data from each peer.
+	if source == "zipf" {
+		l = disttopk.GetListSet(10, 10000, 0.8, 0.7)	
+	} else if source == "UCB" {
+		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
+		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")	
+	} else if source == "WC" {
+		fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
+		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
+	}
+	
 	//os.Exit(1)
 
-	//l := disttopk.GetListSet(10, 10000, 0.8, 0.7)
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
 
