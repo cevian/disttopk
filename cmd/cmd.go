@@ -21,7 +21,7 @@ const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/dat
 
 //const BASE_DATA_PATH = "/home/arye/go-stream/src/github.com/cevian/disttopk/data/"
 
-func runNaive(l []disttopk.ItemList, cutoff int) disttopk.ItemList {
+func runNaive(l []disttopk.ItemList, cutoff int) (disttopk.ItemList,disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*naive.NaivePeer, len(l))
 	coord := naive.NewNaiveCoord(cutoff)
@@ -33,10 +33,14 @@ func runNaive(l []disttopk.ItemList, cutoff int) disttopk.ItemList {
 	}
 	runner.AsyncRunAll()
 	runner.WaitGroup().Wait()
-	return coord.FinalList
+	return coord.FinalList,coord.Stats
 }
 
-func runTput(l []disttopk.ItemList, k int) disttopk.ItemList {
+func runNaiveK2(l []disttopk.ItemList, cutoff int) (disttopk.ItemList,disttopk.AlgoStats) {
+	return runNaive(l, 2 * cutoff)
+}
+
+func runTput(l []disttopk.ItemList, k int) (disttopk.ItemList,disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tput.Peer, len(l))
 	coord := tput.NewCoord(k)
@@ -48,10 +52,10 @@ func runTput(l []disttopk.ItemList, k int) disttopk.ItemList {
 	}
 	runner.AsyncRunAll()
 	runner.WaitGroup().Wait()
-	return coord.FinalList
+	return coord.FinalList, coord.Stats
 }
 
-func runKlee(l []disttopk.ItemList, k int) disttopk.ItemList {
+func runKlee(l []disttopk.ItemList, k int) (disttopk.ItemList,disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*klee.Peer, len(l))
 	coord := klee.NewCoord(k)
@@ -63,7 +67,7 @@ func runKlee(l []disttopk.ItemList, k int) disttopk.ItemList {
 	}
 	runner.AsyncRunAll()
 	runner.WaitGroup().Wait()
-	return coord.FinalList
+	return coord.FinalList, coord.Stats
 }
 
 func runCm(l []disttopk.ItemList, k int, eps float64, delta float64) disttopk.ItemList {
@@ -221,7 +225,7 @@ func main() {
 	eps := 0.0001
 	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(l), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
 	ids = make(map[int]bool)
-	naive_exact := runNaive(l, 0)
+	naive_exact,_ := runNaive(l, 0)
 	ground_truth := naive_exact
 	/*
 		info := ""
@@ -239,26 +243,37 @@ func main() {
 
 		cml := runCmFilter(l, k, eps, 0.01)
 	*/
-	runTput(l, k)
-	runtime.GC()
+//	var meths_to_run
+	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
+	algo_names := []string{"Naive (2k)", "TPUT", "Klee"}
+	algos_to_run := []rank_algorithm{runNaiveK2, runTput, runKlee}
+
 	//cml := runBloomSketch(l, k)
-	//cml := runBloomSketchGcs(l, k)
-	cml := runKlee(l, k)
-	fmt.Println("Klee stats, recall:", getRecall(ground_truth, cml, k), getScoreError(ground_truth, cml, k), getScoreErrorRel(ground_truth, cml, k))
-	//_ = naivecutl
-	//_ = tputl
-	_ = cml
+	//cml := runBloomSketchGcs(l, k)	
+	
+	for i, algorithm := range algos_to_run {
+  	fmt.Println("-----------------------")
 
-	match := true
+		result,stats := algorithm(l, k)	//, stats
+		recall := getRecall(ground_truth, result, k)
+//		score_err := getScoreError(ground_truth, result, k)
+//	getScoreErrorRel(ground_truth, cml, k)
+		fmt.Println(algo_names[i]," results:  BW = ",stats.BytesTransferred, " Recall =", recall)
+		runtime.GC()
+		
+		match := true
 
-	for i := 0; i < k; i++ {
-		if ground_truth[i] != cml[i] {
-			fmt.Println("Lists do not match", ground_truth[i], cml[i])
-			match = false
+		for i := 0; i < k; i++ {
+			if ground_truth[i] != result[i] {
+				fmt.Println("Lists do not match", ground_truth[i], result[i])
+				match = false
+			}
 		}
+		if match == true {
+			fmt.Println("Lists Match")
+		}
+		
 	}
-	if match == true {
-		fmt.Println("Lists Match")
-	}
+
 //	fmt.Println("The K'th Item:", naivel[k-1])
 }

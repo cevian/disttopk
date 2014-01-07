@@ -80,7 +80,7 @@ func (src *Peer) Run() error {
 }
 
 func NewCoord(k int) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k}
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k, disttopk.AlgoStats{}}
 }
 
 type Coord struct {
@@ -90,6 +90,7 @@ type Coord struct {
 	//lists        [][]disttopk.Item
 	FinalList []disttopk.Item
 	k         int
+	Stats   disttopk.AlgoStats
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -202,7 +203,7 @@ func (src *Coord) Run() error {
 	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * 4)
 	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round", bytesRound)
 	bytes += bytesRound
-	fmt.Printf("Total bytes tput: %E\n", float64(bytes))
+	src.Stats.BytesTransferred = uint64(bytes)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
@@ -216,49 +217,3 @@ func (src *Coord) Run() error {
 	return nil
 }
 
-/*
-type ZipfSourceOp struct {
-	*stream.HardStopChannelCloser
-	*stream.BaseOut
-	souce ZipfSource
-}
-
-
-
-func NewZipfSourceOperator(max uint32) ZipfSource {
-	hcc := stream.NewHardStopChannelCloser()
-	o := stream.NewBaseOut(stream.CHAN_SLACK)
-	nrs := ZipfSource{hcc, o, max}
-	return &nrs
-}
-
-func (src *ZipfSource) GenerateItem(rank int) Item {
-	id := rand.Int()
-	score := math.Pow(float64(rank), -src.zipParam) / src.zipNorm
-	return Item{id, score}
-}
-
-func (src *ZipfSource) Run() error {
-	defer close(src.Out())
-	var count uint32
-	count = 0
-
-	slog.Logf(logger.Levels.Debug, "Generating up to %d %s", src.MaxItems, " tuples")
-	for {
-		rank := count + 1
-
-		item := src.generateItem(rank)
-		select {
-		case src.Out <- item:
-			count = count + 1
-		case <-src.StopNotifier:
-			return nil
-		}
-
-		if count >= src.MaxItems {
-			slog.Logf(logger.Levels.Debug, "Generated all tuples %d, %d", count, src.MaxItems)
-			return nil
-		}
-	}
-
-}*/
