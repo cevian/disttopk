@@ -220,7 +220,7 @@ func (src *Coord) Run() error {
 	bytesRound = round3items*disttopk.RECORD_SIZE + (nnodes * len(ids) * 4)
 	fmt.Println("Round 3 tput: got ", round3items, " items, bytes ", bytesRound)
 	bytes += bytesRound
-	src.Stats.BytesTransferred = uint64(items*disttopk.RECORD_SIZE)
+	src.Stats.BytesTransferred = uint64(bytes)
 
 
 	il = disttopk.MakeItemList(m)

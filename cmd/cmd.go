@@ -117,7 +117,7 @@ func runBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
 	return coord.FinalList
 }
 
-func runBloomSketchGcs(l []disttopk.ItemList, topk int) disttopk.ItemList {
+func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList,disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewBloomCoord(topk)
@@ -131,7 +131,7 @@ func runBloomSketchGcs(l []disttopk.ItemList, topk int) disttopk.ItemList {
 	}
 	runner.AsyncRunAll()
 	runner.WaitGroup().Wait()
-	return coord.FinalList
+	return coord.FinalList, coord.Stats
 }
 
 func getRecall(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
@@ -245,11 +245,11 @@ func main() {
 	*/
 //	var meths_to_run
 	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
-	algo_names := []string{"Naive (2k)", "TPUT", "Klee"}
-	algos_to_run := []rank_algorithm{runNaiveK2, runTput, runKlee}
+	algo_names := []string{"Naive (2k)", "TPUT", "Klee", "2R Exact"}
+	algos_to_run := []rank_algorithm{runNaiveK2, runTput, runKlee, runBloomSketchGcs}
 
 	//cml := runBloomSketch(l, k)
-	//cml := runBloomSketchGcs(l, k)	
+	//cml := (l, k)	
 	
 	for i, algorithm := range algos_to_run {
   	fmt.Println("-----------------------")
