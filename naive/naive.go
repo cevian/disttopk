@@ -51,7 +51,7 @@ func (src *NaivePeer) Run() error {
 }
 
 func NewNaiveCoord(cutoff int) *NaiveCoord {
-	return &NaiveCoord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, cutoff}
+	return &NaiveCoord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, cutoff, disttopk.AlgoStats{}}
 }
 
 type NaiveCoord struct {
@@ -61,6 +61,7 @@ type NaiveCoord struct {
 	lists        []disttopk.ItemList
 	FinalList    []disttopk.Item
 	cutoff       int
+	stats        disttopk.AlgoStats
 }
 
 func (src *NaiveCoord) Add(p *NaivePeer) {
@@ -100,7 +101,8 @@ func (src *NaiveCoord) Run() error {
 
 				il.Sort()
 
-				fmt.Printf("Total bytes naive (cutoff=%d): %E\n", src.cutoff, float64(items*disttopk.RECORD_SIZE))
+//				fmt.Printf("Total bytes naive (cutoff=%d): %E\n", src.cutoff, float64(items*disttopk.RECORD_SIZE))
+        src.stats.BytesTransferred = uint64(items*disttopk.RECORD_SIZE)
 				if disttopk.OUTPUT_RESP {
 					for _, it := range il[:10] {
 						fmt.Println("Resp: ", it.Id, it.Score) //, mresp[it.Id])

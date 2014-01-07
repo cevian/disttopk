@@ -244,7 +244,7 @@ func main() {
 	//cml := runBloomSketch(l, k)
 	//cml := runBloomSketchGcs(l, k)
 	cml := runKlee(l, k)
-	fmt.Println("Klee stats, recall:", getRecall(naivel, cml, k), getScoreError(naivel, cml, k), getScoreErrorRel(naivel, cml, k))
+	fmt.Println("Klee stats, recall:", getRecall(ground_truth, cml, k), getScoreError(ground_truth, cml, k), getScoreErrorRel(ground_truth, cml, k))
 	//_ = naivecutl
 	//_ = tputl
 	_ = cml
@@ -253,7 +253,7 @@ func main() {
 
 	for i := 0; i < k; i++ {
 		if ground_truth[i] != cml[i] {
-			fmt.Println("Lists do not match", naivel[i], cml[i])
+			fmt.Println("Lists do not match", ground_truth[i], cml[i])
 			match = false
 		}
 	}
