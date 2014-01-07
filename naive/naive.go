@@ -95,26 +95,11 @@ func (src *NaiveCoord) Run() error {
 					il := disttopk.ItemList(l)
 					il.AddToMap(m)
 				}
-				/*
-					for _, l := range src.lists {
-						for _, item := range l {
-							score := m[item.Id]
-							m[item.Id] = score + item.Score
-						}
-					}*/
 
 				il := disttopk.MakeItemList(m)
 
 				il.Sort()
-				/*
-					il := make(disttopk.ItemList, len(m))
-					i := 0
-					for k, v := range m {
-						il[i] = disttopk.Item{k, v}
-						i++
-					}
-					sort.Sort(sort.Reverse(il))*/
-				//fmt.Println("Sorted Global List: ", il[:10])
+
 				fmt.Printf("Total bytes naive (cutoff=%d): %E\n", src.cutoff, float64(items*disttopk.RECORD_SIZE))
 				if disttopk.OUTPUT_RESP {
 					for _, it := range il[:10] {
@@ -129,50 +114,3 @@ func (src *NaiveCoord) Run() error {
 		}
 	}
 }
-
-/*
-type ZipfSourceOp struct {
-	*stream.HardStopChannelCloser
-	*stream.BaseOut
-	souce ZipfSource
-}
-
-
-
-func NewZipfSourceOperator(max uint32) ZipfSource {
-	hcc := stream.NewHardStopChannelCloser()
-	o := stream.NewBaseOut(stream.CHAN_SLACK)
-	nrs := ZipfSource{hcc, o, max}
-	return &nrs
-}
-
-func (src *ZipfSource) GenerateItem(rank int) Item {
-	id := rand.Int()
-	score := math.Pow(float64(rank), -src.zipParam) / src.zipNorm
-	return Item{id, score}
-}
-
-func (src *ZipfSource) Run() error {
-	defer close(src.Out())
-	var count uint32
-	count = 0
-
-	slog.Logf(logger.Levels.Debug, "Generating up to %d %s", src.MaxItems, " tuples")
-	for {
-		rank := count + 1
-
-		item := src.generateItem(rank)
-		select {
-		case src.Out <- item:
-			count = count + 1
-		case <-src.StopNotifier:
-			return nil
-		}
-
-		if count >= src.MaxItems {
-			slog.Logf(logger.Levels.Debug, "Generated all tuples %d, %d", count, src.MaxItems)
-			return nil
-		}
-	}
-
-}*/
