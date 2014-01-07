@@ -303,8 +303,17 @@ func (src *Coord) Run() error {
 		}
 
 		bitArray := disttopk.NewBitArray(uint(size))
+
+		/* this is not in paper but makes no sense without it
+		we need to add data from first list to the filter*/
+		recv_by_histo_index := make(map[int]uint32)
+		clfRowForHashing := NewClfRow(int(size))
+		for id, score := range m {
+			hash_index := clfRowForHashing.GetIndex(disttopk.IntKeyToByteKey(id))
+			recv_by_histo_index[int(hash_index)] += uint32(score)
+		}
 		for clf_idx := 0; clf_idx < int(size); clf_idx++ {
-			ub_sum := uint32(0)
+			ub_sum := recv_by_histo_index[clf_idx]
 			for peer_id, row := range clf_map {
 				if row.HasHistoCellIndex(clf_idx) {
 					histo_idx := int(row.QueryHistoCellIndex(clf_idx))
@@ -313,7 +322,7 @@ func (src *Coord) Run() error {
 					ub_sum += ub
 				}
 			}
-			//fmt.Println("Ubsum", ub_sum, thresh)
+			fmt.Println("Ubsum", ub_sum, thresh)
 			if ub_sum > uint32(thresh) {
 				bitArray.Set(uint(clf_idx))
 			}
