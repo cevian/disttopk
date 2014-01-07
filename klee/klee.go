@@ -201,7 +201,7 @@ func (src *Coord) Run() error {
 	secondthresh := il[src.k-1].Score*/
 
 	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * 4)
-	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round", bytesRound)
+	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round: ", bytesRound)
 	bytes += bytesRound
 	src.Stats.BytesTransferred = uint64(bytes)
 
