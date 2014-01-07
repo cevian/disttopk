@@ -186,9 +186,10 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	fmt.Println("Reading from " + source)
-	var l []disttopk.ItemList
-	//l is a list of lists; each top-level list is the data from each peer.
+
+	fmt.Println("Data source is " + source)
+	var l []disttopk.ItemList 
+		//l is a list of lists; each top-level list is the data from each peer.
 	if source == "zipf" {
 		l = disttopk.GetListSet(10, 10000, 0.8, 0.7)
 	} else if source == "UCB" {
@@ -220,7 +221,8 @@ func main() {
 	eps := 0.0001
 	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(l), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
 	ids = make(map[int]bool)
-	naivel := runNaive(l, 0)
+	naive_exact := runNaive(l, 0)
+	ground_truth := naive_exact
 	/*
 		info := ""
 		for _, knaive := range []int{10, 50, 100} {
@@ -250,14 +252,13 @@ func main() {
 	match := true
 
 	for i := 0; i < k; i++ {
-		compare := cml[i]
-		if naivel[i] != compare {
-			fmt.Println("Lists do not match", naivel[i], compare)
+		if ground_truth[i] != cml[i] {
+			fmt.Println("Lists do not match", naivel[i], cml[i])
 			match = false
 		}
 	}
 	if match == true {
 		fmt.Println("Lists Match")
 	}
-	fmt.Println("The K'th Item:", naivel[k-1])
+//	fmt.Println("The K'th Item:", naivel[k-1])
 }
