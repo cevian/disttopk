@@ -7,6 +7,8 @@ import (
 	"fmt"
 )
 
+const SERIALIZE_CLF = true
+
 func NewPeer(list disttopk.ItemList, k int, clrRound bool) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0, clrRound}
 }
@@ -86,10 +88,23 @@ func (src *Peer) Run() error {
 			clfRow.Add(disttopk.IntKeyToByteKey(item.Id), uint32(histo_cell))
 		}
 
-		select {
-		case src.forward <- disttopk.DemuxObject{src.id, clfRow}:
-		case <-src.StopNotifier:
-			return nil
+		if SERIALIZE_CLF {
+			payload, err := disttopk.SerializeObject(clfRow)
+			if err != nil {
+				panic(err)
+			}
+			select {
+			case src.forward <- disttopk.DemuxObject{src.id, payload}:
+			case <-src.StopNotifier:
+				return nil
+			}
+
+		} else {
+			select {
+			case src.forward <- disttopk.DemuxObject{src.id, clfRow}:
+			case <-src.StopNotifier:
+				return nil
+			}
 		}
 
 		var bitArray *disttopk.BitArray
@@ -144,7 +159,7 @@ func (src *Peer) Run() error {
 }
 
 func NewCoord(k int, clrRound bool) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k, clrRound}
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k, clrRound, disttopk.AlgoStats{}}
 }
 
 type Coord struct {
@@ -155,6 +170,7 @@ type Coord struct {
 	FinalList []disttopk.Item
 	k         int
 	clrRound  bool
+	Stats     disttopk.AlgoStats
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -234,7 +250,9 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 1 klee: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
 	bytes := bytesRound
 
+	bytesRound = 0
 	if src.clrRound {
+		bytes_clround := 0
 		max_size_candidate_list := uint32(0)
 		for _, bh := range bh_map {
 			bh_mscl := bh.MaxSizeCandidateList(uint32(localthresh))
@@ -255,12 +273,24 @@ func (src *Coord) Run() error {
 				return nil
 			}
 		}
+		bytes_clround += nnodes * 8
 
 		clf_map := make(map[int]*ClfRow)
 		for cnt := 0; cnt < nnodes; cnt++ {
 			select {
 			case dobj := <-src.input:
-				clr := dobj.Obj.(*ClfRow)
+				var clr *ClfRow
+
+				if SERIALIZE_CLF {
+					payload := dobj.Obj.([]byte)
+					clr = &ClfRow{}
+					if err := disttopk.DeserializeObject(clr, payload); err != nil {
+						panic(err)
+					}
+					bytes_clround += len(payload)
+				} else {
+					clr = dobj.Obj.(*ClfRow)
+				}
 				id := dobj.Id
 				clf_map[id] = clr
 			case <-src.StopNotifier:
@@ -293,7 +323,10 @@ func (src *Coord) Run() error {
 				return nil
 			}
 		}
-
+		bytes_clround += (int(bitArray.NumBits()/8) + 1) * nnodes
+		fmt.Println("Round CLF klee: got bytes in round: ", bytes_clround)
+		bytes += bytes_clround
+		//bytes_round += bytes_clround
 	} else {
 		for _, ch := range src.backPointers {
 			select {
@@ -302,6 +335,7 @@ func (src *Coord) Run() error {
 				return nil
 			}
 		}
+		bytesRound += (4 * nnodes)
 	}
 	il := disttopk.MakeItemList(m)
 
@@ -318,6 +352,8 @@ func (src *Coord) Run() error {
 		}
 	}
 
+	bytesRound += round2items * disttopk.RECORD_SIZE
+
 	il = disttopk.MakeItemList(m)
 	il.Sort()
 	/*if len(il) < src.k {
@@ -325,10 +361,9 @@ func (src *Coord) Run() error {
 	}
 	secondthresh := il[src.k-1].Score*/
 
-	bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * 4)
-	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round", bytesRound)
+	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round: ", bytesRound)
 	bytes += bytesRound
-	fmt.Printf("Total bytes tput: %E\n", float64(bytes))
+	src.Stats.BytesTransferred = uint64(bytes)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
@@ -341,50 +376,3 @@ func (src *Coord) Run() error {
 	src.FinalList = il
 	return nil
 }
-
-/*
-type ZipfSourceOp struct {
-	*stream.HardStopChannelCloser
-	*stream.BaseOut
-	souce ZipfSource
-}
-
-
-
-func NewZipfSourceOperator(max uint32) ZipfSource {
-	hcc := stream.NewHardStopChannelCloser()
-	o := stream.NewBaseOut(stream.CHAN_SLACK)
-	nrs := ZipfSource{hcc, o, max}
-	return &nrs
-}
-
-func (src *ZipfSource) GenerateItem(rank int) Item {
-	id := rand.Int()
-	score := math.Pow(float64(rank), -src.zipParam) / src.zipNorm
-	return Item{id, score}
-}
-
-func (src *ZipfSource) Run() error {
-	defer close(src.Out())
-	var count uint32
-	count = 0
-
-	slog.Logf(logger.Levels.Debug, "Generating up to %d %s", src.MaxItems, " tuples")
-	for {
-		rank := count + 1
-
-		item := src.generateItem(rank)
-		select {
-		case src.Out <- item:
-			count = count + 1
-		case <-src.StopNotifier:
-			return nil
-		}
-
-		if count >= src.MaxItems {
-			slog.Logf(logger.Levels.Debug, "Generated all tuples %d, %d", count, src.MaxItems)
-			return nil
-		}
-	}
-
-}*/
