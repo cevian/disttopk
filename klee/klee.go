@@ -81,11 +81,14 @@ func (src *Peer) Run() error {
 
 		clfRow := NewClfRow(int(cl_size))
 		thresh_index := getThreshIndex(src.list, thresh)
-		list_in_row := src.list[src.k : thresh_index+1]
-		for _, item := range list_in_row {
-			histo_cell := bh.HistoCellIndex(uint32(item.Score))
-			//fmt.Println("Insert into row", histo_cell, item.Score)
-			clfRow.Add(disttopk.IntKeyToByteKey(item.Id), uint32(histo_cell))
+		list_in_row := disttopk.NewItemList()
+		if src.k > len(src.list)-1 {
+			list_in_row = src.list[src.k : thresh_index+1]
+			for _, item := range list_in_row {
+				histo_cell := bh.HistoCellIndex(uint32(item.Score))
+				//fmt.Println("Insert into row", histo_cell, item.Score)
+				clfRow.Add(disttopk.IntKeyToByteKey(item.Id), uint32(histo_cell))
+			}
 		}
 
 		if SERIALIZE_CLF {
