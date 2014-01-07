@@ -12,19 +12,21 @@ type BloomHistogramKleeEntry interface {
 
 	Serialize(w io.Writer) error
 	Deserialize(r io.Reader) error
+	GetLowerBound() uint32 //needed for max_size_candidate_list
+	GetUpperBound() uint32 //needed for max_size_candidate_list
+	GetFreq() uint32       //needed for max_size_candidate_list
 }
 
 type BloomHistogramKleeEntryComplete struct {
+	*BloomHistogramKleeEntryPartial
 	filter BloomFilter
-	max    uint32
-	min    uint32
-	avg    uint32
-	freq   uint32
 }
 
 type BloomHistogramKleeEntryPartial struct {
 	avg  uint32
 	freq uint32
+	max  uint32 //?the paper says no but then need this for getting max_size_candidate list
+	min  uint32 //?
 }
 
 func (c *BloomHistogramKleeEntryComplete) GetInfo() string {
@@ -37,6 +39,17 @@ func (c *BloomHistogramKleeEntryComplete) IsComplete() bool {
 
 func (c *BloomHistogramKleeEntryComplete) ByteSize() int {
 	return c.filter.ByteSize() + 4 + 4 + 4 + 4
+}
+
+func (c *BloomHistogramKleeEntryPartial) GetUpperBound() uint32 {
+	return c.max
+}
+
+func (c *BloomHistogramKleeEntryPartial) GetLowerBound() uint32 {
+	return c.min
+}
+func (c *BloomHistogramKleeEntryPartial) GetFreq() uint32 {
+	return c.freq
 }
 
 func (c *BloomHistogramKleeEntryPartial) IsComplete() bool {
@@ -82,6 +95,10 @@ func (b *BloomHistogramKlee) ByteSize() int {
 		sz += v.ByteSize()
 	}
 	return sz + 4
+}
+
+func (b *BloomHistogramKlee) Len() int {
+	return len(b.Data)
 }
 
 func (c *BloomHistogramKlee) GetInfo() string {
@@ -147,18 +164,24 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c int) {
 			for _, item := range list[start_index : last_index+1] {
 				filter.Add(IntKeyToByteKey(item.Id))
 			}
-			entry = &BloomHistogramKleeEntryComplete{filter, uint32(list[start_index].Score), uint32(list[last_index].Score), sum / uint32(num_items), uint32(num_items)}
+			partialentry := &BloomHistogramKleeEntryPartial{sum / uint32(num_items), uint32(num_items), uint32(list[start_index].Score), uint32(list[last_index].Score)}
+			entry = &BloomHistogramKleeEntryComplete{partialentry, filter}
+			//fmt.Printf("Putting in entry %+v\n", entry.(*BloomHistogramKleeEntryComplete).BloomHistogramKleeEntryPartial)
 		} else {
-			entry = &BloomHistogramKleeEntryPartial{sum / uint32(num_items), uint32(num_items)}
+			entry = &BloomHistogramKleeEntryPartial{sum / uint32(num_items), uint32(num_items), uint32(list[start_index].Score), uint32(list[last_index].Score)}
+			//fmt.Printf("Putting in entry %+v\n", entry.(*BloomHistogramKleeEntryPartial))
 		}
 
 		b.Data = append(b.Data, entry)
 
 		start_index = last_index + 1
+
+		if before_cutoff {
+			b.c_index = uint32(len(b.Data) - 1)
+		}
+
 		if cum_sum > cutoff_sum {
 			before_cutoff = false
-		} else {
-			b.c_index = uint32(len(b.Data) - 1)
 		}
 	}
 }
@@ -173,6 +196,33 @@ func (b *BloomHistogramKlee) GetPartialAvg() uint32 {
 	}
 
 	return uint32(cum_sum / cum_freq)
+}
+
+func (b *BloomHistogramKlee) MaxSizeCandidateList(thresh uint32) uint32 {
+	size := uint32(0)
+	for _, entry := range b.Data {
+		//fmt.Printf("In mscl %v %v %v %+v\n", entry.GetLowerBound(), entry.GetFreq(), thresh, entry)
+		if entry.GetLowerBound() < thresh {
+			return size
+		}
+		size += entry.GetFreq()
+	}
+
+	return size
+}
+
+func (b *BloomHistogramKlee) GetUpperBoundByIndex(idx int) uint32 {
+	return b.Data[idx].GetUpperBound()
+}
+
+func (s *BloomHistogramKlee) HistoCellIndex(value uint32) int {
+	for k, entry := range s.Data {
+		if entry.GetUpperBound() >= value && entry.GetLowerBound() <= value {
+			return k
+		}
+	}
+	panic("Shouldn't be here")
+	//return -1
 }
 
 func (s *BloomHistogramKlee) Query(key []byte) uint32 {
@@ -192,16 +242,7 @@ func (p *BloomHistogramKleeEntryComplete) Serialize(w io.Writer) error {
 		return err
 	}
 
-	if err := binary.Write(w, binary.BigEndian, &p.max); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.BigEndian, &p.min); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.BigEndian, &p.avg); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.BigEndian, &p.freq); err != nil {
+	if err := p.BloomHistogramKleeEntryPartial.Serialize(w); err != nil {
 		return err
 	}
 	return nil
@@ -215,20 +256,8 @@ func (p *BloomHistogramKleeEntryComplete) Deserialize(r io.Reader) error {
 		return err
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &p.max); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.BigEndian, &p.min); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.BigEndian, &p.avg); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.BigEndian, &p.freq); err != nil {
-		return err
-	}
-
-	return nil
+	p.BloomHistogramKleeEntryPartial = &BloomHistogramKleeEntryPartial{}
+	return p.BloomHistogramKleeEntryPartial.Deserialize(r)
 }
 
 func (p *BloomHistogramKleeEntryPartial) Serialize(w io.Writer) error {
@@ -238,6 +267,13 @@ func (p *BloomHistogramKleeEntryPartial) Serialize(w io.Writer) error {
 	if err := binary.Write(w, binary.BigEndian, &p.freq); err != nil {
 		return err
 	}
+	if err := binary.Write(w, binary.BigEndian, &p.max); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, &p.min); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -246,6 +282,12 @@ func (p *BloomHistogramKleeEntryPartial) Deserialize(r io.Reader) error {
 		return err
 	}
 	if err := binary.Read(r, binary.BigEndian, &p.freq); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &p.max); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &p.min); err != nil {
 		return err
 	}
 
@@ -290,7 +332,9 @@ func (p *BloomHistogramKlee) Deserialize(r io.Reader) error {
 		} else {
 			entry = &BloomHistogramKleeEntryPartial{}
 		}
-		entry.Deserialize(r)
+		if err := entry.Deserialize(r); err != nil {
+			return err
+		}
 		p.Data[i] = entry
 	}
 

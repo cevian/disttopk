@@ -53,11 +53,12 @@ func runTput(l []disttopk.ItemList, k int) disttopk.ItemList {
 
 func runKlee(l []disttopk.ItemList, k int) disttopk.ItemList {
 	runner := stream.NewRunner()
+	clRound := true
 	peers := make([]*klee.Peer, len(l))
-	coord := klee.NewCoord(k)
+	coord := klee.NewCoord(k, clRound)
 	runner.Add(coord)
 	for i, list := range l {
-		peers[i] = klee.NewPeer(list, k)
+		peers[i] = klee.NewPeer(list, k, clRound)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}

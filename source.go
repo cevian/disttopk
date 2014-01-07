@@ -30,6 +30,10 @@ type Item struct {
 	Score float64
 }
 
+func NewItemList() ItemList {
+	return make([]Item, 0)
+}
+
 type ItemList []Item
 
 func (il ItemList) Swap(i, j int) { il[i], il[j] = il[j], il[i] }
@@ -40,6 +44,8 @@ func (il ItemList) Less(i, j int) bool {
 	}
 	return il[i].Score < il[j].Score
 }
+
+func (il ItemList) Append(i Item) ItemList { return append(il, i) }
 
 func (il ItemList) Sort() { sort.Sort(sort.Reverse(il)) }
 

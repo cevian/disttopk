@@ -7,22 +7,39 @@ import (
 	"fmt"
 )
 
-func NewPeer(list disttopk.ItemList, k int) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0}
+func NewPeer(list disttopk.ItemList, k int, clrRound bool) *Peer {
+	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0, clrRound}
 }
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	forward chan<- disttopk.DemuxObject
-	back    <-chan stream.Object
-	list    disttopk.ItemList
-	k       int
-	id      int
+	forward  chan<- disttopk.DemuxObject
+	back     <-chan stream.Object
+	list     disttopk.ItemList
+	k        int
+	id       int
+	clrRound bool
 }
 
 type FirstRound struct {
 	list disttopk.ItemList
 	bh   []byte
+}
+
+type ClrRoundSpec struct {
+	thresh  uint32
+	cl_size uint32
+}
+
+func getThreshIndex(list disttopk.ItemList, thresh uint32) int {
+	index := 0
+	for k, v := range list {
+		index = k
+		if v.Score < float64(thresh) {
+			break
+		}
+	}
+	return index
 }
 
 func (src *Peer) Run() error {
@@ -48,39 +65,86 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	thresh := float64(0)
-	select {
-	case obj := <-src.back:
-		thresh = obj.(float64)
-	case <-src.StopNotifier:
-		return nil
-	}
+	if src.clrRound {
+		thresh := uint32(0)
+		cl_size := uint32(0)
+		select {
+		case obj := <-src.back:
+			spec := obj.(ClrRoundSpec)
+			thresh = spec.thresh
+			cl_size = spec.cl_size
+		case <-src.StopNotifier:
+			return nil
+		}
 
-	index := 0
-	for k, v := range src.list {
-		index = k
-		if v.Score < thresh {
-			break
+		clfRow := NewClfRow(int(cl_size))
+		thresh_index := getThreshIndex(src.list, thresh)
+		list_in_row := src.list[src.k : thresh_index+1]
+		for _, item := range list_in_row {
+			histo_cell := bh.HistoCellIndex(uint32(item.Score))
+			//fmt.Println("Insert into row", histo_cell, item.Score)
+			clfRow.Add(disttopk.IntKeyToByteKey(item.Id), uint32(histo_cell))
+		}
+
+		select {
+		case src.forward <- disttopk.DemuxObject{src.id, clfRow}:
+		case <-src.StopNotifier:
+			return nil
+		}
+
+		var bitArray *disttopk.BitArray
+		select {
+		case obj := <-src.back:
+			bitArray = obj.(*disttopk.BitArray)
+		case <-src.StopNotifier:
+			return nil
+		}
+
+		secondlist := disttopk.NewItemList()
+
+		for _, item := range list_in_row {
+			idx := clfRow.GetIndex(disttopk.IntKeyToByteKey(item.Id))
+			if bitArray.Check(uint(idx)) {
+				secondlist = secondlist.Append(item)
+			}
+		}
+
+		//fmt.Println("Secondlist ", len(secondlist))
+
+		select {
+		case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
+		case <-src.StopNotifier:
+			return nil
+		}
+
+	} else {
+		thresh := float64(0)
+		select {
+		case obj := <-src.back:
+			thresh = obj.(float64)
+		case <-src.StopNotifier:
+			return nil
+		}
+
+		thresh_index := getThreshIndex(src.list, uint32(thresh))
+		//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index)
+		//v.Score >= thresh included
+
+		var secondlist disttopk.ItemList
+		if thresh_index > src.k {
+			secondlist = src.list[src.k : thresh_index+1]
+		}
+		select {
+		case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
+		case <-src.StopNotifier:
+			return nil
 		}
 	}
-	//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index)
-	//v.Score >= thresh included
-
-	var secondlist disttopk.ItemList
-	if index > src.k {
-		secondlist = src.list[src.k:index]
-	}
-	select {
-	case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
-	case <-src.StopNotifier:
-		return nil
-	}
-
 	return nil
 }
 
-func NewCoord(k int) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k}
+func NewCoord(k int, clrRound bool) *Coord {
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k, clrRound}
 }
 
 type Coord struct {
@@ -90,6 +154,7 @@ type Coord struct {
 	//lists        [][]disttopk.Item
 	FinalList []disttopk.Item
 	k         int
+	clrRound  bool
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -169,14 +234,75 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 1 klee: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
 	bytes := bytesRound
 
-	for _, ch := range src.backPointers {
-		select {
-		case ch <- localthresh:
-		case <-src.StopNotifier:
-			return nil
+	if src.clrRound {
+		max_size_candidate_list := uint32(0)
+		for _, bh := range bh_map {
+			bh_mscl := bh.MaxSizeCandidateList(uint32(localthresh))
+			if bh_mscl > max_size_candidate_list {
+				max_size_candidate_list = bh_mscl
+			}
+		}
+
+		eps := 0.06
+		load_factor := 1.0 / eps
+		size := uint32(load_factor * float64(max_size_candidate_list))
+		fmt.Println("Coord: Thresh size", localthresh, size, load_factor, max_size_candidate_list)
+
+		for _, ch := range src.backPointers {
+			select {
+			case ch <- ClrRoundSpec{uint32(localthresh), size}:
+			case <-src.StopNotifier:
+				return nil
+			}
+		}
+
+		clf_map := make(map[int]*ClfRow)
+		for cnt := 0; cnt < nnodes; cnt++ {
+			select {
+			case dobj := <-src.input:
+				clr := dobj.Obj.(*ClfRow)
+				id := dobj.Id
+				clf_map[id] = clr
+			case <-src.StopNotifier:
+				return nil
+
+			}
+		}
+
+		bitArray := disttopk.NewBitArray(uint(size))
+		for clf_idx := 0; clf_idx < int(size); clf_idx++ {
+			ub_sum := uint32(0)
+			for peer_id, row := range clf_map {
+				if row.HasHistoCellIndex(clf_idx) {
+					histo_idx := int(row.QueryHistoCellIndex(clf_idx))
+					//fmt.Println("histo_idx", histo_idx, bh_map[peer_id].Len())
+					ub := bh_map[peer_id].GetUpperBoundByIndex(histo_idx)
+					ub_sum += ub
+				}
+			}
+			//fmt.Println("Ubsum", ub_sum, thresh)
+			if ub_sum > uint32(thresh) {
+				bitArray.Set(uint(clf_idx))
+			}
+		}
+
+		for _, ch := range src.backPointers {
+			select {
+			case ch <- bitArray:
+			case <-src.StopNotifier:
+				return nil
+			}
+		}
+
+	} else {
+		for _, ch := range src.backPointers {
+			select {
+			case ch <- localthresh:
+			case <-src.StopNotifier:
+				return nil
+			}
 		}
 	}
-
 	il := disttopk.MakeItemList(m)
 
 	round2items := 0
