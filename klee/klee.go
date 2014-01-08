@@ -82,8 +82,10 @@ func (src *Peer) Run() error {
 		clfRow := NewClfRow(int(cl_size))
 		thresh_index := getThreshIndex(src.list, thresh)
 		list_in_row := disttopk.NewItemList()
-		if src.k > len(src.list)-1 {
+		//fmt.Println("before row ass", src.k, len(src.list)-1)
+		if src.k < len(src.list)-1 {
 			list_in_row = src.list[src.k : thresh_index+1]
+			//fmt.Println("List in row sz", len(list_in_row), thresh, src.list[thresh_index+1].Score, thresh_index)
 			for _, item := range list_in_row {
 				histo_cell := bh.HistoCellIndex(uint32(item.Score))
 				//fmt.Println("Insert into row", histo_cell, item.Score)
@@ -267,7 +269,7 @@ func (src *Coord) Run() error {
 		eps := 0.06
 		load_factor := 1.0 / eps
 		size := uint32(load_factor * float64(max_size_candidate_list))
-		fmt.Println("Coord: Thresh size", localthresh, size, load_factor, max_size_candidate_list)
+		//fmt.Println("Coord: Thresh size", localthresh, size, load_factor, max_size_candidate_list)
 
 		for _, ch := range src.backPointers {
 			select {
@@ -312,6 +314,7 @@ func (src *Coord) Run() error {
 			hash_index := clfRowForHashing.GetIndex(disttopk.IntKeyToByteKey(id))
 			recv_by_histo_index[int(hash_index)] += uint32(score)
 		}
+		count_idx := 0
 		for clf_idx := 0; clf_idx < int(size); clf_idx++ {
 			ub_sum := recv_by_histo_index[clf_idx]
 			for peer_id, row := range clf_map {
@@ -322,11 +325,13 @@ func (src *Coord) Run() error {
 					ub_sum += ub
 				}
 			}
-			fmt.Println("Ubsum", ub_sum, thresh)
+			//fmt.Println("ubsum", ub_sum)
 			if ub_sum > uint32(thresh) {
 				bitArray.Set(uint(clf_idx))
+				count_idx++
 			}
 		}
+		//fmt.Println("count idx", count_idx, size, len(clf_map))
 
 		for _, ch := range src.backPointers {
 			select {
@@ -336,7 +341,7 @@ func (src *Coord) Run() error {
 			}
 		}
 		bytes_clround += (int(bitArray.NumBits()/8) + 1) * nnodes
-		fmt.Println("Round CLF klee: got bytes in round: ", bytes_clround)
+		fmt.Println("Round CLF klee: got bytes in. size filter", size, " round:", bytes_clround)
 		bytes += bytes_clround
 		//bytes_round += bytes_clround
 	} else {
