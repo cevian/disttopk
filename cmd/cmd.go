@@ -205,6 +205,73 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
+func itemList2item(ilist disttopk.ItemList) []disttopk.Item {
+	keys := make([]disttopk.Item, len(ilist))
+	for i, item := range ilist {
+		keys[i] = item
+	}
+	return keys
+}
+
+func IMax(i,j int) int {
+	if i > j {
+		return i
+	} else {
+		return j
+	}
+}
+
+func IMin(i,j int) int {
+	if i < j {
+		return i
+	} else {
+		return j
+	}
+}
+
+func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k int) float64 {
+	// approximately the Jaro edit distance: 0 is no match, 1 is perfect match
+	//Inspiration from https://code.google.com/p/duke/source/browse/src/main/java/no/priv/garshol/duke/JaroWinkler.java
+	matches := 0.0
+	transpositions := 0.0
+
+	exact_keys := itemList2item(exact_list)[0:k]
+	approx_keys := itemList2item(approx_list)
+	
+	if len(approx_keys) < k {
+		fmt.Printf("XXX, this case not yet implemented in JWDistance")
+		os.Exit(1)
+			//perhaps should just append with nils?
+	}
+	
+	search_window_width := len(approx_keys)/2 
+	last_match_in_approx := -1
+	for i := 0; i < k; i++ {
+		to_match := exact_keys[i]
+		search_start := IMax(0, i - search_window_width)
+		search_end := IMin(i + search_window_width+1, len(approx_keys))
+		for j:= search_start ; j < search_end; j++ {
+			if to_match == approx_keys[j] {
+				matches ++
+				if (last_match_in_approx != -1 && j < last_match_in_approx) {
+					transpositions++; // moved back before earlier 
+				}
+				last_match_in_approx = j;
+				break;
+			}
+		}
+	}
+	
+	if matches == 0 {
+		return 0
+	} else {
+		fmt.Println(matches,"matches", len(exact_keys), "exact keys", len(approx_keys),"approx keys")
+		k_f := float64(k)
+		return (matches/k_f +matches/k_f+(matches-transpositions)/matches) / 3.0
+
+	}
+}
+
 var algo_names []string = []string{"Naive-exact", "Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact"}
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
@@ -238,12 +305,14 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 		fmt.Println("-----------------------")
 
 		result, stats := algorithm(data, k) //, stats
-		recall := getRecall(ground_truth, result, k)
+		stats.Recall = getRecall(ground_truth, result, k)
+
+		stats.Abs_err = getScoreError(ground_truth, result, k)
+		stats.Rel_err = getScoreErrorRel(ground_truth, result, k)
+		stats.Edit_distance = JWDistance (ground_truth, result, k)
+		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Abs_err, stats.Rel_err)
 
 		statsMap[algo_names[i]] = stats
-		score_err := getScoreError(ground_truth, result, k)
-		score_err_rel := getScoreErrorRel(ground_truth, result, k)
-		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.BytesTransferred, recall, score_err, score_err_rel)
 
 		runtime.GC()
 
@@ -251,17 +320,16 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 		for i := 0; i < k; i++ {
 			if ground_truth[i] != result[i] {
-				fmt.Println("Lists do not match", ground_truth[i], result[i])
+				fmt.Println("Lists do not match at position",i, ground_truth[i], "vs", result[i])
 				match = false
 			}
 		}
 		if match == true {
 			fmt.Println("Lists Match")
 		}
+	} //end loop over algorithms
 
-	}
 	return statsMap
-	//	fmt.Println("The K'th Item:", naivel[k-1])
 }
 
 func main() {
@@ -318,7 +386,7 @@ func main() {
 	for dataset, row := range datatable {
 		fmt.Print(dataset)
 		for _, algo := range algo_names {
-			fmt.Printf("\t& %d ", row[algo].BytesTransferred)
+			fmt.Printf("\t& %d (edit dist %.6G)", row[algo].Bytes_transferred, row[algo].Edit_distance)
 		}
 		fmt.Println()
 	}
