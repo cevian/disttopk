@@ -255,10 +255,11 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 		result, stats := algorithm(data, k) //, stats
 		recall := getRecall(ground_truth, result, k)
-		//		score_err := getScoreError(ground_truth, result, k)
-		//	getScoreErrorRel(ground_truth, cml, k)
+
 		statsMap[algo_names[i]] = stats
-		fmt.Println(algo_names[i], " results:  BW = ", stats.BytesTransferred, " Recall =", recall)
+		score_err := getScoreError(ground_truth, result, k)
+		score_err_rel := getScoreErrorRel(ground_truth, result, k)
+		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.BytesTransferred, recall, score_err, score_err_rel)
 		runtime.GC()
 
 		match := true
