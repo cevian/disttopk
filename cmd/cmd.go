@@ -111,12 +111,27 @@ func runCmFilter(l []disttopk.ItemList, k int, eps float64, delta float64) distt
 	return coord.FinalList
 }
 
+func getNEst(l []disttopk.ItemList) int {
+	/*items := 0
+	for _, list := range l {
+		items += len(list)
+	}
+	return items*/
+	ids := make(map[int]bool)
+	for _, list := range l {
+		for _, item := range list {
+			ids[item.Id] = true
+		}
+	}
+	return len(ids)
+}
+
 func runBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewBloomCoord(topk)
-	numpeer := 33
-	N_est := 2700000
+	numpeer := len(l)
+	N_est := getNEst(l)
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = tworound.NewBloomPeer(list, topk, numpeer, N_est)
@@ -132,8 +147,8 @@ func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, dist
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewBloomCoord(topk)
-	numpeer := 33
-	N_est := 2700000
+	numpeer := len(l)
+	N_est := getNEst(l)
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = tworound.NewBloomPeerGcs(list, topk, numpeer, N_est)
@@ -265,6 +280,12 @@ func main() {
 	//l is a list of lists; each top-level list is the data from each peer.
 	if source == "zipf" {
 		l = disttopk.GetListSet(10, 10000, 0.8, 0.7)
+	} else if source == "zipf-disjoint" {
+		l = disttopk.GetDisjointSimpleList(10, 10000, 0.7)
+	} else if source == "zipf-fo" {
+		l = disttopk.GetFullOverlapSimpleList(10, 10000, 0.7)
+	} else if source == "zipf-perm" {
+		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 10000, 0.7, 10)
 	} else if source == "UCB" {
 		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")

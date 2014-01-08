@@ -82,7 +82,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																													println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																					println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -424,8 +424,7 @@ func (c *BloomHistogramCollection) AddToHashValueFilter(hvf *HashValueFilter) {
 	}
 }
 
-func (bc *BloomHistogramCollection) SetThresh(t uint32) {
-	bc.Thresh = t
+func (bc *BloomHistogramCollection) PopLast(t uint32) {
 
 	cutoff := uint32(0)
 	for _, sk := range bc.sketches {
@@ -434,24 +433,30 @@ func (bc *BloomHistogramCollection) SetThresh(t uint32) {
 
 	/* cutoff the last, most expensive entry from each sketch */
 	count := 0
-	for cutoff < t && count < len(bc.sketches) {
+	bc.Sort()
+	for count < len(bc.sketches) && cutoff+bc.sketches[count].CutoffChangePop() < t {
 		cutoff += bc.sketches[count].Pop()
 		count++
 	}
+	//fmt.Println("Final cutoff", cutoff)
+}
 
-	/*
-		none := false
-		for !none && cutoff < t {
-			none = true
-			bc.Sort()
-			score := bc.SketchScore(0)
-			for score > 0.1 && cutoff+bc.sketches[0].CutoffChangePop() < (t) {
-				//fmt.Println("Popping", score, bc.sketches[0].ByteSizeLastFilter(), bc.sketches[0].CutoffChangePop(), bc.sketches[0].LastEntry().n_max)
-				cutoff += bc.sketches[0].Pop()
-				bc.Sort()
-				score = bc.SketchScore(0)
-			}
-		}*/
+func (bc *BloomHistogramCollection) SetThresh(t uint32) {
+	bc.Thresh = t
+	bc.PopLast(t)
+}
+
+func (bc *BloomHistogramCollection) PopMax(t uint32) {
+	cutoff := uint32(0)
+	for _, sk := range bc.sketches {
+		cutoff += sk.Cutoff()
+	}
+
+	bc.Sort()
+	for /* bc.SketchScore(0) > 0.1 &&*/ cutoff+bc.sketches[0].CutoffChangePop() < (t) {
+		cutoff += bc.sketches[0].Pop()
+		bc.Sort()
+	}
 }
 
 func (bc *BloomHistogramCollection) Merge(toadd Sketch) {
