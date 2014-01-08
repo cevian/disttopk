@@ -11,11 +11,13 @@ import (
 	"github.com/cevian/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
 	"fmt"
+//	"strconv"
 	"os"
 	"runtime"
 )
 
 var _ = os.Exit
+
 
 const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
 
@@ -187,6 +189,70 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
+
+var algo_names []string = []string{"Naive-exact", "Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact"}
+
+
+
+func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
+	l1norm := 0.0
+	items := 0
+	ids := make(map[int]bool)
+	for _, list := range data {
+		items += len(list)
+		for _, item := range list {
+			l1norm += item.Score
+			ids[item.Id] = true
+		}
+	}
+
+	k := 10
+	eps := 0.0001
+	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(data), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
+	ids = make(map[int]bool)
+	naive_exact, _ := runNaive(data, 0)
+	ground_truth := naive_exact
+
+
+	//	var meths_to_run
+	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
+	algos_to_run := []rank_algorithm{runNaive, runNaiveK2, runTput, runKlee3, runKlee4, runBloomSketchGcs}
+
+	//cml := runBloomSketch(l, k)
+	//cml := (l, k)
+
+	statsMap := make(map[string]disttopk.AlgoStats)
+	for i, algorithm := range algos_to_run {
+		fmt.Println("-----------------------")
+
+		result, stats := algorithm(data, k) //, stats
+		recall := getRecall(ground_truth, result, k)
+
+		statsMap[algo_names[i]] = stats
+		score_err := getScoreError(ground_truth, result, k)
+		score_err_rel := getScoreErrorRel(ground_truth, result, k)
+		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.BytesTransferred, recall, score_err, score_err_rel)
+
+		runtime.GC()
+
+		match := true
+
+		for i := 0; i < k; i++ {
+			if ground_truth[i] != result[i] {
+				fmt.Println("Lists do not match", ground_truth[i], result[i])
+				match = false
+			}
+		}
+		if match == true {
+			fmt.Println("Lists Match")
+		}
+
+	}
+	return statsMap
+	//	fmt.Println("The K'th Item:", naivel[k-1])
+}
+
+
 func main() {
 	args := os.Args
 	var source string
@@ -217,64 +283,27 @@ func main() {
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
 	
-	analyze_dataset(l)
+	datatable := make(map[string]map[string]disttopk.AlgoStats)
+	/*
+	for numlists := 5; numlists < 40; numlists += 10 {
+		l = disttopk.GetListSet(numlists, 10000, 0.8, 0.7)
+		datatable[strconv.Itoa(numlists)] = analyze_dataset(l)
+	}*/
+	datatable[source] = analyze_dataset(l)
 	
-}
-
-func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
-	l1norm := 0.0
-	items := 0
-	ids := make(map[int]bool)
-	for _, list := range data {
-		items += len(list)
-		for _, item := range list {
-			l1norm += item.Score
-			ids[item.Id] = true
-		}
+		//table header
+	fmt.Print(" ")
+	for _,name := range algo_names {
+		fmt.Printf("\t& %s", name)
 	}
-
-	k := 10
-	eps := 0.0001
-	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(data), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
-	ids = make(map[int]bool)
-	naive_exact, _ := runNaive(data, 0)
-	ground_truth := naive_exact
-
-
-	//	var meths_to_run
-	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
-	algo_names := []string{"Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact"}
-	algos_to_run := []rank_algorithm{runNaiveK2, runTput, runKlee3, runKlee4, runBloomSketchGcs}
-
-	//cml := runBloomSketch(l, k)
-	//cml := (l, k)
-
-  statsMap := make(map[string]disttopk.AlgoStats)
-	for i, algorithm := range algos_to_run {
-		fmt.Println("-----------------------")
-
-		result, stats := algorithm(data, k) //, stats
-		recall := getRecall(ground_truth, result, k)
-
-		statsMap[algo_names[i]] = stats
-		score_err := getScoreError(ground_truth, result, k)
-		score_err_rel := getScoreErrorRel(ground_truth, result, k)
-		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.BytesTransferred, recall, score_err, score_err_rel)
-		runtime.GC()
-
-		match := true
-
-		for i := 0; i < k; i++ {
-			if ground_truth[i] != result[i] {
-				fmt.Println("Lists do not match", ground_truth[i], result[i])
-				match = false
-			}
+	fmt.Println()
+		//now the table
+	for dataset,row := range datatable {
+		fmt.Print(dataset)
+		for _,algo := range algo_names {
+			fmt.Printf("\t& %d ", row[algo].BytesTransferred )
 		}
-		if match == true {
-			fmt.Println("Lists Match")
-		}
-
+		fmt.Println()
 	}
-  return statsMap
-	//	fmt.Println("The K'th Item:", naivel[k-1])
+	
 }
