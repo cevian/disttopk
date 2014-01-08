@@ -161,7 +161,7 @@ func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, dist
 }
 
 func getRecall(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
-	em := exact.AddToMap(nil)
+	em := exact[:k].AddToMap(nil)
 	found := 0
 	for i := 0; i < k; i++ {
 		item := approx[i]
@@ -213,7 +213,7 @@ func itemList2item(ilist disttopk.ItemList) []int {
 	return keys
 }
 
-func IMax(i,j int) int {
+func IMax(i, j int) int {
 	if i > j {
 		return i
 	} else {
@@ -221,7 +221,7 @@ func IMax(i,j int) int {
 	}
 }
 
-func IMin(i,j int) int {
+func IMin(i, j int) int {
 	if i < j {
 		return i
 	} else {
@@ -237,38 +237,38 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 
 	exact_keys := itemList2item(exact_list)[0:k]
 	approx_keys := itemList2item(approx_list)
-	
+
 	if len(approx_keys) < k {
 		fmt.Printf("XXX, this case not yet implemented in JWDistance")
 		os.Exit(1)
-			//perhaps should just append with nils?
+		//perhaps should just append with nils?
 	}
-	
-	search_window_width := len(approx_keys)/2 
+
+	search_window_width := len(approx_keys) / 2
 	last_match_in_approx := -1
 	for i := 0; i < k; i++ {
 		to_match := exact_keys[i]
-		search_start := IMax(0, i - search_window_width)
-		search_end := IMin(i + search_window_width+1, len(approx_keys))
-		for j:= search_start ; j < search_end; j++ {
+		search_start := IMax(0, i-search_window_width)
+		search_end := IMin(i+search_window_width+1, len(approx_keys))
+		for j := search_start; j < search_end; j++ {
 			if to_match == approx_keys[j] {
-				matches ++
-				if (last_match_in_approx != -1 && j < last_match_in_approx) {
-					transpositions++; // moved back before earlier 
+				matches++
+				if last_match_in_approx != -1 && j < last_match_in_approx {
+					transpositions++ // moved back before earlier
 				}
-				last_match_in_approx = j;
-				break;
+				last_match_in_approx = j
+				break
 			}
 		}
 	}
 
-	fmt.Println("Edit distance debug: ",matches,"matches", transpositions,"transpositions, k= ", k, "algo output length",len(approx_keys))
-	
+	fmt.Println("Edit distance debug: ", matches, "matches", transpositions, "transpositions, k= ", k, "algo output length", len(approx_keys))
+
 	if matches == 0 {
 		return 0
 	} else {
 		k_f := float64(k)
-		return (matches/k_f +matches/k_f+(matches-transpositions)/matches) / 3.0
+		return (matches/k_f + matches/k_f + (matches-transpositions)/matches) / 3.0
 
 	}
 }
@@ -310,7 +310,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 		stats.Abs_err = getScoreError(ground_truth, result, k)
 		stats.Rel_err = getScoreErrorRel(ground_truth, result, k)
-		stats.Edit_distance = JWDistance (ground_truth, result, k)
+		stats.Edit_distance = JWDistance(ground_truth, result, k)
 		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Abs_err, stats.Rel_err)
 
 		statsMap[algo_names[i]] = stats
@@ -321,7 +321,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 		for i := 0; i < k; i++ {
 			if ground_truth[i] != result[i] {
-				fmt.Println("Lists do not match at position",i, ground_truth[i], "vs", result[i])
+				fmt.Println("Lists do not match at position", i, ground_truth[i], "vs", result[i])
 				match = false
 			}
 		}
@@ -354,7 +354,7 @@ func main() {
 	} else if source == "zipf-fo" {
 		l = disttopk.GetFullOverlapSimpleList(10, 10000, 0.7)
 	} else if source == "zipf-perm" {
-		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 10000, 0.7, 10)
+		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 10000, 0.7, 100)
 	} else if source == "UCB" {
 		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
