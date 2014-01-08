@@ -198,20 +198,53 @@ func itemList2item(ilist disttopk.ItemList) []disttopk.Item {
 	return keys
 }
 
+func IMax(i,j int) int {
+	if i > j {
+		return i
+	} else {
+		return j
+	}
+}
+
+func IMin(i,j int) int {
+	if i < j {
+		return i
+	} else {
+		return j
+	}
+}
+
 func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k int) float64 {
-	// the Jano-Winkler edit distance: 0 is no match, 1 is perfect match
+	// approximately the Jaro edit distance: 0 is no match, 1 is perfect match
+	//Inspiration from https://code.google.com/p/duke/source/browse/src/main/java/no/priv/garshol/duke/JaroWinkler.java
 	matches := 0.0
 	transpositions := 0.0
 
-	exact_keys := itemList2item(exact_list)
+	exact_keys := itemList2item(exact_list)[0:k]
 	approx_keys := itemList2item(approx_list)
-
 	
+	if len(approx_keys) < k {
+		fmt.Printf("XXX, this case not yet implemented in JWDistance")
+		os.Exit(1)
+			//perhaps should just append with nils?
+	}
+	
+	search_window_width := len(approx_keys)/2 
+	last_match_in_approx := -1
 	for i := 0; i < k; i++ {
-		if len(approx_keys) > i && len(exact_keys) > i && approx_keys[i] == exact_keys[i] {
-			matches++
+		to_match := exact_keys[i]
+		search_start := IMax(0, i - search_window_width)
+		search_end := IMin(i + search_window_width+1, len(approx_keys))
+		for j:= search_start ; j < search_end; j++ {
+			if to_match == approx_keys[j] {
+				matches ++
+				if (last_match_in_approx != -1 && j < last_match_in_approx) {
+					transpositions++; // moved back before earlier 
+				}
+				last_match_in_approx = j;
+				break;
+			}
 		}
-		//TODO many more cases here
 	}
 	
 	if matches == 0 {
