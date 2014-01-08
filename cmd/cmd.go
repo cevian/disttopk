@@ -250,7 +250,7 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 	if matches == 0 {
 		return 0
 	} else {
-		fmt.Println(matches,"matches", len(exact_keys), "exact keys", len(approx_keys),"approx keys")
+//		fmt.Println(matches,"matches", len(exact_keys), "keys in true list", len(approx_keys),"keys in algorithm output")
 		k_f := float64(k)
 		return (matches/k_f +matches/k_f+(matches-transpositions)/matches) / 3.0
 
