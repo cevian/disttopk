@@ -244,10 +244,9 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 		if match == true {
 			fmt.Println("Lists Match")
 		}
+	} //end loop over algorithms
 
-	}
 	return statsMap
-	//	fmt.Println("The K'th Item:", naivel[k-1])
 }
 
 func main() {
