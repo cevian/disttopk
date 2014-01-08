@@ -205,10 +205,10 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
-func itemList2item(ilist disttopk.ItemList) []disttopk.Item {
-	keys := make([]disttopk.Item, len(ilist))
+func itemList2item(ilist disttopk.ItemList) []int {
+	keys := make([]int, len(ilist))
 	for i, item := range ilist {
-		keys[i] = item
+		keys[i] = item.Id
 	}
 	return keys
 }
@@ -261,11 +261,12 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 			}
 		}
 	}
+
+	fmt.Println("Edit distance debug: ",matches,"matches", transpositions,"transpositions, k= ", k, "algo output length",len(approx_keys))
 	
 	if matches == 0 {
 		return 0
 	} else {
-//		fmt.Println(matches,"matches", len(exact_keys), "keys in true list", len(approx_keys),"keys in algorithm output")
 		k_f := float64(k)
 		return (matches/k_f +matches/k_f+(matches-transpositions)/matches) / 3.0
 
