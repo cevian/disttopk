@@ -11,13 +11,12 @@ import (
 	"github.com/cevian/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
 	"fmt"
-//	"strconv"
+	//	"strconv"
 	"os"
 	"runtime"
 )
 
 var _ = os.Exit
-
 
 const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
 
@@ -41,7 +40,9 @@ func runNaive(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.Al
 func runNaiveK2(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
 	return runNaive(l, 2*cutoff)
 }
-
+func runNaiveExact(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return runNaive(l, 0)
+}
 func runTput(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tput.Peer, len(l))
@@ -189,10 +190,7 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
-
 var algo_names []string = []string{"Naive-exact", "Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact"}
-
-
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
@@ -213,10 +211,9 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	naive_exact, _ := runNaive(data, 0)
 	ground_truth := naive_exact
 
-
 	//	var meths_to_run
 	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
-	algos_to_run := []rank_algorithm{runNaive, runNaiveK2, runTput, runKlee3, runKlee4, runBloomSketchGcs}
+	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runTput, runKlee3, runKlee4, runBloomSketchGcs}
 
 	//cml := runBloomSketch(l, k)
 	//cml := (l, k)
@@ -252,7 +249,6 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	//	fmt.Println("The K'th Item:", naivel[k-1])
 }
 
-
 func main() {
 	args := os.Args
 	var source string
@@ -282,28 +278,28 @@ func main() {
 
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
-	
+
 	datatable := make(map[string]map[string]disttopk.AlgoStats)
 	/*
-	for numlists := 5; numlists < 40; numlists += 10 {
-		l = disttopk.GetListSet(numlists, 10000, 0.8, 0.7)
-		datatable[strconv.Itoa(numlists)] = analyze_dataset(l)
-	}*/
+		for numlists := 5; numlists < 40; numlists += 10 {
+			l = disttopk.GetListSet(numlists, 10000, 0.8, 0.7)
+			datatable[strconv.Itoa(numlists)] = analyze_dataset(l)
+		}*/
 	datatable[source] = analyze_dataset(l)
-	
-		//table header
+
+	//table header
 	fmt.Print(" ")
-	for _,name := range algo_names {
+	for _, name := range algo_names {
 		fmt.Printf("\t& %s", name)
 	}
 	fmt.Println()
-		//now the table
-	for dataset,row := range datatable {
+	//now the table
+	for dataset, row := range datatable {
 		fmt.Print(dataset)
-		for _,algo := range algo_names {
-			fmt.Printf("\t& %d ", row[algo].BytesTransferred )
+		for _, algo := range algo_names {
+			fmt.Printf("\t& %d ", row[algo].BytesTransferred)
 		}
 		fmt.Println()
 	}
-	
+
 }
