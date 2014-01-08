@@ -257,6 +257,7 @@ func NewBloomCoord(k int) *Coord {
 	guf := func(us UnionSketch, thresh uint32) UnionFilter {
 		//bs := us.(*disttopk.BloomSketch)
 		bs := us.(*disttopk.BloomHistogramCollection)
+		fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 		bs.SetThresh(thresh)
 
 		return bs

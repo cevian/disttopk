@@ -82,7 +82,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-									println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																													println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -107,13 +107,15 @@ type GcsFilterAdaptor struct{}
 
 func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int) (BloomFilter, float64) {
 	eps := EstimateEpsGcs(N_est, n, RECORD_SIZE)
-	m := EstimateMGcs(n, eps)
-	m_log := math.Log2(float64(m))
+	//eps := 0.01
+	m_est := EstimateMGcs(n, eps)
+	m_log := math.Log2(float64(m_est))
 	m_log_rounded, frac := math.Modf(m_log)
 	if frac >= 0.5 {
 		m_log_rounded++
 	}
-	m = (1 << (uint(m_log_rounded)))
+	m := (1 << (uint(m_log_rounded)))
+	//fmt.Printf("GCS info: eps %v m_est %v, m_log %v (rounded %v) m %v\n", eps, m_est, m_log, m_log_rounded, m)
 	entry := NewGcs(m)
 	return entry, eps
 }
@@ -196,7 +198,7 @@ func (b *BloomHistogram) CreateFromList(list ItemList) {
 		i += 1
 		orig := listindex
 		corrected_items := items
-		if items > lastindex-listindex+1 || i == 9 {
+		if items > lastindex-listindex+1 || i == 10 {
 			corrected_items = lastindex - listindex + 1
 		}
 
