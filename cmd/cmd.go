@@ -216,11 +216,16 @@ func main() {
 
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
+	
+	analyze_dataset(l)
+	
+}
 
+func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
 	items := 0
 	ids := make(map[int]bool)
-	for _, list := range l {
+	for _, list := range data {
 		items += len(list)
 		for _, item := range list {
 			l1norm += item.Score
@@ -230,26 +235,12 @@ func main() {
 
 	k := 10
 	eps := 0.0001
-	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(l), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
+	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(data), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
 	ids = make(map[int]bool)
-	naive_exact, _ := runNaive(l, 0)
+	naive_exact, _ := runNaive(data, 0)
 	ground_truth := naive_exact
-	/*
-		info := ""
-		for _, knaive := range []int{10, 50, 100} {
-			for _, headroom := range []int{1, 2, 5, 10, 15} {
-				naivecutl := runNaive(l, knaive*headroom)
-				fmt.Println("Naiive k", knaive, " headroom", headroom, " recall ", getRecall(naivel, naivecutl, k), " Score err ", getScoreError(naivel, naivecutl, k), " Rel ", getScoreErrorRel(naivel, naivecutl, k))
-				info += fmt.Sprintln(knaive, headroom, getRecall(naivel, naivecutl, k), getScoreError(naivel, naivecutl, k), getScoreErrorRel(naivel, naivecutl, k))
-			}
-		}
-		fmt.Println(info)
-		runtime.GC()
-		runTput(l, k)
-		runtime.GC()
 
-		cml := runCmFilter(l, k, eps, 0.01)
-	*/
+
 	//	var meths_to_run
 	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
 	algo_names := []string{"Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact"}
@@ -258,13 +249,15 @@ func main() {
 	//cml := runBloomSketch(l, k)
 	//cml := (l, k)
 
+  statsMap := make(map[string]disttopk.AlgoStats)
 	for i, algorithm := range algos_to_run {
 		fmt.Println("-----------------------")
 
-		result, stats := algorithm(l, k) //, stats
+		result, stats := algorithm(data, k) //, stats
 		recall := getRecall(ground_truth, result, k)
 		//		score_err := getScoreError(ground_truth, result, k)
 		//	getScoreErrorRel(ground_truth, cml, k)
+		statsMap[algo_names[i]] = stats
 		fmt.Println(algo_names[i], " results:  BW = ", stats.BytesTransferred, " Recall =", recall)
 		runtime.GC()
 
@@ -281,6 +274,6 @@ func main() {
 		}
 
 	}
-
+  return statsMap
 	//	fmt.Println("The K'th Item:", naivel[k-1])
 }
