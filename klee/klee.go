@@ -83,7 +83,7 @@ func (src *Peer) Run() error {
 		thresh_index := getThreshIndex(src.list, thresh)
 		list_in_row := disttopk.NewItemList()
 		//fmt.Println("before row ass", src.k, len(src.list)-1)
-		if src.k < len(src.list)-1 {
+		if src.k < len(src.list)-1 && (thresh_index+1) > src.k {
 			list_in_row = src.list[src.k : thresh_index+1]
 			//fmt.Println("List in row sz", len(list_in_row), thresh, src.list[thresh_index+1].Score, thresh_index)
 			for _, item := range list_in_row {
