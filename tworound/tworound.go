@@ -26,7 +26,7 @@ func NewBloomPeerGcs(list disttopk.ItemList, topk int, numpeer int, N_est int) *
 }
 
 func NewPeer(list disttopk.ItemList, pa PeerAdaptor, k int) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), pa, nil, nil, list, k, 0}
+	return &Peer{stream.NewHardStopChannelCloser(), pa, nil, nil, list, k, 0, 1}
 }
 
 type PeerAdaptor interface {
@@ -151,6 +151,7 @@ type Peer struct {
 	list    disttopk.ItemList
 	k       int
 	id      int
+	Alpha   float64
 }
 
 type FirstRoundSketch interface {
@@ -200,7 +201,8 @@ func (src *Peer) Run() error {
 		src.k = len(src.list)
 	}
 
-	localtop := src.list[:src.k]
+	localtop_index := int(float64(src.k) * src.Alpha)
+	localtop := src.list[:localtop_index]
 
 	sketch := src.createSketch()
 	sketch.CreateFromList(src.list)
@@ -220,7 +222,7 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	exactlist, round2Access := src.getRoundTwoList(uf, src.list, src.k)
+	exactlist, round2Access := src.getRoundTwoList(uf, src.list, localtop_index)
 	runtime.GC()
 	/*exactlist := make([]disttopk.Item, 0)
 	for index, v := range src.list {
@@ -430,4 +432,3 @@ func (src *Coord) Run() error {
 	src.FinalList = il
 	return nil
 }
-
