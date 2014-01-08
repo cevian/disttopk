@@ -49,7 +49,7 @@ func (t *DefaultPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemL
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}
-	return exactlist, &disttopk.AlgoStats{Serial_items: len(list), Length: len(list)}
+	return exactlist, &disttopk.AlgoStats{Serial_items: len(list) /*, Length: len(list)*/}
 }
 
 func (t *DefaultPeerAdaptor) createSketch() FirstRoundSketch {
@@ -130,7 +130,7 @@ func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList,
 		}
 
 		//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
-		return exactlist, &disttopk.AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested, Length: len(list)}
+		return exactlist, &disttopk.AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested /*, Length: len(list)*/}
 	} else {
 		exactlist := make([]disttopk.Item, 0)
 		for index, v := range list {
@@ -139,7 +139,7 @@ func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList,
 			}
 		}
 		//fmt.Println("Round two list items used serial test, total items (all sequential tested)", len(list))
-		return exactlist, &disttopk.AlgoStats{Serial_items: len(list), Random_access: 0, Random_items: 0, Length: len(list)}
+		return exactlist, &disttopk.AlgoStats{Serial_items: len(list), Random_access: 0, Random_items: 0 /*, Length: len(list)*/}
 	}
 }
 
@@ -164,8 +164,9 @@ type Serialized interface {
 }
 
 type FirstRound struct {
-	list disttopk.ItemList
-	cm   Serialized
+	list  disttopk.ItemList
+	cm    Serialized
+	stats *disttopk.AlgoStats
 }
 
 type SecondRound struct {
@@ -173,7 +174,7 @@ type SecondRound struct {
 }
 
 type SecondRoundPeerReply struct {
-	list   disttopk.ItemList
+	list  disttopk.ItemList
 	stats *disttopk.AlgoStats
 }
 
@@ -194,8 +195,9 @@ func (src *Peer) Run() error {
 	sketch.CreateFromList(src.list)
 	ser := src.serialize(sketch)
 
+	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index, Random_access: 0, Random_items: 0}
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, ser}}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, ser, first_round_access}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -333,6 +335,8 @@ func (src *Coord) Run() error {
 	items := 0
 	sketchsize := 0
 	var ucm UnionSketch
+
+	round1Access := &disttopk.AlgoStats{}
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
@@ -346,6 +350,7 @@ func (src *Coord) Run() error {
 			sketchsize += fr.cm.ByteSize()
 			//cm := fr.cm.(*disttopk.CountMinSketch)
 			//sketchsize += cm.ByteSize()
+			round1Access.Merge(*fr.stats)
 
 			if ucm == nil {
 				ucm = src.getUnionSketch(cm)
@@ -356,6 +361,7 @@ func (src *Coord) Run() error {
 			return nil
 		}
 	}
+	fmt.Printf("Round 1 tr: access %+v\n", round1Access)
 
 	il := disttopk.MakeItemList(m)
 	il.Sort()
@@ -407,6 +413,8 @@ func (src *Coord) Run() error {
 	fmt.Printf("Round 2 tr: access %+v\n", round2Access)
 	bytes += bytesRound
 	src.Stats.Bytes_transferred = uint64(bytes)
+	src.Stats.Merge(*round1Access)
+	src.Stats.Merge(*round2Access)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()

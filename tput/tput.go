@@ -128,6 +128,7 @@ func (src *Coord) Run() error {
 	m := make(map[int]float64)
 	mresp := make(map[int]int)
 
+	access_stats := &disttopk.AlgoStats{}
 	nnodes := len(src.backPointers)
 	thresh := 0.0
 	items := 0
@@ -135,6 +136,7 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			il := dobj.Obj.(disttopk.ItemList)
+			access_stats.Serial_items += len(il)
 			items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -168,6 +170,7 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			il := dobj.Obj.(disttopk.ItemList)
+			access_stats.Serial_items += len(il)
 			round2items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -210,6 +213,8 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			il := dobj.Obj.(disttopk.ItemList)
+			access_stats.Random_items += len(il)
+			access_stats.Random_access += len(il)
 			m = il.AddToMap(m)
 			round3items += len(il)
 			mresp = il.AddToCountMap(mresp)
@@ -222,6 +227,7 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 3 tput: got ", round3items, " items, bytes ", bytesRound)
 	bytes += bytesRound
 	src.Stats.Bytes_transferred = uint64(bytes)
+	src.Stats.Merge(*access_stats)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()

@@ -89,6 +89,7 @@ func (src *NaiveCoord) Run() error {
 			cnt++
 			list := dobj.Obj.(disttopk.ItemList)
 			src.lists[dobj.Id] = list
+			src.Stats.Serial_items += len(list)
 			items += len(list)
 			if cnt == len(src.backPointers) {
 				m := make(map[int]float64)
@@ -101,8 +102,8 @@ func (src *NaiveCoord) Run() error {
 
 				il.Sort()
 
-//				fmt.Printf("Total bytes naive (cutoff=%d): %E\n", src.cutoff, float64(items*disttopk.RECORD_SIZE))
-        src.Stats.Bytes_transferred = uint64(items*disttopk.RECORD_SIZE)
+				//				fmt.Printf("Total bytes naive (cutoff=%d): %E\n", src.cutoff, float64(items*disttopk.RECORD_SIZE))
+				src.Stats.Bytes_transferred = uint64(items * disttopk.RECORD_SIZE)
 				if disttopk.OUTPUT_RESP {
 					for _, it := range il[:10] {
 						fmt.Println("Resp: ", it.Id, it.Score) //, mresp[it.Id])

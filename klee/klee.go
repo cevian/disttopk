@@ -24,13 +24,24 @@ type Peer struct {
 }
 
 type FirstRound struct {
-	list disttopk.ItemList
-	bh   []byte
+	list  disttopk.ItemList
+	bh    []byte
+	stats *disttopk.AlgoStats
 }
 
 type ClrRoundSpec struct {
 	thresh  uint32
 	cl_size uint32
+}
+
+type ClrRoundReply struct {
+	payload interface{}
+	stats   *disttopk.AlgoStats
+}
+
+type FinalListReply struct {
+	payload disttopk.ItemList
+	stats   *disttopk.AlgoStats
 }
 
 func getThreshIndex(list disttopk.ItemList, thresh uint32) int {
@@ -61,8 +72,11 @@ func (src *Peer) Run() error {
 	if err != nil {
 		panic(err)
 	}
+
+	first_round_access := &disttopk.AlgoStats{Serial_items: src.k, Random_access: 0, Random_items: 0}
+
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, &FirstRound{localtop, bhs}}:
+	case src.forward <- disttopk.DemuxObject{src.id, &FirstRound{localtop, bhs, first_round_access}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -93,20 +107,22 @@ func (src *Peer) Run() error {
 			}
 		}
 
+		clf_round_access := &disttopk.AlgoStats{Serial_items: len(list_in_row), Random_access: 0, Random_items: 0}
+
 		if SERIALIZE_CLF {
 			payload, err := disttopk.SerializeObject(clfRow)
 			if err != nil {
 				panic(err)
 			}
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, payload}:
+			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{payload, clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
 
 		} else {
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, clfRow}:
+			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{clfRow, clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
@@ -129,10 +145,11 @@ func (src *Peer) Run() error {
 			}
 		}
 
+		final_list_round_access := &disttopk.AlgoStats{Serial_items: len(list_in_row), Random_access: 0, Random_items: 0}
 		//fmt.Println("Secondlist ", len(secondlist))
 
 		select {
-		case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
+		case src.forward <- disttopk.DemuxObject{src.id, &FinalListReply{secondlist, final_list_round_access}}:
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -154,8 +171,9 @@ func (src *Peer) Run() error {
 		if thresh_index > src.k {
 			secondlist = src.list[src.k : thresh_index+1]
 		}
+		final_list_round_access := &disttopk.AlgoStats{Serial_items: len(secondlist), Random_access: 0, Random_items: 0}
 		select {
-		case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
+		case src.forward <- disttopk.DemuxObject{src.id, &FinalListReply{secondlist, final_list_round_access}}:
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -203,10 +221,14 @@ func (src *Coord) Run() error {
 	thresh := 0.0
 	items := 0
 	bh_bytes := 0
+
+	access_stats := &disttopk.AlgoStats{}
+
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
 			fr := dobj.Obj.(*FirstRound)
+			access_stats.Merge(*fr.stats)
 			id := dobj.Id
 			il := fr.list
 			items += len(il)
@@ -285,16 +307,17 @@ func (src *Coord) Run() error {
 			select {
 			case dobj := <-src.input:
 				var clr *ClfRow
-
+				clr_reply := dobj.Obj.(*ClrRoundReply)
+				access_stats.Merge(*clr_reply.stats)
 				if SERIALIZE_CLF {
-					payload := dobj.Obj.([]byte)
+					payload := clr_reply.payload.([]byte)
 					clr = &ClfRow{}
 					if err := disttopk.DeserializeObject(clr, payload); err != nil {
 						panic(err)
 					}
 					bytes_clround += len(payload)
 				} else {
-					clr = dobj.Obj.(*ClfRow)
+					clr = clr_reply.payload.(*ClfRow)
 				}
 				id := dobj.Id
 				clf_map[id] = clr
@@ -360,7 +383,9 @@ func (src *Coord) Run() error {
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
-			il := dobj.Obj.(disttopk.ItemList)
+			flr := dobj.Obj.(*FinalListReply)
+			access_stats.Merge(*flr.stats)
+			il := flr.payload
 			round2items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -381,6 +406,7 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round: ", bytesRound)
 	bytes += bytesRound
 	src.Stats.Bytes_transferred = uint64(bytes)
+	src.Stats.Merge(*access_stats)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()

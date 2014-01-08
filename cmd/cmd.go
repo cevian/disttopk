@@ -311,7 +311,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 		stats.Abs_err = getScoreError(ground_truth, result, k)
 		stats.Rel_err = getScoreErrorRel(ground_truth, result, k)
 		stats.Edit_distance = JWDistance(ground_truth, result, k)
-		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Abs_err, stats.Rel_err)
+		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e), Access: serial %v, random :%v (%v)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Abs_err, stats.Rel_err, stats.Serial_items, stats.Random_items, stats.Random_access)
 
 		statsMap[algo_names[i]] = stats
 
