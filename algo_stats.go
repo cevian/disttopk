@@ -6,6 +6,9 @@ type AlgoStats struct {
 	Random_access int
 	Random_items  int
 	Length        int
+	Recall        float64
+	Abs_err       float64
+	Rel_err       float64
 }
 
 func (t *AlgoStats) Merge(other AlgoStats) {
