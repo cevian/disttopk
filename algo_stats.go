@@ -9,6 +9,7 @@ type AlgoStats struct {
 	Recall        float64
 	Abs_err       float64
 	Rel_err       float64
+	Edit_distance  float64
 }
 
 func (t *AlgoStats) Merge(other AlgoStats) {

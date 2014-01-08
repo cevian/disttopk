@@ -190,6 +190,40 @@ func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) 
 	return err / float64(k)
 }
 
+func itemList2item(ilist disttopk.ItemList) []disttopk.Item {
+	keys := make([]disttopk.Item, len(ilist))
+	for i, item := range ilist {
+		keys[i] = item
+	}
+	return keys
+}
+
+func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k int) float64 {
+	// the Jano-Winkler edit distance: 0 is no match, 1 is perfect match
+	matches := 0.0
+	transpositions := 0.0
+
+	exact_keys := itemList2item(exact_list)
+	approx_keys := itemList2item(approx_list)
+
+	
+	for i := 0; i < k; i++ {
+		if len(approx_keys) > i && len(exact_keys) > i && approx_keys[i] == exact_keys[i] {
+			matches++
+		}
+		//TODO many more cases here
+	}
+	
+	if matches == 0 {
+		return 0
+	} else {
+		fmt.Println(matches,"matches", len(exact_keys), "exact keys", len(approx_keys),"approx keys")
+		k_f := float64(k)
+		return (matches/k_f +matches/k_f+(matches-transpositions)/matches) / 3.0
+
+	}
+}
+
 var algo_names []string = []string{"Naive-exact", "Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact"}
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
@@ -227,6 +261,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 		stats.Abs_err = getScoreError(ground_truth, result, k)
 		stats.Rel_err = getScoreErrorRel(ground_truth, result, k)
+		stats.Edit_distance = JWDistance (ground_truth, result, k)
 		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Abs_err, stats.Rel_err)
 
 		statsMap[algo_names[i]] = stats
@@ -237,7 +272,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 		for i := 0; i < k; i++ {
 			if ground_truth[i] != result[i] {
-				fmt.Println("Lists do not match", ground_truth[i], result[i])
+				fmt.Println("Lists do not match at position",i, ground_truth[i], "vs", result[i])
 				match = false
 			}
 		}
@@ -296,8 +331,8 @@ func main() {
 	//now the table
 	for dataset, row := range datatable {
 		fmt.Print(dataset)
-		for _,algo := range algo_names {
-			fmt.Printf("\t& %d (r. err %.6G)", row[algo].Bytes_transferred, row[algo].Rel_err )
+		for _, algo := range algo_names {
+			fmt.Printf("\t& %d (edit dist %.6G)", row[algo].Bytes_transferred, row[algo].Edit_distance)
 		}
 		fmt.Println()
 	}
