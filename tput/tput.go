@@ -52,12 +52,13 @@ func (src *Peer) Run() error {
 			break
 		}
 	}
-	//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index)
+
+	//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index, "k", src.k, "list[index+1].score", src.list[index+1].Score)
 	//v.Score >= thresh included
 
 	var secondlist disttopk.ItemList
-	if index > src.k {
-		secondlist = src.list[src.k:index]
+	if index >= src.k {
+		secondlist = src.list[src.k : index+1]
 	}
 	select {
 	case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
@@ -80,7 +81,7 @@ func (src *Peer) Run() error {
 	for _, id := range ids {
 		index, ok := ri[id]
 		score, ok := m[id]
-		if ok && score < thresh && index > src.k { //haven't sent before
+		if ok && score <= thresh && index >= src.k { //haven't sent before
 			exactlist = append(exactlist, disttopk.Item{id, m[id]})
 		}
 	}
@@ -222,7 +223,6 @@ func (src *Coord) Run() error {
 	bytes += bytesRound
 	src.Stats.BytesTransferred = uint64(bytes)
 
-
 	il = disttopk.MakeItemList(m)
 	il.Sort()
 	//fmt.Println("Sorted Global List: ", il[:src.k])
@@ -234,4 +234,3 @@ func (src *Coord) Run() error {
 	src.FinalList = il
 	return nil
 }
-
