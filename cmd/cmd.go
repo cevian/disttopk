@@ -231,7 +231,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 		statsMap[algo_names[i]] = stats
 		score_err := getScoreError(ground_truth, result, k)
 		score_err_rel := getScoreErrorRel(ground_truth, result, k)
-		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.BytesTransferred, recall, score_err, score_err_rel)
+		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e)\n", algo_names[i], stats.Bytes_transferred, recall, score_err, score_err_rel)
 
 		runtime.GC()
 
@@ -301,7 +301,7 @@ func main() {
 	for dataset,row := range datatable {
 		fmt.Print(dataset)
 		for _,algo := range algo_names {
-			fmt.Printf("\t& %d ", row[algo].BytesTransferred )
+			fmt.Printf("\t& %d ", row[algo].Bytes_transferred )
 		}
 		fmt.Println()
 	}

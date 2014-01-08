@@ -380,7 +380,7 @@ func (src *Coord) Run() error {
 
 	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round: ", bytesRound)
 	bytes += bytesRound
-	src.Stats.BytesTransferred = uint64(bytes)
+	src.Stats.Bytes_transferred = uint64(bytes)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
