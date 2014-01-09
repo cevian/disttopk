@@ -14,6 +14,10 @@ import (
 	"math/rand"
 )
 
+const USE_NORMALIZATION = true //this saves a lot of bandwidth
+const NORM_SCALE = 10.0
+const SERIALIZE_BAG = false //this is innefctive if using standard compression as well
+
 type Sketch interface {
 	//Add([]byte, uint32)
 	Query([]byte) uint32
@@ -250,7 +254,14 @@ func (p *CountMinSketch) Serialize(w io.Writer) error {
 	}
 
 	for _, v := range p.Data {
-		if err := v.SerializeWithBag(w); err != nil {
+		if USE_NORMALIZATION {
+			v.LogNormalize(NORM_SCALE)
+		}
+		serf := v.Serialize
+		if SERIALIZE_BAG {
+			serf = v.SerializeWithBag
+		}
+		if err := serf(w); err != nil {
 			return err
 		}
 	}
@@ -267,8 +278,16 @@ func (p *CountMinSketch) Deserialize(r io.Reader) error {
 	cas := make([]*CountArray, length)
 	for k, _ := range cas {
 		ca := &CountArray{}
-		if err := ca.DeserializeWithBag(r); err != nil {
+
+		deserf := ca.Deserialize
+		if SERIALIZE_BAG {
+			deserf = ca.DeserializeWithBag
+		}
+		if err := deserf(r); err != nil {
 			return err
+		}
+		if USE_NORMALIZATION {
+			ca.LogDenormalize(NORM_SCALE)
 		}
 		cas[k] = ca
 	}

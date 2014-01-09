@@ -4,18 +4,17 @@ import "github.com/cevian/go-stream/stream"
 import "github.com/cevian/disttopk"
 
 import (
+	"bytes"
+	"compress/zlib"
 	"fmt"
+	"io"
 	"math"
 	"runtime"
 )
 
 var _ = math.Log2
 
-type ByteSlice []byte
-
-func (b ByteSlice) ByteSize() int {
-	return len([]byte(b))
-}
+const USE_COMPRESSION = true
 
 func NewBloomPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
 	return NewPeer(list, NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramUnionSketchAdaptor(), topk)
@@ -31,6 +30,41 @@ func NewCountMinPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *
 
 func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), psa, usa, nil, nil, list, k, 0, 1}
+}
+
+func compress(in []byte) []byte {
+	if USE_COMPRESSION {
+		var b bytes.Buffer
+		w := zlib.NewWriter(&b)
+		if _, err := w.Write(in); err != nil {
+			panic(err)
+		}
+		if err := w.Close(); err != nil {
+			panic(err)
+		}
+		return b.Bytes()
+	}
+	return in
+}
+
+func decompress(in []byte) []byte {
+	if USE_COMPRESSION {
+		inbufr := bytes.NewReader(in)
+		r, err := zlib.NewReader(inbufr)
+		if err != nil {
+			panic(err)
+		}
+
+		var outbuf bytes.Buffer
+		if _, err := io.Copy(&outbuf, r); err != nil {
+			panic(err)
+		}
+		if err := r.Close(); err != nil {
+			panic(err)
+		}
+		return outbuf.Bytes()
+	}
+	return in
 }
 
 type Peer struct {
@@ -49,14 +83,14 @@ type FirstRoundSketch interface {
 	ByteSize() int
 }
 
-type Serialized interface {
-	ByteSize() int
-}
+type Serialized []byte
+
+func (s *Serialized) ByteSize() int { return len(*s) }
 
 type FirstRound struct {
-	list  disttopk.ItemList
-	cm    Serialized
-	stats *disttopk.AlgoStats
+	list   disttopk.ItemList
+	sketch Serialized
+	stats  *disttopk.AlgoStats
 }
 
 type SecondRound struct {
@@ -86,7 +120,7 @@ func (src *Peer) Run() error {
 
 	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index, Random_access: 0, Random_items: 0}
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, ser, first_round_access}}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, compress(ser), first_round_access}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -94,7 +128,7 @@ func (src *Peer) Run() error {
 	var uf UnionFilter
 	select {
 	case obj := <-src.back:
-		uf = src.UnionSketchAdaptor.deserialize(obj.(SecondRound).ufser)
+		uf = src.UnionSketchAdaptor.deserialize(decompress(obj.(SecondRound).ufser))
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -193,16 +227,16 @@ func (src *Coord) Run() error {
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
 
-			cm := src.PeerSketchAdaptor.deserialize(fr.cm)
-			sketchsize += fr.cm.ByteSize()
+			sketchsize += fr.sketch.ByteSize()
+			sketch := src.PeerSketchAdaptor.deserialize(decompress(fr.sketch))
 			//cm := fr.cm.(*disttopk.CountMinSketch)
 			//sketchsize += cm.ByteSize()
 			round1Access.Merge(*fr.stats)
 
 			if ucm == nil {
-				ucm = src.getUnionSketch(cm)
+				ucm = src.getUnionSketch(sketch)
 			} else {
-				ucm.Merge(cm.(disttopk.Sketch))
+				ucm.Merge(sketch.(disttopk.Sketch))
 			}
 		case <-src.StopNotifier:
 			return nil
@@ -230,7 +264,7 @@ func (src *Coord) Run() error {
 	for _, ch := range src.backPointers {
 		//uf := src.getUnionFilter(ucm, uint32(localthresh))
 		cuf := src.copyUnionFilter(uf)
-		ser := src.UnionSketchAdaptor.serialize(cuf)
+		ser := Serialized(compress(src.UnionSketchAdaptor.serialize(cuf)))
 		total_back_bytes += ser.ByteSize()
 		select {
 		case ch <- SecondRound{ser}:

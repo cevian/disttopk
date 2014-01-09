@@ -33,12 +33,12 @@ func (*BloomHistogramPeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized
 	if err != nil {
 		panic(err)
 	}
-	return ByteSlice(b)
+	return b
 	//return c
 }
 
 func (t *BloomHistogramPeerSketchAdaptor) deserialize(frs Serialized) FirstRoundSketch {
-	bs := frs.(ByteSlice)
+	bs := frs
 	obj := &disttopk.BloomHistogram{}
 	err := disttopk.DeserializeObject(obj, []byte(bs))
 	if err != nil {
@@ -91,12 +91,12 @@ func (*CountMinPeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
 	if err != nil {
 		panic(err)
 	}
-	return ByteSlice(b)
+	return b
 	//return c
 }
 
 func (t *CountMinPeerSketchAdaptor) deserialize(frs Serialized) FirstRoundSketch {
-	bs := frs.(ByteSlice)
+	bs := frs
 	obj := &disttopk.CountMinSketch{}
 	err := disttopk.DeserializeObject(obj, []byte(bs))
 	if err != nil {

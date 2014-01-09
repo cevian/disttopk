@@ -123,28 +123,33 @@ func (t *CountArray) Deserialize(r io.Reader) error {
 	}
 	return nil
 }
+func (orig *CountArray) LogNormalize(scale float64) {
+	for i := 0; i < orig.Len(); i++ {
+		v := orig.Get(i)
+		if v > 0 {
+			newval := uint(math.Ceil(math.Log(float64(v)) * scale))
+			orig.Set(i, newval)
+		}
+	}
+}
+
+func (orig *CountArray) LogDenormalize(scale float64) {
+	for i := 0; i < orig.Len(); i++ {
+		v := orig.Get(i)
+		if v > 0 {
+			newval := uint(math.Exp(float64(v) / scale))
+			orig.Set(i, newval)
+		}
+	}
+}
 
 ////////////////////////////////////////////better compression///////////////////////////////////
 
-func (orig *CountArray) transformLog() {
-	for i := 0; i < orig.Len(); i++ {
-		v := orig.Get(i)
-		if v > 0 {
-			newval := uint(math.Ceil(math.Log(float64(v)) * 10))
-			orig.Set(i, newval)
-		}
-	}
-}
+/* The idea here is to use a Bag for high value cells to allow you to reduce the #bits/cell for the rest
+   of the structure. So you end up writing out [array with less bits per cell][bag with index, value pairs for value that are bigger than can fit into the array]
 
-func (orig *CountArray) untransformLog() {
-	for i := 0; i < orig.Len(); i++ {
-		v := orig.Get(i)
-		if v > 0 {
-			newval := uint(math.Exp(float64(v) / 10.0))
-			orig.Set(i, newval)
-		}
-	}
-}
+   Turns out that when using huffman codes (like zlib or gzip) then this is ineffective. Huffman codes do almost as good a job without this level of complexity.
+*/
 
 func (orig *CountArray) subtractCountArray(min uint) {
 	for i := 0; i < orig.Len(); i++ {
@@ -192,7 +197,7 @@ func (orig_do_not_change *CountArray) SerializeWithBag(w io.Writer) error {
 	copy(new_data, orig_do_not_change.Data)
 	orig := &CountArray{new_data}
 
-	orig.transformLog()
+	//orig.transformLog()
 	max := orig.Max()
 	min := orig.MinNonZero()
 
@@ -302,7 +307,7 @@ func (ca *CountArray) DeserializeWithBag(r io.Reader) error {
 		ca.integrateBag(bagMap)
 	}
 	ca.unsubtractCountArray(uint(min - 1))
-	ca.untransformLog()
+	//ca.untransformLog()
 	return nil
 
 }

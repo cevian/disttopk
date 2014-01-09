@@ -52,11 +52,11 @@ func (t *BloomHistogramUnionSketchAdaptor) serialize(uf UnionFilter) Serialized 
 	if err != nil {
 		panic(err)
 	}
-	return ByteSlice(b)
+	return b
 }
 
 func (*BloomHistogramUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
-	bs := s.(ByteSlice)
+	bs := s
 	obj := &disttopk.BloomHistogramCollection{}
 	err := disttopk.DeserializeObject(obj, []byte(bs))
 	if err != nil {
@@ -174,11 +174,11 @@ func (t *CountMinUnionSketchAdaptor) serialize(uf UnionFilter) Serialized {
 	if err != nil {
 		panic(err)
 	}
-	return ByteSlice(b)
+	return b
 }
 
 func (*CountMinUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
-	bs := s.(ByteSlice)
+	bs := s
 	obj := &disttopk.CountMinFilter{}
 	err := disttopk.DeserializeObject(obj, []byte(bs))
 	if err != nil {
