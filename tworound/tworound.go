@@ -4,17 +4,12 @@ import "github.com/cevian/go-stream/stream"
 import "github.com/cevian/disttopk"
 
 import (
-	"bytes"
-	"compress/zlib"
 	"fmt"
-	"io"
 	"math"
 	"runtime"
 )
 
 var _ = math.Log2
-
-const USE_COMPRESSION = true
 
 func NewBloomPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
 	return NewPeer(list, NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramUnionSketchAdaptor(), topk)
@@ -33,38 +28,11 @@ func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdapt
 }
 
 func compress(in []byte) []byte {
-	if USE_COMPRESSION {
-		var b bytes.Buffer
-		w := zlib.NewWriter(&b)
-		if _, err := w.Write(in); err != nil {
-			panic(err)
-		}
-		if err := w.Close(); err != nil {
-			panic(err)
-		}
-		return b.Bytes()
-	}
-	return in
+	return disttopk.CompressBytes(in)
 }
 
 func decompress(in []byte) []byte {
-	if USE_COMPRESSION {
-		inbufr := bytes.NewReader(in)
-		r, err := zlib.NewReader(inbufr)
-		if err != nil {
-			panic(err)
-		}
-
-		var outbuf bytes.Buffer
-		if _, err := io.Copy(&outbuf, r); err != nil {
-			panic(err)
-		}
-		if err := r.Close(); err != nil {
-			panic(err)
-		}
-		return outbuf.Bytes()
-	}
-	return in
+	return disttopk.DecompressBytes(in)
 }
 
 type Peer struct {

@@ -76,7 +76,7 @@ func (src *Peer) Run() error {
 	first_round_access := &disttopk.AlgoStats{Serial_items: src.k, Random_access: 0, Random_items: 0}
 
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, &FirstRound{localtop, bhs, first_round_access}}:
+	case src.forward <- disttopk.DemuxObject{src.id, &FirstRound{localtop, disttopk.CompressBytes(bhs), first_round_access}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -115,7 +115,7 @@ func (src *Peer) Run() error {
 				panic(err)
 			}
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{payload, clf_round_access}}:
+			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{disttopk.CompressBytes(payload), clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
@@ -131,7 +131,11 @@ func (src *Peer) Run() error {
 		var bitArray *disttopk.BitArray
 		select {
 		case obj := <-src.back:
-			bitArray = obj.(*disttopk.BitArray)
+			bitArray = &disttopk.BitArray{}
+			ser := disttopk.DecompressBytes(obj.([]byte))
+			if err := disttopk.DeserializeObject(bitArray, ser); err != nil {
+				panic(err)
+			}
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -240,8 +244,8 @@ func (src *Coord) Run() error {
 			}
 			src_resp_map[id] = resp_map
 
-			bhs := fr.bh
-			bh_bytes += len(bhs)
+			bh_bytes += len(fr.bh)
+			bhs := disttopk.DecompressBytes(fr.bh)
 			bh := &disttopk.BloomHistogramKlee{}
 			if err := disttopk.DeserializeObject(bh, bhs); err != nil {
 				panic(err)
@@ -310,12 +314,13 @@ func (src *Coord) Run() error {
 				clr_reply := dobj.Obj.(*ClrRoundReply)
 				access_stats.Merge(*clr_reply.stats)
 				if SERIALIZE_CLF {
-					payload := clr_reply.payload.([]byte)
+					uncompressed_payload := clr_reply.payload.([]byte)
+					bytes_clround += len(uncompressed_payload)
+					payload := disttopk.DecompressBytes(uncompressed_payload)
 					clr = &ClfRow{}
 					if err := disttopk.DeserializeObject(clr, payload); err != nil {
 						panic(err)
 					}
-					bytes_clround += len(payload)
 				} else {
 					clr = clr_reply.payload.(*ClfRow)
 				}
@@ -356,14 +361,19 @@ func (src *Coord) Run() error {
 		}
 		//fmt.Println("count idx", count_idx, size, len(clf_map))
 
+		bitArraySer, err := disttopk.SerializeObject(bitArray)
+		if err != nil {
+			panic(err)
+		}
+		compressedBitArray := disttopk.CompressBytes(bitArraySer)
 		for _, ch := range src.backPointers {
 			select {
-			case ch <- bitArray:
+			case ch <- compressedBitArray:
 			case <-src.StopNotifier:
 				return nil
 			}
 		}
-		bytes_clround += (int(bitArray.NumBits()/8) + 1) * nnodes
+		bytes_clround += len(compressedBitArray) * nnodes
 		fmt.Println("Round CLF klee: got bytes in. size filter", size, " round:", bytes_clround)
 		bytes += bytes_clround
 		//bytes_round += bytes_clround
