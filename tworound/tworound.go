@@ -23,6 +23,10 @@ func NewBloomGcsPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *
 	return NewPeer(list, NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramGcsUnionSketchAdaptor(), topk)
 }
 
+func NewCountMinPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+	return NewPeer(list, NewCountMinPeerSketchAdaptor(topk), NewCountMinUnionSketchAdaptor(), topk)
+}
+
 func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), psa, usa, nil, nil, list, k, 0, 1}
 }
@@ -40,7 +44,6 @@ type Peer struct {
 }
 
 type FirstRoundSketch interface {
-	CreateFromList(list disttopk.ItemList)
 	ByteSize() int
 }
 
@@ -76,8 +79,7 @@ func (src *Peer) Run() error {
 	localtop_index := int(float64(src.k) * src.Alpha)
 	localtop := src.list[:localtop_index]
 
-	sketch := src.createSketch()
-	sketch.CreateFromList(src.list)
+	sketch := src.createSketch(src.list)
 	ser := src.PeerSketchAdaptor.serialize(sketch)
 
 	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index, Random_access: 0, Random_items: 0}
@@ -121,6 +123,10 @@ func NewBloomCoord(k int) *Coord {
 
 func NewBloomGcsCoord(k int) *Coord {
 	return NewCoord(k, NewBloomHistogramGcsPeerSketchAdaptor(k, 0, 0), NewBloomHistogramGcsUnionSketchAdaptor())
+}
+
+func NewCountMinCoord(k int) *Coord {
+	return NewCoord(k, NewCountMinPeerSketchAdaptor(k), NewCountMinUnionSketchAdaptor())
 }
 
 func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {

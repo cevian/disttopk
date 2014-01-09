@@ -108,11 +108,11 @@ func (s *CountMinHash) ByteSize() int {
 
 type CountMinSketch struct {
 	*CountMinHash
-	Data []uint32
+	Data []*CountArray
 }
 
 func (c *CountMinSketch) ByteSize() int {
-	return len(c.Data) * 4
+	return len(c.Data) * 4 * c.Data[0].Len()
 }
 
 func (c *CountMinSketch) GetInfo() string {
@@ -140,9 +140,13 @@ func NewCountMinSketchPb(err float64, prob float64) *CountMinSketch {
 // Create a new Sketch. Settings for hashes and columns affect performance
 // of Adding and Querying items, but also accuracy.
 func NewCountMinSketch(hashes int, columns int) *CountMinSketch {
+	data := make([]*CountArray, hashes)
+	for index, _ := range data {
+		data[index] = NewCountArray(columns)
+	}
 	s := CountMinSketch{
 		NewCountMinHash(hashes, columns),
-		make([]uint32, hashes*columns),
+		data,
 	}
 	return &s
 }
@@ -169,8 +173,10 @@ func (s *CountMinSketch) QueryInt(key int) uint32 {
 
 func (s *CountMinSketch) Add(key []byte, count uint32) {
 	for hash := 0; hash < s.Hashes; hash++ {
-		index := s.GetIndex(key, uint32(hash))
-		s.Data[index] += count
+		index := int(s.GetIndexNoOffset(key, uint32(hash)))
+		prev := s.Data[hash].Get(index)
+		s.Data[hash].Set(index, prev+uint(count))
+		//s.Data[index] += count
 		/*if count > s.Data[index] {
 			s.Data[index] = count
 		}*/
@@ -193,16 +199,16 @@ func (s *CountMinSketch) Add(key []byte, count uint32) {
 }
 
 func (s *CountMinSketch) Query(key []byte) uint32 {
-	var min uint32
+	var min uint
 
 	for hash := 0; hash < s.Hashes; hash++ {
-		index := s.GetIndex(key, uint32(hash))
-		v := s.Data[index]
+		index := int(s.GetIndexNoOffset(key, uint32(hash)))
+		v := s.Data[hash].Get(index)
 		if hash == 0 || v < min {
 			min = v
 		}
 	}
-	return min
+	return uint32(min)
 	/*	h := fnv.New64a()
 		h.Write(key)
 		var min uint32
@@ -226,9 +232,50 @@ func (s *CountMinSketch) Merge(toadd Sketch) {
 		panic("Data has to be the same length")
 	}
 
-	for k, _ := range s.Data {
-		s.Data[k] += cm.Data[k]
+	for k, hashArray := range s.Data {
+		for hash_idx := 0; hash_idx < hashArray.Len(); hash_idx++ {
+			prev := hashArray.Get(hash_idx)
+			newv := cm.Data[k].Get(hash_idx)
+			s.Data[k].Set(hash_idx, prev+newv)
+		}
+		//s.Data[k] += cm.Data[k]
 	}
+}
+
+func (p *CountMinSketch) Serialize(w io.Writer) error {
+	length := uint32(len(p.Data))
+
+	if err := binary.Write(w, binary.BigEndian, &length); err != nil {
+		return err
+	}
+
+	for _, v := range p.Data {
+		if err := v.Serialize(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *CountMinSketch) Deserialize(r io.Reader) error {
+	length := uint32(0)
+
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return err
+	}
+
+	cas := make([]*CountArray, length)
+	for k, _ := range cas {
+		ca := &CountArray{}
+		if err := ca.Deserialize(r); err != nil {
+			return err
+		}
+		cas[k] = ca
+	}
+	p.Data = cas
+	p.CountMinHash = NewCountMinHash(int(length), p.Data[0].Len())
+
+	return nil
 }
 
 func (p *CountMinHash) Serialize(w io.Writer) error {

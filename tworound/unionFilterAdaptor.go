@@ -138,3 +138,61 @@ func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, li
 		return exactlist, &disttopk.AlgoStats{Serial_items: len(list), Random_access: 0, Random_items: 0 /*, Length: len(list)*/}
 	}
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+type CountMinUnionSketchAdaptor struct{}
+
+func NewCountMinUnionSketchAdaptor() UnionSketchAdaptor {
+	return &CountMinUnionSketchAdaptor{}
+}
+
+func (t *CountMinUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch) UnionSketch {
+	cm := frs.(*disttopk.CountMinSketch)
+	ucm := disttopk.NewCountMinSketch(cm.Hashes, cm.Columns)
+	ucm.Merge(cm)
+	return ucm
+}
+
+func (t *CountMinUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32) UnionFilter {
+	ucm := us.(*disttopk.CountMinSketch)
+	return disttopk.NewCountMinFilterFromSketch(ucm, uint32(thresh))
+
+}
+
+func (t *CountMinUnionSketchAdaptor) copyUnionFilter(uf UnionFilter) UnionFilter {
+	bs := uf.(*disttopk.CountMinFilter)
+	copy_uf := *bs
+	return &copy_uf
+}
+
+func (t *CountMinUnionSketchAdaptor) serialize(uf UnionFilter) Serialized {
+	obj, ok := uf.(*disttopk.CountMinFilter)
+	if !ok {
+		panic("Unexpected")
+	}
+	b, err := disttopk.SerializeObject(obj)
+	if err != nil {
+		panic(err)
+	}
+	return ByteSlice(b)
+}
+
+func (*CountMinUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
+	bs := s.(ByteSlice)
+	obj := &disttopk.CountMinFilter{}
+	err := disttopk.DeserializeObject(obj, []byte(bs))
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+func (t *CountMinUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+	exactlist := make([]disttopk.Item, 0)
+	for index, v := range list {
+		if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
+			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
+		}
+	}
+	return exactlist, &disttopk.AlgoStats{Serial_items: len(list) /*, Length: len(list)*/}
+}

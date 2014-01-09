@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/cevian/disttopk"
-	"github.com/cevian/disttopk/cm"
-	"github.com/cevian/disttopk/cmfilter"
+	//"github.com/cevian/disttopk/cm"
+	//"github.com/cevian/disttopk/cmfilter"
 	"github.com/cevian/disttopk/klee"
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
@@ -81,6 +81,7 @@ func runKlee(l []disttopk.ItemList, k int, clRound bool) (disttopk.ItemList, dis
 	return coord.FinalList, coord.Stats
 }
 
+/*
 func runCm(l []disttopk.ItemList, k int, eps float64, delta float64) disttopk.ItemList {
 	runner := stream.NewRunner()
 	peers := make([]*cm.Peer, len(l))
@@ -110,7 +111,7 @@ func runCmFilter(l []disttopk.ItemList, k int, eps float64, delta float64) distt
 	runner.WaitGroup().Wait()
 	return coord.FinalList
 }
-
+*/
 func getNEst(l []disttopk.ItemList) int {
 	/*items := 0
 	for _, list := range l {
@@ -152,6 +153,23 @@ func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, dist
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = tworound.NewBloomGcsPeer(list, topk, numpeer, N_est)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList, coord.Stats
+}
+
+func runCountMin(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	runner := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := tworound.NewCountMinCoord(topk)
+	numpeer := len(l)
+	N_est := getNEst(l)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = tworound.NewCountMinPeer(list, topk, numpeer, N_est)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
@@ -273,7 +291,7 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 	}
 }
 
-var algo_names []string = []string{"Naive-exact", "Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact"}
+var algo_names []string = []string{"Naive-exact", "Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact", "Count Min"}
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
@@ -296,7 +314,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 	//	var meths_to_run
 	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
-	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runTput, runKlee3, runKlee4, runBloomSketchGcs}
+	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runTput, runKlee3, runKlee4, runBloomSketchGcs, runCountMin}
 
 	//cml := runBloomSketch(l, k)
 	//cml := (l, k)

@@ -1,9 +1,150 @@
 package disttopk
 
 import (
-	"math"
 	"sort"
 )
+
+/*
+func TransformLog(orig *CountArray) {
+	for i := 0; i < orig.Len(); i++ {
+		v := orig.Get(i)
+		if v > 0 {
+			newval = uint32(math.Ceil(math.Log(float64(v)) * 10))
+			orig.Set(i, newval)
+		}
+	}
+}
+
+func SubtractCountArray(orig *CountArray, uint min) {
+	for i := 0; i < orig.Len(); i++ {
+		v := orig.Get(i)
+		if v > 0 {
+			newval = uint32(v - min)
+			orig.Set(i, newval)
+		}
+	}
+}
+
+func getBagMapForCountArray(orig *CountArray, min int) map[uint32]uint32 {
+	bm := make(map[uint32]uint32)
+	for i := 0; i < orig.Len(); i++ {
+		v := orig.Get(i)
+		if v > min {
+			bm[i] = v
+		}
+	}
+	return bm
+}
+
+func CompressCountArray(orig *CountArray, w io.Writer) error {
+	TransformLog(orig)
+	max := orig.Max()
+	min := orig.Min()
+
+	rang := max - min
+
+	fullRangeBits := uint8(math.Ceil(math.Log2(float64(rang))))
+	keyBits := uint8(math.Ceil(math.Log2(float64(len(data)))))
+	NonBagBits := fullRangeBits
+
+	cdata := make([]uint32, orig.Len())
+	copy(cdata, orig.Data)
+	data := IntSlice(cdata)
+	data.Sort()
+
+	for NonBagBits > 0 {
+		proposeBits := NonBagBits - 1
+		proposeMax := uint32(math.Exp2(float64(proposeBits))-1) + min
+		numberItemsLeftOut := data.ItemsMoreThan(proposeMax)
+
+		bagBits := numberItemsLeftOut * keyBits * fullRangeBits //store index into array and 4 bytes for value (32 bits)
+		if bagBits < ((fullRangeBits - propose) * uint32(orig.Len())) {
+			NoBagBits = propose //accept proposal
+		} else {
+			break
+		}
+	}
+
+	//NoBagBits is right now
+
+	SubtractCountArray(orig, min)
+
+	orig.SerializeBits(w, NoBagBits)
+
+	min_write := uint32(min)
+	if err := binary.Write(w, binary.BigEndian, &min_write); err != nil {
+		return err
+	}
+
+	MaxNotInBag := uint32(math.Exp2(float64(NoBagBits)) - 1)
+
+	bag_map = getBagMapForCountArray(orig, MaxNotInBag)
+	bag_len := uint32(len(bag_map))
+	if err := binary.Write(w, binary.BigEndian, &bag_len); err != nil {
+		return err
+	}
+
+	if bag_len > 0 {
+		if err := binary.Write(w, binary.BigEndian, &keyBits); err != nil {
+			return err
+		}
+		if err := binary.Write(w, binary.BigEndian, &fullRangeBits); err != nil {
+			return err
+		}
+		bw := NewBitWriter(w)
+		for k, v := range bag_map {
+			if err := bw.AddBits(uint(k), uint(keyBits)); err != nil {
+				return err
+			}
+			if err := bw.AddBits(uint(v), uint(fullRangeBits)); err != nil {
+				return err
+			}
+
+		}
+	}
+}
+
+func DecompressCountArray(r io.Reader) (error, *CountArray) {
+	ca := &CountArray{}
+	ca.Deserialize(r)
+
+	min := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &min); err != nil {
+		return err
+	}
+
+	bag_len := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &bag_len); err != nil {
+		return err
+	}
+
+	if bag_len > 0 {
+
+		keyBits := uint8(0)
+		if err := binary.Read(r, binary.BigEndian, &keyBits); err != nil {
+			return err
+		}
+		fullRangeBits := uint8(0)
+		if err := binary.Read(r, binary.BigEndian, &fullRangeBits); err != nil {
+			return err
+		}
+
+		bagMap = make(map[uint32]uint32)
+		br := NewBitReader(r)
+		for i := uint32(0); i < bag_len; i++ {
+			index, err := br.ReadBits64(uint(keyBits))
+			if err != nil {
+				return err
+			}
+			value, err := br.ReadBits64(uint(keyBits))
+			if err != nil {
+				return err
+			}
+			bagMap[index] = value
+		}
+	}
+
+}
 
 type CMCompress struct {
 	*CountMinHash
@@ -132,7 +273,7 @@ func writeValue(value uint32, data []byte, nBytes uint32) {
 		println("Value wrong", check, origValue, data[nBytes])
 		panic("Value is not saved ok")
 	}*/
-}
+/*}
 
 func readValue(data []byte) uint32 {
 	result := uint32(0)
@@ -140,7 +281,7 @@ func readValue(data []byte) uint32 {
 		result |= uint32((uint32(v) << (uint32(k) * 8)))
 	}
 	return result
-}
+}*/
 
 type IntSlice []uint32
 

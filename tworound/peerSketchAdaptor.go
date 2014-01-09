@@ -3,7 +3,7 @@ package tworound
 import "github.com/cevian/disttopk"
 
 type PeerSketchAdaptor interface {
-	createSketch() FirstRoundSketch
+	createSketch(list disttopk.ItemList) FirstRoundSketch
 	serialize(FirstRoundSketch) Serialized
 	deserialize(Serialized) FirstRoundSketch
 }
@@ -18,8 +18,10 @@ func NewBloomHistogramPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSk
 	return &BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}
 }
 
-func (t *BloomHistogramPeerSketchAdaptor) createSketch() FirstRoundSketch {
-	return disttopk.NewBloomSketch(t.topk, t.numpeer, t.N_est)
+func (t *BloomHistogramPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+	s := disttopk.NewBloomSketch(t.topk, t.numpeer, t.N_est)
+	s.CreateFromList(list)
+	return s
 }
 
 func (*BloomHistogramPeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
@@ -54,6 +56,52 @@ func NewBloomHistogramGcsPeerSketchAdaptor(topk int, numpeer int, N_est int) Pee
 	return &BloomHistogramGcsPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}}
 }
 
-func (t *BloomHistogramGcsPeerSketchAdaptor) createSketch() FirstRoundSketch {
-	return disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
+func (t *BloomHistogramGcsPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+	s := disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
+	s.CreateFromList(list)
+	return s
+}
+
+type CountMinPeerSketchAdaptor struct {
+	topk int
+	//numpeer int
+	//N_est   int
+}
+
+func NewCountMinPeerSketchAdaptor(topk int) PeerSketchAdaptor {
+	return &CountMinPeerSketchAdaptor{topk}
+}
+
+func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+	eps := 0.0001
+	delta := 0.01
+	s := disttopk.NewCountMinSketchPb(eps, delta)
+	for _, v := range list {
+		s.AddInt(v.Id, uint32(v.Score))
+	}
+	return s
+}
+
+func (*CountMinPeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
+	obj, ok := c.(*disttopk.CountMinSketch)
+	if !ok {
+		panic("Unexpected")
+	}
+	b, err := disttopk.SerializeObject(obj)
+	if err != nil {
+		panic(err)
+	}
+	return ByteSlice(b)
+	//return c
+}
+
+func (t *CountMinPeerSketchAdaptor) deserialize(frs Serialized) FirstRoundSketch {
+	bs := frs.(ByteSlice)
+	obj := &disttopk.CountMinSketch{}
+	err := disttopk.DeserializeObject(obj, []byte(bs))
+	if err != nil {
+		panic(err)
+	}
+	return obj
+	//return frs.(FirstRoundSketch)
 }
