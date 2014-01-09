@@ -16,136 +16,21 @@ func (b ByteSlice) ByteSize() int {
 }
 
 func NewBloomPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-
-	return NewPeer(list, &DefaultPeerAdaptor{topk, numpeer, N_est}, topk)
+	return NewPeer(list, NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramUnionSketchAdaptor(), topk)
 }
 
-func NewBloomPeerGcs(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-
-	return NewPeer(list, &GcsPeerAdaptor{&DefaultPeerAdaptor{topk, numpeer, N_est}}, topk)
+func NewBloomGcsPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+	return NewPeer(list, NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramGcsUnionSketchAdaptor(), topk)
 }
 
-func NewPeer(list disttopk.ItemList, pa PeerAdaptor, k int) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), pa, nil, nil, list, k, 0, 1}
-}
-
-type PeerAdaptor interface {
-	createSketch() FirstRoundSketch
-	serialize(FirstRoundSketch) Serialized
-	deserializeSecondRound(Serialized) UnionFilter
-	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats)
-}
-
-type DefaultPeerAdaptor struct {
-	topk    int
-	numpeer int
-	N_est   int
-}
-
-func (t *DefaultPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
-	exactlist := make([]disttopk.Item, 0)
-	for index, v := range list {
-		if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
-			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
-		}
-	}
-	return exactlist, &disttopk.AlgoStats{Serial_items: len(list) /*, Length: len(list)*/}
-}
-
-func (t *DefaultPeerAdaptor) createSketch() FirstRoundSketch {
-	return disttopk.NewBloomSketch(t.topk, t.numpeer, t.N_est)
-}
-
-func (*DefaultPeerAdaptor) serialize(c FirstRoundSketch) Serialized {
-	obj, ok := c.(*disttopk.BloomHistogram)
-	if !ok {
-		panic("Unexpected")
-	}
-	b, err := disttopk.SerializeObject(obj)
-	if err != nil {
-		panic(err)
-	}
-	return ByteSlice(b)
-	//return c
-}
-
-func (*DefaultPeerAdaptor) deserializeSecondRound(s Serialized) UnionFilter {
-	bs := s.(ByteSlice)
-	obj := &disttopk.BloomHistogramCollection{}
-	err := disttopk.DeserializeObject(obj, []byte(bs))
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-type GcsPeerAdaptor struct {
-	*DefaultPeerAdaptor
-}
-
-func (t *GcsPeerAdaptor) createSketch() FirstRoundSketch {
-	return disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
-}
-
-func (t *GcsPeerAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
-	//fmt.Println("entering get round two list")
-	list_items := list.Len()
-
-	bsc := uf.(*disttopk.BloomHistogramCollection)
-	hvf := disttopk.NewHashValueFilter()
-	bsc.AddToHashValueFilter(hvf)
-
-	if hvf.NumHashValues() < list_items {
-
-		ht_bits := uint8(math.Ceil(math.Log2(float64(list_items))))
-		//ht_bits = 26 //CHANGE ME
-		ht := disttopk.NewHashTable(ht_bits)
-
-		for _, v := range list {
-			ht.Insert(v.Id, v.Score)
-		}
-		hvs_sent := disttopk.NewHashValueSlice() //hack wont store hash values
-		for i := 0; i < cutoff_sent; i++ {
-			hvs_sent.Insert(uint32(list[i].Id))
-		}
-
-		//fmt.Println("entering for loops get round two list")
-
-		exactlist := make([]disttopk.Item, 0)
-		items_tested := 0
-		random_access := 0
-		for mod_bits, hvslice := range hvf.GetFilters() {
-			//println("Mod 2", mod_bits, hvslice.Len())
-			for _, hv := range hvslice.GetSlice() {
-				items_map, ra := ht.GetByHashValue(uint(hv), mod_bits)
-				random_access += ra
-				items_tested += len(items_map)
-				for id, score := range items_map {
-					if !hvs_sent.Contains(uint32(id)) && uf.PassesInt(id) == true {
-						exactlist = append(exactlist, disttopk.Item{id, score})
-						hvs_sent.Insert(uint32(id))
-					}
-				}
-			}
-		}
-
-		//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
-		return exactlist, &disttopk.AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested /*, Length: len(list)*/}
-	} else {
-		exactlist := make([]disttopk.Item, 0)
-		for index, v := range list {
-			if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
-				exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
-			}
-		}
-		//fmt.Println("Round two list items used serial test, total items (all sequential tested)", len(list))
-		return exactlist, &disttopk.AlgoStats{Serial_items: len(list), Random_access: 0, Random_items: 0 /*, Length: len(list)*/}
-	}
+func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int) *Peer {
+	return &Peer{stream.NewHardStopChannelCloser(), psa, usa, nil, nil, list, k, 0, 1}
 }
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	PeerAdaptor
+	PeerSketchAdaptor
+	UnionSketchAdaptor
 	forward chan<- disttopk.DemuxObject
 	back    <-chan stream.Object
 	list    disttopk.ItemList
@@ -193,7 +78,7 @@ func (src *Peer) Run() error {
 
 	sketch := src.createSketch()
 	sketch.CreateFromList(src.list)
-	ser := src.serialize(sketch)
+	ser := src.PeerSketchAdaptor.serialize(sketch)
 
 	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index, Random_access: 0, Random_items: 0}
 	select {
@@ -205,7 +90,7 @@ func (src *Peer) Run() error {
 	var uf UnionFilter
 	select {
 	case obj := <-src.back:
-		uf = src.deserializeSecondRound(obj.(SecondRound).ufser)
+		uf = src.UnionSketchAdaptor.deserialize(obj.(SecondRound).ufser)
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -231,58 +116,15 @@ func (src *Peer) Run() error {
 }
 
 func NewBloomCoord(k int) *Coord {
-	deserialize := func(frs Serialized) FirstRoundSketch {
-		bs := frs.(ByteSlice)
-		obj := &disttopk.BloomHistogram{}
-		err := disttopk.DeserializeObject(obj, []byte(bs))
-		if err != nil {
-			panic(err)
-		}
-		return obj
-		//return frs.(FirstRoundSketch)
-	}
-
-	guf := func(us UnionSketch, thresh uint32) UnionFilter {
-		//bs := us.(*disttopk.BloomSketch)
-		bs := us.(*disttopk.BloomHistogramCollection)
-		fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-		bs.SetThresh(thresh)
-
-		return bs
-	}
-
-	cuf := func(uf UnionFilter) UnionFilter {
-		bs := uf.(*disttopk.BloomHistogramCollection)
-
-		copy_uf := *bs
-		return &copy_uf
-	}
-
-	suf := func(uf UnionFilter) Serialized {
-		obj, ok := uf.(*disttopk.BloomHistogramCollection)
-		if !ok {
-			panic("Unexpected")
-		}
-		b, err := disttopk.SerializeObject(obj)
-		if err != nil {
-			panic(err)
-		}
-		return ByteSlice(b)
-	}
-
-	gus := func(frs FirstRoundSketch) UnionSketch {
-		bs := frs.(*disttopk.BloomHistogram)
-		bsc := disttopk.NewBloomSketchCollection()
-		bsc.Merge(bs)
-		return bsc
-	}
-
-	return NewCoord(k, deserialize, guf, cuf, suf, gus)
+	return NewCoord(k, NewBloomHistogramPeerSketchAdaptor(k, 0, 0), NewBloomHistogramUnionSketchAdaptor())
 }
 
-func NewCoord(k int,
-	des func(Serialized) FirstRoundSketch, guf func(UnionSketch, uint32) UnionFilter, cuf func(uf UnionFilter) UnionFilter, suf func(UnionFilter) Serialized, gus func(FirstRoundSketch) UnionSketch) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, des, guf, cuf, suf, gus, disttopk.AlgoStats{}}
+func NewBloomGcsCoord(k int) *Coord {
+	return NewCoord(k, NewBloomHistogramGcsPeerSketchAdaptor(k, 0, 0), NewBloomHistogramGcsUnionSketchAdaptor())
+}
+
+func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {
+	return &Coord{stream.NewHardStopChannelCloser(), psa, usa, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}}
 }
 
 type UnionSketch interface {
@@ -298,17 +140,14 @@ type UnionFilter interface {
 
 type Coord struct {
 	*stream.HardStopChannelCloser
-	input                chan disttopk.DemuxObject
-	backPointers         []chan<- stream.Object
-	lists                [][]disttopk.Item
-	FinalList            []disttopk.Item
-	k                    int
-	deserialize          func(Serialized) FirstRoundSketch
-	getUnionFilter       func(UnionSketch, uint32) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
-	copyUnionFilter      func(UnionFilter) UnionFilter         //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
-	serializeUnionFilter func(UnionFilter) Serialized          //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
-	getUnionSketch       func(FirstRoundSketch) UnionSketch
-	Stats                disttopk.AlgoStats
+	PeerSketchAdaptor
+	UnionSketchAdaptor
+	input        chan disttopk.DemuxObject
+	backPointers []chan<- stream.Object
+	lists        [][]disttopk.Item
+	FinalList    []disttopk.Item
+	k            int
+	Stats        disttopk.AlgoStats
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -346,7 +185,7 @@ func (src *Coord) Run() error {
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
 
-			cm := src.deserialize(fr.cm)
+			cm := src.PeerSketchAdaptor.deserialize(fr.cm)
 			sketchsize += fr.cm.ByteSize()
 			//cm := fr.cm.(*disttopk.CountMinSketch)
 			//sketchsize += cm.ByteSize()
@@ -383,7 +222,7 @@ func (src *Coord) Run() error {
 	for _, ch := range src.backPointers {
 		//uf := src.getUnionFilter(ucm, uint32(localthresh))
 		cuf := src.copyUnionFilter(uf)
-		ser := src.serializeUnionFilter(cuf)
+		ser := src.UnionSketchAdaptor.serialize(cuf)
 		total_back_bytes += ser.ByteSize()
 		select {
 		case ch <- SecondRound{ser}:

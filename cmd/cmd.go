@@ -146,12 +146,12 @@ func runBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
 func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewBloomCoord(topk)
+	coord := tworound.NewBloomGcsCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
 	runner.Add(coord)
 	for i, list := range l {
-		peers[i] = tworound.NewBloomPeerGcs(list, topk, numpeer, N_est)
+		peers[i] = tworound.NewBloomGcsPeer(list, topk, numpeer, N_est)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
