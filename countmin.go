@@ -250,7 +250,7 @@ func (p *CountMinSketch) Serialize(w io.Writer) error {
 	}
 
 	for _, v := range p.Data {
-		if err := v.Serialize(w); err != nil {
+		if err := v.SerializeWithBag(w); err != nil {
 			return err
 		}
 	}
@@ -267,7 +267,7 @@ func (p *CountMinSketch) Deserialize(r io.Reader) error {
 	cas := make([]*CountArray, length)
 	for k, _ := range cas {
 		ca := &CountArray{}
-		if err := ca.Deserialize(r); err != nil {
+		if err := ca.DeserializeWithBag(r); err != nil {
 			return err
 		}
 		cas[k] = ca

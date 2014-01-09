@@ -9,6 +9,8 @@ import (
 	"runtime"
 )
 
+var _ = math.Log2
+
 type ByteSlice []byte
 
 func (b ByteSlice) ByteSize() int {
@@ -218,7 +220,7 @@ func (src *Coord) Run() error {
 
 	bytesRound := items*disttopk.RECORD_SIZE + sketchsize
 	fmt.Println(ucm.GetInfo())
-	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "(log ", uint32(math.Log(localthresh)), "), bytes ", bytesRound)
+	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "sketches bytes", sketchsize, " total bytes", bytesRound)
 	bytes := bytesRound
 
 	total_back_bytes := 0

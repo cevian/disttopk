@@ -172,13 +172,17 @@ func (orig *CountArray) getBagMapForCountArray(min uint) map[uint32]uint32 {
 		v := orig.Get(i)
 		if v > min {
 			bm[uint32(i)] = uint32(v)
+			//fmt.Println("ser idx ", i, v)
 		}
 	}
+	//fmt.Println("ser len ", len(bm), orig.Len())
 	return bm
 }
 
 func (orig *CountArray) integrateBag(bm map[uint32]uint32) {
+	//fmt.Println("len ", len(bm), orig.Len())
 	for index, value := range bm {
+		//fmt.Println("idx ", index, value)
 		orig.Set(int(index), uint(value))
 	}
 }
@@ -216,6 +220,8 @@ func (orig_do_not_change *CountArray) SerializeWithBag(w io.Writer) error {
 		}
 	}
 
+	//maxValue := uint32(math.Exp2(float64(NonBagBits))-1) + uint32(min-1)
+	//fmt.Println("bits: ", fullRangeBits, NonBagBits, data.ItemsMoreThan(maxValue), data.ItemsMoreThan(maxValue)*uint32(keyBits)*uint32(fullRangeBits))
 	//NoBagBits is right now
 
 	orig.subtractCountArray(min - 1)
@@ -250,8 +256,8 @@ func (orig_do_not_change *CountArray) SerializeWithBag(w io.Writer) error {
 			if err := bw.AddBits(uint(v), uint(fullRangeBits)); err != nil {
 				return err
 			}
-
 		}
+		bw.Close(true)
 	}
 	return nil
 }
@@ -287,7 +293,7 @@ func (ca *CountArray) DeserializeWithBag(r io.Reader) error {
 			if err != nil {
 				return err
 			}
-			value, err := br.ReadBits64(uint(keyBits))
+			value, err := br.ReadBits64(uint(fullRangeBits))
 			if err != nil {
 				return err
 			}
