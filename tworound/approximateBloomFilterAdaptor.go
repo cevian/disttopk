@@ -68,7 +68,9 @@ func (t *ApproximateBloomFilterAdaptor) getRoundTwoList(uf UnionFilter, list dis
 
 	maxCount := int(float64(t.topk) * t.Beta)
 	exactlist.Sort()
-	exactlist = exactlist[:maxCount]
+	if maxCount < len(exactlist)-1 {
+		exactlist = exactlist[:maxCount]
+	}
 
 	return exactlist, &disttopk.AlgoStats{Serial_items: len(list)}
 }
