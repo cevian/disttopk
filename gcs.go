@@ -72,7 +72,7 @@ func (t *HashValueSlice) Insert(v uint32) {
 	t.hvs[v] = true
 }
 
-func (t *HashValueSlice) Merge(n *HashValueSlice) {
+func (t *HashValueSlice) InsertAll(n *HashValueSlice) {
 	for k, _ := range n.hvs {
 		t.Insert(k)
 	}
@@ -82,9 +82,18 @@ func (t *HashValueSlice) Contains(value uint32) bool {
 	return t.hvs[value]
 }
 
-func EstimateEpsGcs(N_est int, n_est int, penalty int) float64 {
-	//TODO change!
-	eps := (2.0 * 1.44) / (float64(penalty) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+func EstimateEpsGcs(N_est int, n_est int, penalty_bits int, NumTransfers int) float64 {
+	//TODO change! -- this is base on the bloom filter approximation with k != 1
+	//for compressed filters, needs to change.
+
+	//for m = size of bloom, p = size of each record sent as false pos, s = # times filter sent across the wire
+	//total (t) = s  * m + (N-n) * eps * p
+	// m = n *  1.44 * log_2(1/eps) = n * 1.44 * 1/ln(2) * ln (1/eps)
+	// dt/deps  = s * n * 1.44 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (N-n) * p
+	// 0 =   -1 * s *  n * 1.44 / ln (2) * 1 / eps + (N-n) * p
+	// (s * n * (1.44 / ln (2))) / ((N -n) * p) = eps
+	// eps = s * 1.44 / (N/n -1) * p * ln (2)
+	eps := (float64(NumTransfers) * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
 	return eps
 }
 

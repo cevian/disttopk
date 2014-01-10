@@ -26,15 +26,23 @@ type Bloom struct {
 	Data *BitArray
 }
 
+/*
 func EstimateM(N_est int, n_est int, penalty int) int {
 	eps := EstimateEps(N_est, n_est, penalty)
 	m := EstimateMSimple(n_est, eps)
 	//fmt.Println("eps = ", eps, " m = ", int(m), " bytes = ", int(m)/8)
 	return int(m)
-}
+}*/
 
-func EstimateEps(N_est int, n_est int, penalty int) float64 {
-	eps := (2.0 * 1.44) / (float64(penalty) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+func EstimateEps(N_est int, n_est int, penalty_bits int, NumBloomTransfers int) float64 {
+	//for m = size of bloom, p = size of each record sent as false pos, s = # times filter sent across the wire
+	//total (t) = s  * m + (N-n) * eps * p
+	// m = n *  1.44 * log_2(1/eps) = n * 1.44 * 1/ln(2) * ln (1/eps)
+	// dt/deps  = s * n * 1.44 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (N-n) * p
+	// 0 =   -1 * s *  n * 1.44 / ln (2) * 1 / eps + (N-n) * p
+	// (s * n * (1.44 / ln (2))) / ((N -n) * p) = eps
+	// eps = s * 1.44 / (N/n -1) * p * ln (2)
+	eps := (float64(NumBloomTransfers) * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
 	return eps
 }
 
@@ -178,7 +186,7 @@ func (p *Bloom) Equal(obj *Bloom) bool {
 }
 
 func (p *Bloom) GetInfo() string {
-	return fmt.Sprintln("Bloom Filter: columns ", p.Columns," Hashes ", p.Hashes)
+	return fmt.Sprintln("Bloom Filter: columns ", p.Columns, " Hashes ", p.Hashes)
 }
 
 /*
