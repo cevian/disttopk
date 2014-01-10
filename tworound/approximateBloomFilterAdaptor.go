@@ -1,16 +1,20 @@
 package tworound
 
 import "github.com/cevian/disttopk"
+import "fmt"
+
+var _ = fmt.Println
 
 type ApproximateBloomFilterAdaptor struct {
 	topk    int
 	numpeer int
 	N_est   int
 	Beta    float64
+	Gamma   float64
 }
 
 func NewApproximateBloomFilterAdaptor(topk int, numpeer int, N_est int) *ApproximateBloomFilterAdaptor {
-	return &ApproximateBloomFilterAdaptor{topk, numpeer, N_est, 2.0}
+	return &ApproximateBloomFilterAdaptor{topk, numpeer, N_est, 0.0, 1.0}
 }
 
 func (t *ApproximateBloomFilterAdaptor) getUnionSketch(frs FirstRoundSketch) UnionSketch {
@@ -18,6 +22,13 @@ func (t *ApproximateBloomFilterAdaptor) getUnionSketch(frs FirstRoundSketch) Uni
 }
 
 func (t *ApproximateBloomFilterAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {
+	maxCount := int(float64(t.topk) * t.Gamma)
+	if maxCount != 0 && maxCount < len(il) {
+		il.Sort()
+		il = il[:maxCount]
+	}
+	//fmt.Println("guf:", t.Gamma, maxCount, len(il), orig_len)
+
 	eps := 0.0000001
 	n := len(il)
 	m := disttopk.EstimateMSimple(n, eps)
@@ -68,7 +79,8 @@ func (t *ApproximateBloomFilterAdaptor) getRoundTwoList(uf UnionFilter, list dis
 
 	maxCount := int(float64(t.topk) * t.Beta)
 	exactlist.Sort()
-	if maxCount < len(exactlist)-1 {
+	//fmt.Println(exactlist)
+	if maxCount != 0 && maxCount < len(exactlist) {
 		exactlist = exactlist[:maxCount]
 	}
 
