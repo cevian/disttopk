@@ -48,8 +48,8 @@ func NewOptBloom(n int, N int, penalty int) *Bloom {
 	return NewBloomSimpleEst(int(m), n)
 }
 
-func NewBloomSimpleEst(m int, n_est int) *Bloom {
-	k := math.Ceil((float64(m) / float64(n_est)) * math.Log(2))
+func NewBloomSimpleEst(m int, n int) *Bloom {
+	k := math.Ceil((float64(m) / float64(n)) * math.Log(2))
 	return NewBloom(int(k), int(m))
 }
 
@@ -175,6 +175,10 @@ func (p *Bloom) Deserialize(r io.Reader) error {
 
 func (p *Bloom) Equal(obj *Bloom) bool {
 	return p.CountMinHash.Equal(obj.CountMinHash) && p.Data.Equal(obj.Data)
+}
+
+func (p *Bloom) GetInfo() string {
+	return fmt.Sprintln("Bloom Filter: columns ", p.Columns," Hashes ", p.Hashes)
 }
 
 /*

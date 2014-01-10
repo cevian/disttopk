@@ -105,3 +105,22 @@ func (t *CountMinPeerSketchAdaptor) deserialize(frs Serialized) FirstRoundSketch
 	return obj
 	//return frs.(FirstRoundSketch)
 }
+
+type NonePeerSketchAdaptor struct {
+}
+
+func NewNonePeerSketchAdaptor() PeerSketchAdaptor {
+	return &NonePeerSketchAdaptor{}
+}
+
+func (t *NonePeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+	return nil
+}
+
+func (*NonePeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
+	return nil
+}
+
+func (t *NonePeerSketchAdaptor) deserialize(frs Serialized) FirstRoundSketch {
+	return nil
+}

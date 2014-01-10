@@ -23,6 +23,10 @@ func NewCountMinPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *
 	return NewPeer(list, NewCountMinPeerSketchAdaptor(topk), NewCountMinUnionSketchAdaptor(), topk)
 }
 
+func NewApproximateBloomFilterPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+	return NewPeer(list, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(topk, numpeer, N_est), topk)
+}
+
 func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), psa, usa, nil, nil, list, k, 0, 1}
 }
@@ -133,6 +137,10 @@ func NewCountMinCoord(k int) *Coord {
 	return NewCoord(k, NewCountMinPeerSketchAdaptor(k), NewCountMinUnionSketchAdaptor())
 }
 
+func NewApproximateBloomFilterCoord(k int) *Coord {
+	return NewCoord(k, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(k, 0, 0))
+}
+
 func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {
 	return &Coord{stream.NewHardStopChannelCloser(), psa, usa, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}}
 }
@@ -143,7 +151,7 @@ type UnionSketch interface {
 }
 
 type UnionFilter interface {
-	PassesInt(int) bool
+	//	PassesInt(int) bool
 	ByteSize() int
 	GetInfo() string
 }
@@ -221,12 +229,14 @@ func (src *Coord) Run() error {
 	localthresh := thresh
 
 	bytesRound := items*disttopk.RECORD_SIZE + sketchsize
-	fmt.Println(ucm.GetInfo())
+	if ucm != nil {
+		fmt.Println(ucm.GetInfo())
+	}
 	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "sketches bytes", sketchsize, " total bytes", bytesRound)
 	bytes := bytesRound
 
 	total_back_bytes := 0
-	uf := src.getUnionFilter(ucm, uint32(localthresh))
+	uf := src.getUnionFilter(ucm, uint32(localthresh), il)
 	fmt.Println("Uf info: ", uf.GetInfo())
 
 	for _, ch := range src.backPointers {

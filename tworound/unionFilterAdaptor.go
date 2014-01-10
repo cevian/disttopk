@@ -9,9 +9,9 @@ import (
 
 type UnionSketchAdaptor interface {
 	getUnionSketch(FirstRoundSketch) UnionSketch
-	getUnionFilter(UnionSketch, uint32) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
-	copyUnionFilter(UnionFilter) UnionFilter        //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
-	serialize(UnionFilter) Serialized               //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
+	getUnionFilter(us UnionSketch, threshhold uint32, il disttopk.ItemList) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
+	copyUnionFilter(UnionFilter) UnionFilter                                            //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
+	serialize(UnionFilter) Serialized                                                   //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	deserialize(Serialized) UnionFilter
 	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats)
 }
@@ -29,7 +29,7 @@ func (t *BloomHistogramUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch) 
 	return bsc
 }
 
-func (t *BloomHistogramUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32) UnionFilter {
+func (t *BloomHistogramUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {
 	bs := us.(*disttopk.BloomHistogramCollection)
 	fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 	bs.SetThresh(thresh)
@@ -66,9 +66,10 @@ func (*BloomHistogramUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
 }
 
 func (t *BloomHistogramUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+	bhc := uf.(*disttopk.BloomHistogramCollection)
 	exactlist := make([]disttopk.Item, 0)
 	for index, v := range list {
-		if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
+		if index >= cutoff_sent && bhc.PassesInt(v.Id) == true {
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}
@@ -84,6 +85,7 @@ func NewBloomHistogramGcsUnionSketchAdaptor() UnionSketchAdaptor {
 }
 
 func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+	bhc := uf.(*disttopk.BloomHistogramCollection)
 	//fmt.Println("entering get round two list")
 	list_items := list.Len()
 
@@ -117,7 +119,7 @@ func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, li
 				random_access += ra
 				items_tested += len(items_map)
 				for id, score := range items_map {
-					if !hvs_sent.Contains(uint32(id)) && uf.PassesInt(id) == true {
+					if !hvs_sent.Contains(uint32(id)) && bhc.PassesInt(id) == true {
 						exactlist = append(exactlist, disttopk.Item{id, score})
 						hvs_sent.Insert(uint32(id))
 					}
@@ -130,7 +132,7 @@ func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, li
 	} else {
 		exactlist := make([]disttopk.Item, 0)
 		for index, v := range list {
-			if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
+			if index >= cutoff_sent && bhc.PassesInt(v.Id) == true {
 				exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 			}
 		}
@@ -153,7 +155,7 @@ func (t *CountMinUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch) UnionS
 	return ucm
 }
 
-func (t *CountMinUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32) UnionFilter {
+func (t *CountMinUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {
 	ucm := us.(*disttopk.CountMinSketch)
 	return disttopk.NewCountMinFilterFromSketch(ucm, uint32(thresh))
 
@@ -188,9 +190,10 @@ func (*CountMinUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
 }
 
 func (t *CountMinUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+	cmf := uf.(*disttopk.CountMinFilter)
 	exactlist := make([]disttopk.Item, 0)
 	for index, v := range list {
-		if index >= cutoff_sent && uf.PassesInt(v.Id) == true {
+		if index >= cutoff_sent && cmf.PassesInt(v.Id) == true {
 			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
 		}
 	}
