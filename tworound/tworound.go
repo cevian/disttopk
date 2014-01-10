@@ -203,8 +203,13 @@ func (src *Coord) Run() error {
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
 
-			sketchsize += fr.sketch.ByteSize()
+			compressedsize := fr.sketch.ByteSize()
+			decompressed := decompress(fr.sketch)
+			if len(decompressed) > 0 {
+				sketchsize += compressedsize
+			}
 			sketch := src.PeerSketchAdaptor.deserialize(decompress(fr.sketch))
+
 			//cm := fr.cm.(*disttopk.CountMinSketch)
 			//sketchsize += cm.ByteSize()
 			round1Access.Merge(*fr.stats)
