@@ -62,6 +62,14 @@ type BloomHistogramEntry struct {
 	eps    float64 //debug
 }
 
+func (c *BloomHistogramEntry) GetFilter() BloomFilter {
+	return c.filter
+}
+
+func (c *BloomHistogramEntry) GetMax() uint32 {
+	return c.max
+}
+
 func (c *BloomHistogramEntry) GetInfo() string {
 	if SAVE_DEBUG {
 		return fmt.Sprintln("BloomEntry: max ", c.max, "k ", c.filter.NumberHashes(), "size", c.filter.ByteSize(), "n_max", c.n_max, "eps", c.eps)
@@ -82,7 +90,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																	println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																													println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {

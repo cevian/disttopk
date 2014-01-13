@@ -2,7 +2,7 @@ package disttopk
 
 import (
 	"encoding/binary"
-	//"fmt"
+	//	"fmt"
 	"io"
 	"math"
 
@@ -68,6 +68,13 @@ func (p *HashValueSlice) GetSlice() []uint32 {
 	}
 	return slice
 }
+
+func (p *HashValueSlice) Eval(f func(uint32)) {
+	for k, _ := range p.hvs {
+		f(k)
+	}
+}
+
 func (t *HashValueSlice) Insert(v uint32) {
 	t.hvs[v] = true
 }
@@ -121,6 +128,9 @@ func (b *Gcs) CreateNew() *Gcs {
 	return NewGcs(b.Columns)
 }
 
+func (b *Gcs) GetInfo() string {
+	return "Gcs"
+}
 func (b *Gcs) ByteSize() int {
 	return (b.Data.Len() * 4)
 }
@@ -202,3 +212,36 @@ func (p *Gcs) Deserialize(r io.Reader) error {
 	return nil
 
 }
+
+/*
+func orderGcsMerge(left, right *Gcs) *Gcs {
+	//fmt.Println("Merging, ", left.Columns, right.Columns)
+	// this merge merges larger into smaller, you can also imagine merging smaller into larger
+	if left.Columns == right.Columns {
+		left.Data.InsertAll(right.Data)
+		return left
+	} else {
+		if right.Columns < left.Columns || right.Columns%left.Columns != 0 {
+			panic("Gcs not mergeable")
+		}
+
+		right.Data.Eval(func(v uint32) { left.Data.Insert(v % uint32(right.Columns)) })
+		return left
+	}
+}
+
+func GcsMerge(left, right *Gcs) *Gcs {
+	lc := left.Columns
+	rc := right.Columns
+
+	if lc > rc {
+		return orderGcsMerge(right, left)
+	}
+	return orderGcsMerge(left, right)
+}
+
+// this can change either gcs or both
+func (t *Gcs) Merge(tomerge *Gcs) *Gcs {
+	return GcsMerge(t, tomerge)
+}
+*/

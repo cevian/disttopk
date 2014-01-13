@@ -89,9 +89,8 @@ func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, li
 	//fmt.Println("entering get round two list")
 	list_items := list.Len()
 
-	bsc := uf.(*disttopk.BloomHistogramCollection)
 	hvf := disttopk.NewHashValueFilter()
-	bsc.AddToHashValueFilter(hvf)
+	bhc.AddToHashValueFilter(hvf)
 
 	if hvf.NumHashValues() < list_items {
 

@@ -18,6 +18,9 @@ func NewBloomPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Pee
 func NewBloomGcsPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
 	return NewPeer(list, NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramGcsUnionSketchAdaptor(), topk)
 }
+func NewBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+	return NewPeer(list, NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeSketchAdaptor(), topk)
+}
 
 func NewCountMinPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
 	return NewPeer(list, NewCountMinPeerSketchAdaptor(topk), NewCountMinUnionSketchAdaptor(), topk)
@@ -131,6 +134,10 @@ func NewBloomCoord(k int) *Coord {
 
 func NewBloomGcsCoord(k int) *Coord {
 	return NewCoord(k, NewBloomHistogramGcsPeerSketchAdaptor(k, 0, 0), NewBloomHistogramGcsUnionSketchAdaptor())
+}
+
+func NewBloomGcsMergeCoord(k int) *Coord {
+	return NewCoord(k, NewBloomHistogramGcsPeerSketchAdaptor(k, 0, 0), NewBloomHistogramMergeSketchAdaptor())
 }
 
 func NewCountMinCoord(k int) *Coord {

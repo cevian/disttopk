@@ -161,6 +161,23 @@ func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, dist
 	return coord.FinalList, coord.Stats
 }
 
+func runBloomSketchGcsMerge(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	runner := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := tworound.NewBloomGcsMergeCoord(topk)
+	numpeer := len(l)
+	N_est := getNEst(l)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = tworound.NewBloomGcsMergePeer(list, topk, numpeer, N_est)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList, coord.Stats
+}
+
 func runCountMin(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
@@ -308,7 +325,7 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 	}
 }
 
-var algo_names []string = []string{"Naive-exact", "Naive (2k)", "TPUT", "Klee3", "Klee4", "2R Exact", "Count Min", "Approx bloom"}
+var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3", "Klee4", "Approx bloom", "TPUT", "2R Exact Gcs", "2R Exact Gcs Merge", "Count Min"}
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
@@ -331,7 +348,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 	//	var meths_to_run
 	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
-	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runTput, runKlee3, runKlee4, runBloomSketchGcs, runCountMin, runApproximateBloomFilter}
+	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runKlee3, runKlee4, runApproximateBloomFilter, runTput, runBloomSketchGcs, runBloomSketchGcsMerge, runCountMin}
 
 	//cml := runBloomSketch(l, k)
 	//cml := (l, k)
