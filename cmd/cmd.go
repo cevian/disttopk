@@ -325,7 +325,7 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 	}
 }
 
-var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3", "Klee4", "Approx bloom", "TPUT", "2R Exact Gcs", "2R Exact Gcs Merge", "Count Min"}
+var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
@@ -354,6 +354,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	//cml := (l, k)
 
 	statsMap := make(map[string]disttopk.AlgoStats)
+	allStats := ""
 	for i, algorithm := range algos_to_run {
 		fmt.Println("-----------------------")
 
@@ -363,8 +364,10 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 		stats.Abs_err = getScoreError(ground_truth, result, k)
 		stats.Rel_err = getScoreErrorRel(ground_truth, result, k)
 		stats.Edit_distance = JWDistance(ground_truth, result, k)
-		fmt.Printf("%v results: BW = %v Recall = %v Error = %v (rel. %e), Access: serial %v, random :%v (%v)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Abs_err, stats.Rel_err, stats.Serial_items, stats.Random_items, stats.Random_access)
+		stat_string := fmt.Sprintf("%v results: \t\t BW = %v \t Recall = %v (%v)\t Error = %v (rel. %e) \t Access: serial %v, random :%v (%v)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Edit_distance, stats.Abs_err, stats.Rel_err, stats.Serial_items, stats.Random_items, stats.Random_access)
 
+		fmt.Print(stat_string)
+		allStats += stat_string
 		statsMap[algo_names[i]] = stats
 
 		runtime.GC()
@@ -381,6 +384,10 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 			fmt.Println("Lists Match")
 		}
 	} //end loop over algorithms
+
+	fmt.Println("*******************************")
+	fmt.Print(allStats)
+	fmt.Println("*******************************")
 
 	return statsMap
 }
