@@ -45,20 +45,20 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	index := 0
+	last_index_to_send := 0
 	for k, v := range src.list {
-		index = k
 		if v.Score < thresh {
 			break
 		}
+		last_index_to_send = k
 	}
 
 	//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index, "k", src.k, "list[index+1].score", src.list[index+1].Score)
 	//v.Score >= thresh included
 
 	var secondlist disttopk.ItemList
-	if index >= src.k {
-		secondlist = src.list[src.k : index+1]
+	if last_index_to_send >= src.k {
+		secondlist = src.list[src.k : last_index_to_send+1]
 	}
 	select {
 	case src.forward <- disttopk.DemuxObject{src.id, secondlist}:
