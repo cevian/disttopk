@@ -27,8 +27,10 @@ func (t *HashTable) Insert(key int, score float64) {
 
 func (t *HashTable) VisitHashValue(hash_value uint, visitor func(uint, uint)) {
 	entry := t.buckets[int(hash_value)]
-	for id, score := range entry.data {
-		visitor(uint(id), uint(score))
+	if entry != nil {
+		for id, score := range entry.data {
+			visitor(uint(id), uint(score))
+		}
 	}
 }
 
