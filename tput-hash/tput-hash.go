@@ -31,8 +31,13 @@ type FirstRoundResponse struct {
 }
 
 type SecondRound struct {
-	cha             *CountHashArray
-	items_looked_at uint
+	cha             []byte
+	items_looked_at uint //only for serial access accounting
+}
+
+type ThirdRound struct {
+	list            disttopk.ItemList
+	items_looked_at uint //only for serial access accounting
 }
 
 func (src *Peer) Run() error {
@@ -83,8 +88,14 @@ func (src *Peer) Run() error {
 			cha.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
 		}
 	}
+
+	cha_ser, err := disttopk.SerializeObject(cha)
+	if err != nil {
+		panic(err)
+	}
+
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, SecondRound{cha, items_looked_at}}:
+	case src.forward <- disttopk.DemuxObject{src.id, SecondRound{disttopk.CompressBytes(cha_ser), items_looked_at}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -92,20 +103,26 @@ func (src *Peer) Run() error {
 	var bloom *disttopk.Bloom
 	select {
 	case obj := <-src.back:
-		bloom = obj.(*disttopk.Bloom)
+		bloom_ser := disttopk.DecompressBytes(obj.([]byte))
+		bloom = &disttopk.Bloom{}
+		if err := disttopk.DeserializeObject(bloom, bloom_ser); err != nil {
+			panic(err)
+		}
 	case <-src.StopNotifier:
 		return nil
 	}
 
 	exactlist := make([]disttopk.Item, 0)
+	items_looked_at = 0
 	for _, li := range src.list[src.k:] {
+		items_looked_at += 1
 		if bloom.Query(disttopk.IntKeyToByteKey(li.Id)) {
 			exactlist = append(exactlist, disttopk.Item{li.Id, li.Score})
 		}
 	}
 
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, disttopk.ItemList(exactlist)}:
+	case src.forward <- disttopk.DemuxObject{src.id, ThirdRound{disttopk.ItemList(exactlist), items_looked_at}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -175,7 +192,7 @@ func (src *Coord) Run() error {
 	thresh = il[src.k-1].Score
 	localthresh := uint32((thresh / float64(nnodes)) * src.alpha)
 	bytesRound := items*disttopk.RECORD_SIZE + 4
-	fmt.Println("Round 1 tput: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
+	fmt.Println("Round 1 tput-hash: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
 	bytes := bytesRound
 
 	for _, ch := range src.backPointers {
@@ -197,12 +214,19 @@ func (src *Coord) Run() error {
 		}
 	}
 
+	bytesRound = 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
 			sr := dobj.Obj.(SecondRound)
-			cha_got := sr.cha
+			bytesRound += len(sr.cha)
+			cha_got_ser := disttopk.DecompressBytes(sr.cha)
+			cha_got := &CountHashArray{}
+			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
+				panic(err)
+			}
 			access_stats.Serial_items += int(sr.items_looked_at)
+
 			cha.Merge(cha_got)
 			cha_got.AddResponses(hash_responses)
 		case <-src.StopNotifier:
@@ -216,15 +240,20 @@ func (src *Coord) Run() error {
 		panic(fmt.Sprintln("Something went wrong", thresh, secondthresh))
 	}
 
-	bloom := cha.GetBloomFilter(secondthresh, hash_responses, uint(localthresh), uint(nnodes))
-
-	//bytesRound = round2items*disttopk.RECORD_SIZE + (nnodes * 4)
-	//fmt.Println("Round 2 tput: got ", round2items, " items, thresh ", secondthresh, ", unique items fetching ", len(ids), " bytes ", bytesRound)
+	fmt.Println("Round 2 tput-hash: got the count filters, thresh ", secondthresh, ", bytes ", bytesRound)
 	bytes += bytesRound
 
+	bloom := cha.GetBloomFilter(secondthresh, hash_responses, uint(localthresh), uint(nnodes))
+	bloom_ser, err := disttopk.SerializeObject(bloom)
+	if err != nil {
+		panic(err)
+	}
+
+	bytes_compressed_sample := disttopk.CompressBytes(bloom_ser)
+	bytesRound = len(bytes_compressed_sample) * nnodes
 	for _, ch := range src.backPointers {
 		select {
-		case ch <- bloom:
+		case ch <- disttopk.CompressBytes(bloom_ser):
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -234,9 +263,9 @@ func (src *Coord) Run() error {
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
-			il := dobj.Obj.(disttopk.ItemList)
-			access_stats.Random_items += len(il)
-			access_stats.Random_access += len(il)
+			tr := dobj.Obj.(ThirdRound)
+			il := tr.list
+			access_stats.Serial_items += int(tr.items_looked_at)
 			m = il.AddToMap(m)
 			round3items += len(il)
 			mresp = il.AddToCountMap(mresp)
@@ -245,14 +274,20 @@ func (src *Coord) Run() error {
 		}
 	}
 
-	//bytesRound = round3items*disttopk.RECORD_SIZE + (nnodes * len(ids) * 4)
-	fmt.Println("Round 3 tput: got ", round3items, " items, bytes ", bytesRound)
+	bytesRound += round3items * disttopk.RECORD_SIZE
+	fmt.Println("Round 3 tput-hash: got ", round3items, " items,  bytes ", bytesRound)
 	bytes += bytesRound
 	src.Stats.Bytes_transferred = uint64(bytes)
 	src.Stats.Merge(*access_stats)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
+
+	score_k := uint(il[src.k-1].Score)
+	if score_k < secondthresh {
+		panic(fmt.Sprintln("4th round needed but not implemented yet", score_k, secondthresh))
+	}
+
 	//fmt.Println("Sorted Global List: ", il[:src.k])
 	if disttopk.OUTPUT_RESP {
 		for _, it := range il[:src.k] {
