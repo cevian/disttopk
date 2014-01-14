@@ -96,7 +96,7 @@ func (src *Peer) Run() error {
 }
 
 func NewCoord(k int) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}}
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, 0.5}
 }
 
 type Coord struct {
@@ -107,6 +107,7 @@ type Coord struct {
 	FinalList    []disttopk.Item
 	k            int
 	Stats        disttopk.AlgoStats
+	alpha        float64
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -152,7 +153,7 @@ func (src *Coord) Run() error {
 		fmt.Println("ERROR k less than list")
 	}
 	thresh = il[src.k-1].Score
-	localthresh := thresh / float64(nnodes)
+	localthresh := (thresh / float64(nnodes)) * src.alpha
 	bytesRound := items * disttopk.RECORD_SIZE
 	fmt.Println("Round 1 tput: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
 	bytes := bytesRound
