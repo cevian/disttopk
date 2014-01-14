@@ -7,6 +7,7 @@ import (
 	"github.com/cevian/disttopk/klee"
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
+	"github.com/cevian/disttopk/tput-hash"
 	"github.com/cevian/disttopk/tworound"
 	"github.com/cevian/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
@@ -50,6 +51,21 @@ func runTput(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStat
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = tput.NewPeer(list, k)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList, coord.Stats
+}
+
+func runTputHash(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+	runner := stream.NewRunner()
+	peers := make([]*tput_hash.Peer, len(l))
+	coord := tput_hash.NewCoord(k)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = tput_hash.NewPeer(list, k)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
@@ -325,7 +341,7 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 	}
 }
 
-var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
+var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "TPUT-hash", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
@@ -348,7 +364,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 	//	var meths_to_run
 	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
-	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runKlee3, runKlee4, runApproximateBloomFilter, runTput, runBloomSketchGcs, runBloomSketchGcsMerge, runCountMin}
+	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runKlee3, runKlee4, runApproximateBloomFilter, runTput, runTputHash, runBloomSketchGcs, runBloomSketchGcsMerge, runCountMin}
 
 	//cml := runBloomSketch(l, k)
 	//cml := (l, k)
