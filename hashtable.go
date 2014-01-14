@@ -25,6 +25,13 @@ func (t *HashTable) Insert(key int, score float64) {
 	entry.data[key] = score
 }
 
+func (t *HashTable) VisitHashValue(hash_value uint, visitor func(uint, uint)) {
+	entry := t.buckets[int(hash_value)]
+	for id, score := range entry.data {
+		visitor(uint(id), uint(score))
+	}
+}
+
 func (t *HashTable) addEntry(entry *HashEntry, val map[int]float64) {
 	if entry == nil {
 		return
@@ -34,6 +41,23 @@ func (t *HashTable) addEntry(entry *HashEntry, val map[int]float64) {
 	}
 	for k, v := range entry.data {
 		val[k] = v
+	}
+}
+
+func (t *HashTable) GetTableHashValues(hash_value uint, modulus_bits uint8) []uint {
+	if modulus_bits == t.bucket_bits {
+		return []uint{hash_value}
+	} else if modulus_bits > t.bucket_bits {
+		return []uint{hash_value % uint(1<<t.bucket_bits)}
+	} else {
+		ret := make([]uint, 0)
+		original_modulus := (1 << modulus_bits)
+		bucket_modulus := (1 << t.bucket_bits)
+		for int(hash_value) < bucket_modulus {
+			ret = append(ret, hash_value)
+			hash_value += uint(original_modulus)
+		}
+		return ret
 	}
 }
 
