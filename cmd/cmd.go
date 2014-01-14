@@ -429,7 +429,7 @@ func main() {
 	} else if source == "zipf-fo" {
 		l = disttopk.GetFullOverlapSimpleList(10, 10000, 0.7)
 	} else if source == "zipf-perm" {
-		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 10000, 0.7, 100)
+		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 100000, 0.7, 100)
 	} else if source == "UCB" {
 		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")

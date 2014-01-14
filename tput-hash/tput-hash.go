@@ -195,6 +195,7 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 1 tput-hash: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
 	bytes := bytesRound
 
+	bytesRound = 8 * nnodes
 	for _, ch := range src.backPointers {
 		select {
 		case ch <- FirstRoundResponse{uint32(localthresh), uint32(items_at_peers)}:
@@ -214,12 +215,12 @@ func (src *Coord) Run() error {
 		}
 	}
 
-	bytesRound = 0
+	bytes_cha := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
 			sr := dobj.Obj.(SecondRound)
-			bytesRound += len(sr.cha)
+			bytes_cha += len(sr.cha)
 			cha_got_ser := disttopk.DecompressBytes(sr.cha)
 			cha_got := &CountHashArray{}
 			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
@@ -233,6 +234,7 @@ func (src *Coord) Run() error {
 			return nil
 		}
 	}
+	bytesRound += bytes_cha
 
 	secondthresh := cha.GetKthCount(src.k)
 
@@ -240,7 +242,7 @@ func (src *Coord) Run() error {
 		panic(fmt.Sprintln("Something went wrong", thresh, secondthresh))
 	}
 
-	fmt.Println("Round 2 tput-hash: got the count filters, thresh ", secondthresh, ", bytes ", bytesRound)
+	fmt.Println("Round 2 tput-hash: got the count filters, thresh ", secondthresh, ", cha bytes", bytes_cha, " bytes ", bytesRound)
 	bytes += bytesRound
 
 	bloom := cha.GetBloomFilter(secondthresh, hash_responses, uint(localthresh), uint(nnodes))
