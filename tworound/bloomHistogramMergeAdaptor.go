@@ -9,13 +9,15 @@ import (
 
 var _ = fmt.Println
 
+const MERGE_TOPK_AT_COORD = true
+
 type BloomHistogramMergeSketchAdaptor struct{}
 
 type MaxHashMapUnionSketch struct {
 	*disttopk.MaxHashMap
 }
 
-func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch) {
+func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemList) {
 	b := sketch.(*disttopk.BloomHistogram)
 	//fmt.Println("Cutoff before", b.Cutoff())
 	//b.Pop() //todo: change
@@ -34,6 +36,16 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch) {
 			test[hv] = true
 			t.Add(uint(hv), uint(m_bits), uint(max), uint(b.Cutoff()))
 		})
+	}
+	if MERGE_TOPK_AT_COORD {
+		m_bits := t.GetModulusBits()
+		m := (1 << m_bits)
+		hash := disttopk.NewCountMinHash(1, m)
+		for _, item := range il {
+			hv := hash.GetIndexNoOffset(disttopk.IntKeyToByteKey(item.Id), 0)
+			t.Add(uint(hv), uint(m_bits), uint(item.Score), uint(b.Cutoff()))
+
+		}
 	}
 	//fmt.Println("Cutoff after", b.Cutoff(), count, len(test))
 	t.AddCutoff(uint(b.Cutoff()))
@@ -61,11 +73,17 @@ func NewBloomHistogramMergeSketchAdaptor() UnionSketchAdaptor {
 	return &BloomHistogramMergeSketchAdaptor{}
 }
 
-func (t *BloomHistogramMergeSketchAdaptor) getUnionSketch(frs FirstRoundSketch) UnionSketch {
+func (t *BloomHistogramMergeSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList) UnionSketch {
 	bs := frs.(*disttopk.BloomHistogram)
 	mhm := &MaxHashMapUnionSketch{disttopk.NewMaxHashMap()}
-	mhm.Merge(bs)
+	mhm.Merge(bs, il)
 	return mhm
+}
+
+func (t *BloomHistogramMergeSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
+	mhm := us.(*MaxHashMapUnionSketch)
+	bs := frs.(*disttopk.BloomHistogram)
+	mhm.Merge(bs, il)
 }
 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {
@@ -168,4 +186,22 @@ func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list 
 	//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
 	return exactlist, &disttopk.AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested}
 
+}
+
+type BloomHistogramMergePeerSketchAdaptor struct {
+	*BloomHistogramPeerSketchAdaptor
+}
+
+func NewBloomHistogramMergePeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAdaptor {
+	return &BloomHistogramMergePeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}}
+}
+
+func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+	s := disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
+	if MERGE_TOPK_AT_COORD {
+		s.CreateFromListWithScoreK(list[t.topk:], list[t.topk-1].Score)
+	} else {
+		s.CreateFromList(list)
+	}
+	return s
 }

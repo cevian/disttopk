@@ -13,12 +13,14 @@ type ApproximateBloomFilterAdaptor struct {
 	Gamma   float64
 }
 
-func NewApproximateBloomFilterAdaptor(topk int, numpeer int, N_est int) *ApproximateBloomFilterAdaptor {
+func NewApproximateBloomFilterAdaptor(topk int, numpeer int, N_est int) UnionSketchAdaptor {
 	return &ApproximateBloomFilterAdaptor{topk, numpeer, N_est, 0.0, 1.0}
 }
 
-func (t *ApproximateBloomFilterAdaptor) getUnionSketch(frs FirstRoundSketch) UnionSketch {
+func (t *ApproximateBloomFilterAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList) UnionSketch {
 	return nil
+}
+func (t *ApproximateBloomFilterAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
 }
 
 func (t *ApproximateBloomFilterAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {

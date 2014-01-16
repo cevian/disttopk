@@ -19,7 +19,7 @@ func NewBloomGcsPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *
 	return NewPeer(list, NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramGcsUnionSketchAdaptor(), topk)
 }
 func NewBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-	return NewPeer(list, NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeSketchAdaptor(), topk)
+	return NewPeer(list, NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeSketchAdaptor(), topk)
 }
 
 func NewCountMinPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
@@ -137,7 +137,7 @@ func NewBloomGcsCoord(k int) *Coord {
 }
 
 func NewBloomGcsMergeCoord(k int) *Coord {
-	return NewCoord(k, NewBloomHistogramGcsPeerSketchAdaptor(k, 0, 0), NewBloomHistogramMergeSketchAdaptor())
+	return NewCoord(k, NewBloomHistogramMergePeerSketchAdaptor(k, 0, 0), NewBloomHistogramMergeSketchAdaptor())
 }
 
 func NewCountMinCoord(k int) *Coord {
@@ -153,7 +153,7 @@ func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {
 }
 
 type UnionSketch interface {
-	Merge(disttopk.Sketch)
+	//	Merge(disttopk.Sketch)
 	GetInfo() string
 }
 
@@ -222,9 +222,10 @@ func (src *Coord) Run() error {
 			round1Access.Merge(*fr.stats)
 
 			if ucm == nil {
-				ucm = src.getUnionSketch(sketch)
+				ucm = src.getUnionSketch(sketch, il)
 			} else {
-				ucm.Merge(sketch.(disttopk.Sketch))
+				src.mergeIntoUnionSketch(ucm, sketch, il)
+				//ucm.Merge(sketch.(disttopk.Sketch))
 			}
 		case <-src.StopNotifier:
 			return nil

@@ -16,6 +16,10 @@ func (t *MaxHashMap) GetInfo() string {
 	return fmt.Sprintf("MaxHashMap, %v items, cutoff: %v, modulus_bits: %v", len(t.data), t.cutoff, t.modulus_bits)
 }
 
+func (t *MaxHashMap) GetModulusBits() uint {
+	return uint(t.modulus_bits)
+}
+
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, cutoff uint) {
 	//fmt.Println("Adding ", hashValue, modulus_bits, max, cutoff)
 	if t.modulus_bits == 0 {
