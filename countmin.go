@@ -268,6 +268,11 @@ func (p *CountMinSketch) Serialize(w io.Writer) error {
 		return err
 	}
 
+	cutoff := uint32(p.Cutoff)
+	if err := binary.Write(w, binary.BigEndian, &cutoff); err != nil {
+		return err
+	}
+
 	for _, v := range p.Data {
 		//fmt.Println("In count min serializing count array length :", v.Len())
 		if USE_NORMALIZATION {
@@ -290,6 +295,12 @@ func (p *CountMinSketch) Deserialize(r io.Reader) error {
 	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
 		return err
 	}
+
+	cutoff := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &cutoff); err != nil {
+		return err
+	}
+	p.Cutoff = uint(cutoff)
 
 	cas := make([]*CountArray, length)
 	for k, _ := range cas {

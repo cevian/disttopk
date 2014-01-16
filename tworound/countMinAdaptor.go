@@ -2,6 +2,8 @@ package tworound
 
 import "github.com/cevian/disttopk"
 
+//import "fmt"
+
 const USE_THRESHOLD = true
 const USE_SINGLEHASH = true
 
