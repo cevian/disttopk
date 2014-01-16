@@ -2,8 +2,8 @@ package disttopk
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
-	"math"
 )
 
 type CountMinFilter struct {
@@ -36,7 +36,11 @@ func NewCountMinFilterFromSketch(cms *CountMinSketch, thresh uint32) *CountMinFi
 }
 
 func (c *CountMinFilter) ByteSize() int {
-	return int(math.Ceil((float64(len(c.Data)) / 8.0)))
+	l := uint(0)
+	for _, ba := range c.Data {
+		l += ba.NumBits()
+	}
+	return int(l)
 }
 
 func (s *CountMinFilter) PassesInt(key int) bool {
@@ -44,7 +48,7 @@ func (s *CountMinFilter) PassesInt(key int) bool {
 }
 
 func (s *CountMinFilter) GetInfo() string {
-	return "CM Filter"
+	return fmt.Sprintf("CM Filter. Size[0]: %v, set bits[0] %v", s.Data[0].NumBits(), s.Data[0].CountSetBit())
 }
 
 func (s *CountMinFilter) QueryInt(key int) bool {
