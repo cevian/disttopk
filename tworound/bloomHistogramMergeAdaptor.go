@@ -18,7 +18,7 @@ type MaxHashMapUnionSketch struct {
 func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch) {
 	b := sketch.(*disttopk.BloomHistogram)
 	//fmt.Println("Cutoff before", b.Cutoff())
-	b.Pop() //todo: change
+	//b.Pop() //todo: change
 	count := 0
 	test := make(map[uint32]bool)
 	for _, entry := range b.Data {

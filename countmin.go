@@ -17,6 +17,7 @@ import (
 const USE_NORMALIZATION = true //this saves a lot of bandwidth
 const NORM_SCALE = 10.0
 const SERIALIZE_BAG = false //this is innefctive if using standard compression as well
+const ADD_VALUES_ON_ADD = false
 
 type Sketch interface {
 	//Add([]byte, uint32)
@@ -112,7 +113,8 @@ func (s *CountMinHash) ByteSize() int {
 
 type CountMinSketch struct {
 	*CountMinHash
-	Data []*CountArray
+	Data   []*CountArray
+	Cutoff uint
 }
 
 func (c *CountMinSketch) ByteSize() int {
@@ -135,10 +137,18 @@ func (c *CountMinSketch) CreateFromList(list ItemList) {
 
 }
 
-func NewCountMinSketchPb(err float64, prob float64) *CountMinSketch {
+func CountMinColumnsEst(eps float64) int {
+	columns := math.Ceil(math.E / eps)
+	return int(columns)
+}
+
+func CountMinHashesEst(prob float64) int {
 	hashes := math.Ceil(math.Log(1.0 / prob))
-	columns := math.Ceil(math.E / err)
-	return NewCountMinSketch(int(hashes), int(columns))
+	return int(hashes)
+}
+
+func NewCountMinSketchPb(err float64, prob float64) *CountMinSketch {
+	return NewCountMinSketch(CountMinHashesEst(prob), CountMinColumnsEst(err))
 }
 
 // Create a new Sketch. Settings for hashes and columns affect performance
@@ -151,6 +161,7 @@ func NewCountMinSketch(hashes int, columns int) *CountMinSketch {
 	s := CountMinSketch{
 		NewCountMinHash(hashes, columns),
 		data,
+		0,
 	}
 	return &s
 }
@@ -175,31 +186,34 @@ func (s *CountMinSketch) QueryInt(key int) uint32 {
 	return s.Query(tmp)
 }
 
-func (s *CountMinSketch) Add(key []byte, count uint32) {
+func (s *CountMinSketch) AddWithCutoff(key []byte, count uint, cutoff uint) {
+	if count <= cutoff {
+		return
+	}
+	value := count - cutoff
+	if s.Cutoff == 0 {
+		s.Cutoff = cutoff
+	} else if s.Cutoff != cutoff {
+		panic("SNH")
+	}
+
 	for hash := 0; hash < s.Hashes; hash++ {
 		index := int(s.GetIndexNoOffset(key, uint32(hash)))
 		prev := s.Data[hash].Get(index)
-		s.Data[hash].Set(index, prev+uint(count))
-		//s.Data[index] += count
-		/*if count > s.Data[index] {
-			s.Data[index] = count
-		}*/
-	}
 
-	/*// TODO: this is a bad implementation because we hash all twice in worst case.
-	newValue := s.Query(key) + count
-	h := fnv.New64a()
-	h.Write(key)
-	columns := uint32(s.Columns)
-	var b []byte
-	for base := uint32(0); base < uint32(s.Hashes)*columns; base += columns {
-		binary.Write(h, binary.LittleEndian, uint32(base))
-		index := crc32.ChecksumIEEE(h.Sum(b)) % columns
-		if s.Data[base+index] <= newValue {
-			s.Data[base+index] = newValue
+		if ADD_VALUES_ON_ADD {
+			s.Data[hash].Set(index, prev+value)
+		} else {
+			if value > prev { //set it to the max
+				s.Data[hash].Set(index, value)
+			}
+
 		}
 	}
-	return newValue*/
+}
+
+func (s *CountMinSketch) Add(key []byte, count uint32) {
+	s.AddWithCutoff(key, uint(count), 0)
 }
 
 func (s *CountMinSketch) Query(key []byte) uint32 {
@@ -212,7 +226,7 @@ func (s *CountMinSketch) Query(key []byte) uint32 {
 			min = v
 		}
 	}
-	return uint32(min)
+	return uint32(min + s.Cutoff)
 	/*	h := fnv.New64a()
 		h.Write(key)
 		var min uint32
@@ -244,6 +258,7 @@ func (s *CountMinSketch) Merge(toadd Sketch) {
 		}
 		//s.Data[k] += cm.Data[k]
 	}
+	s.Cutoff += cm.Cutoff
 }
 
 func (p *CountMinSketch) Serialize(w io.Writer) error {
@@ -254,6 +269,7 @@ func (p *CountMinSketch) Serialize(w io.Writer) error {
 	}
 
 	for _, v := range p.Data {
+		//fmt.Println("In count min serializing count array length :", v.Len())
 		if USE_NORMALIZATION {
 			v.LogNormalize(NORM_SCALE)
 		}

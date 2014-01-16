@@ -7,6 +7,8 @@ import (
 	"fmt"
 )
 
+const APPROXIMATE_T2 = false
+
 func NewPeer(list disttopk.ItemList, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0}
 }
@@ -94,8 +96,11 @@ func (src *Peer) Run() error {
 		panic(err)
 	}
 
+	cha_comp := disttopk.CompressBytes(cha_ser)
+	//fmt.Println("Compressed size", len(cha_comp), items_looked_at)
+
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, SecondRound{disttopk.CompressBytes(cha_ser), items_looked_at}}:
+	case src.forward <- disttopk.DemuxObject{src.id, SecondRound{cha_comp, items_looked_at}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -192,7 +197,7 @@ func (src *Coord) Run() error {
 	thresh = il[src.k-1].Score
 	localthresh := uint32((thresh / float64(nnodes)) * src.alpha)
 	bytesRound := items*disttopk.RECORD_SIZE + 4
-	fmt.Println("Round 1 tput-hash: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
+	fmt.Println("Round 1 tput-hash: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " cha size", items_at_peers, " bytes used", bytesRound)
 	bytes := bytesRound
 
 	bytesRound = 8 * nnodes
@@ -222,6 +227,7 @@ func (src *Coord) Run() error {
 			sr := dobj.Obj.(SecondRound)
 			bytes_cha += len(sr.cha)
 			cha_got_ser := disttopk.DecompressBytes(sr.cha)
+			//bytes_cha += len(cha_got_ser)
 			cha_got := &CountHashArray{}
 			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
 				panic(err)
@@ -236,16 +242,20 @@ func (src *Coord) Run() error {
 	}
 	bytesRound += bytes_cha
 
-	secondthresh := cha.GetKthCount(src.k)
+	secondthresh := uint(thresh)
+	if APPROXIMATE_T2 {
+		secondthresh = cha.GetKthCount(src.k)
+	}
 
 	if secondthresh < uint(thresh) {
 		panic(fmt.Sprintln("Something went wrong", thresh, secondthresh))
 	}
 
-	fmt.Println("Round 2 tput-hash: got the count filters, thresh ", secondthresh, ", cha bytes", bytes_cha, " bytes ", bytesRound)
+	bloom := cha.GetBloomFilter(secondthresh, hash_responses, uint(localthresh), uint(nnodes))
+
+	fmt.Println("Round 2 tput-hash: thresh ", secondthresh, ", cha bytes", bytes_cha, "(", cha.Len(), " size). bloom sets", bloom.CountSetBit(), "(out of ", bloom.Len(), ") bytes ", bytesRound)
 	bytes += bytesRound
 
-	bloom := cha.GetBloomFilter(secondthresh, hash_responses, uint(localthresh), uint(nnodes))
 	bloom_ser, err := disttopk.SerializeObject(bloom)
 	if err != nil {
 		panic(err)

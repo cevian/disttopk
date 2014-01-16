@@ -35,6 +35,21 @@ func (b *BitArray) ByteSize() int {
 	return len(b.data) + 4
 }
 
+func (t *BitArray) CountSetBit() uint {
+	c := uint(0)
+	for _, b := range t.data {
+		c += t.countSetBitByte(b)
+	}
+	return c
+}
+
+func (t *BitArray) countSetBitByte(v byte) uint {
+	c := uint(0) // c accumulates the total bits set in v
+	for ; v > 0; c++ {
+		v &= v - 1 // clear the least significant bit set
+	}
+	return c
+}
 func (b *BitArray) Set(idx uint) {
 	old := b.data[idx/8]
 	mask := byte(1 << (idx % 8))

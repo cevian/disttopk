@@ -19,6 +19,10 @@ func NewCountHashArray(size uint) *CountHashArray {
 	return &CountHashArray{disttopk.NewCountMinHash(1, int(size)), disttopk.NewCountArray(int(size))}
 }
 
+func (t *CountHashArray) Len() int {
+	return t.Data.Len()
+}
+
 func (t *CountHashArray) Add(key []byte, count uint) {
 	index := int(t.GetIndexNoOffset(key, uint32(0)))
 	current := t.Data.Get(index)
@@ -98,6 +102,7 @@ func (t *CountHashArray) GetBloomFilter(thresh uint, responses map[int]int, oldt
 }
 
 func (t *CountHashArray) Serialize(w io.Writer) error {
+	//fmt.Println("In count hash array serializing count array length :", t.Data.Len())
 	return t.Data.Serialize(w)
 }
 

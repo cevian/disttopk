@@ -74,8 +74,16 @@ func (b *Bloom) CreateNew() *Bloom {
 	return NewBloom(b.Hashes, int(b.Data.NumBits()))
 }
 
+func (b *Bloom) Len() int {
+	return int(b.Data.NumBits())
+}
+
 func (b *Bloom) ByteSize() int {
 	return b.Data.ByteSize() + 8
+}
+
+func (b *Bloom) CountSetBit() uint {
+	return b.Data.CountSetBit()
 }
 
 func (s *Bloom) AddString(key string) {

@@ -100,6 +100,14 @@ func EstimateEpsGcs(N_est int, n_est int, penalty_bits int, NumTransfers int) fl
 	// 0 =   -1 * s *  n * 1.44 / ln (2) * 1 / eps + (N-n) * p
 	// (s * n * (1.44 / ln (2))) / ((N -n) * p) = eps
 	// eps = s * 1.44 / (N/n -1) * p * ln (2)
+
+	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
+
+	/* this is a hack to prevent eps going to inf */
+	if n_est*2 > N_est {
+		n_est = N_est / 2
+	}
+
 	eps := (float64(NumTransfers) * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
 	return eps
 }
@@ -117,6 +125,9 @@ func EstimateMGcs(n int, eps float64) int {
 }
 
 func NewGcs(m int) *Gcs {
+	if m < 1 {
+		panic("Wrong size")
+	}
 	s := Gcs{
 		NewCountMinHash(1, m),
 		NewHashValueSlice(),

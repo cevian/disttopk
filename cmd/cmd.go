@@ -341,7 +341,20 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 	}
 }
 
-var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "TPUT-hash", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
+var algorithms map[string]func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats) = map[string]func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats){
+	//	"Naive-exact":  runNaiveExact,
+	//	"Naive (2k)":   runNaiveK2,
+	//	"Klee3-2R":     runKlee3,
+	//	"Klee4-3R":     runKlee4,
+	//	"Approx bloom": runApproximateBloomFilter,
+	"TPUT   ":      runTput,
+	"TPUT-hash":    runTputHash,
+	"2R Gcs  ":     runBloomSketchGcs,
+	"2R Gcs-Merge": runBloomSketchGcsMerge,
+	"Count Min":    runCountMin,
+}
+
+//var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "TPUT-hash", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
 
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
@@ -363,15 +376,15 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	ground_truth := naive_exact
 
 	//	var meths_to_run
-	type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
-	algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runKlee3, runKlee4, runApproximateBloomFilter, runTput, runTputHash, runBloomSketchGcs, runBloomSketchGcsMerge, runCountMin}
+	//type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
+	//algos_to_run := []rank_algorithm{runNaiveExact, runNaiveK2, runKlee3, runKlee4, runApproximateBloomFilter, runTput, runTputHash, runBloomSketchGcs, runBloomSketchGcsMerge, runCountMin}
 
 	//cml := runBloomSketch(l, k)
 	//cml := (l, k)
 
 	statsMap := make(map[string]disttopk.AlgoStats)
 	allStats := ""
-	for i, algorithm := range algos_to_run {
+	for name, algorithm := range algorithms {
 		fmt.Println("-----------------------")
 
 		result, stats := algorithm(data, k) //, stats
@@ -380,11 +393,11 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 		stats.Abs_err = getScoreError(ground_truth, result, k)
 		stats.Rel_err = getScoreErrorRel(ground_truth, result, k)
 		stats.Edit_distance = JWDistance(ground_truth, result, k)
-		stat_string := fmt.Sprintf("%v results: \t\t BW = %v \t Recall = %v (%v)\t Error = %v (rel. %e) \t Access: serial %v, random :%v (%v)\n", algo_names[i], stats.Bytes_transferred, stats.Recall, stats.Edit_distance, stats.Abs_err, stats.Rel_err, stats.Serial_items, stats.Random_items, stats.Random_access)
+		stat_string := fmt.Sprintf("%v results: \t\t BW = %v \t Recall = %v (%v)\t Error = %v (rel. %e) \t Access: serial %v, random :%v (%v)\n", name, stats.Bytes_transferred, stats.Recall, stats.Edit_distance, stats.Abs_err, stats.Rel_err, stats.Serial_items, stats.Random_items, stats.Random_access)
 
 		fmt.Print(stat_string)
 		allStats += stat_string
-		statsMap[algo_names[i]] = stats
+		statsMap[name] = stats
 
 		runtime.GC()
 
@@ -429,7 +442,7 @@ func main() {
 	} else if source == "zipf-fo" {
 		l = disttopk.GetFullOverlapSimpleList(10, 10000, 0.7)
 	} else if source == "zipf-perm" {
-		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 100000, 0.7, 100)
+		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 10000, 0.7, 100)
 	} else if source == "UCB" {
 		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
@@ -454,15 +467,15 @@ func main() {
 
 	//table header
 	fmt.Print(" ")
-	for _, name := range algo_names {
+	for name, _ := range algorithms {
 		fmt.Printf("\t& %s", name)
 	}
 	fmt.Println()
 	//now the table
 	for dataset, row := range datatable {
 		fmt.Print(dataset)
-		for _, algo := range algo_names {
-			fmt.Printf("\t& %d (edit dist %.6G)", row[algo].Bytes_transferred, row[algo].Edit_distance)
+		for name, _ := range algorithms {
+			fmt.Printf("\t& %d (edit dist %.6G)", row[name].Bytes_transferred, row[name].Edit_distance)
 		}
 		fmt.Println()
 	}

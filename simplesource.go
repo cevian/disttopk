@@ -38,9 +38,10 @@ func (src *SimpleZipfSource) GenerateItem(rank int) Item {
 	id := rand.Int()
 
 	zipfValue := math.Pow(float64(rank), -src.zipParam) / src.zipNorm
+	//score := (zipfValue * src.scale) + float64(id%10)
 	score := zipfValue * src.scale
 
-	//fmt.Println("gen", zipfValue, src.scale)
+	//fmt.Println("gen", zipfValue, score, (zipfValue * src.scale), src.scale, id, id%100)
 
 	return Item{id, float64(int(score))}
 }
@@ -94,6 +95,7 @@ func GetFullOverlapOrderPermutedSimpleList(nlists int, nitemsPerList uint32, par
 				//fmt.Println("reordering", list[pos], list[new_pos])
 				id := item.Id
 				item.Id = list[new_pos].Id
+				//item.Score += float64(pos_to_reorder % 10) //add a bit of randomness to the scores
 				list[new_pos].Id = id
 				list[pos] = item //this is needed
 				//fmt.Println("reordering after", list[pos], list[new_pos])

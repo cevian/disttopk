@@ -62,6 +62,13 @@ type BloomHistogramEntry struct {
 	eps    float64 //debug
 }
 
+func (t *BloomHistogramEntry) Add(id uint, score uint) {
+	if uint32(score) > t.max {
+		t.max = uint32(score)
+	}
+	t.filter.Add(IntKeyToByteKey(int(id)))
+}
+
 func (c *BloomHistogramEntry) GetFilter() BloomFilter {
 	return c.filter
 }
@@ -90,7 +97,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																													println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																		println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -123,8 +130,9 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int)
 	if frac >= 0.5 {
 		m_log_rounded++
 	}
+	//m_log_rounded = 20 //CHANGE!
 	m := (1 << (uint(m_log_rounded)))
-	//fmt.Printf("GCS info: eps %v m_est %v, m_log %v (rounded %v) m %v\n", eps, m_est, m_log, m_log_rounded, m)
+	//fmt.Printf("GCS info: N_est %v, n %v, eps %v m_est %v, m_log %v (rounded %v) m %v\n", N_est, n, eps, m_est, m_log, m_log_rounded, m)
 	entry := NewGcs(m)
 	return entry, eps
 }
@@ -188,58 +196,128 @@ func (b *BloomHistogram) CreateFromList(list ItemList) {
 	scorek := list[b.topk-1].Score
 	minscore := uint32(scorek) / uint32(b.numpeers)
 
-	lastindex := len(list) - 1
+	first_index_past_minscore := len(list)
 	for i, item := range list {
 		if uint32(item.Score) < minscore {
-			lastindex = i
+			first_index_past_minscore = i
 			break
 		}
 	}
 
 	if PRINT_BUCKETS {
-		fmt.Println("lastindex ", lastindex, "minscore", minscore, "score-k", scorek)
+		fmt.Println("first_idx_past_min ", first_index_past_minscore, "minscore", minscore, "score-k", scorek)
 	}
-	listindex := 0
-	items := b.topk
+	current_index := 0
+	bucket_items := b.topk
+	total_entries := 10
 	b.Data = make([]*BloomHistogramEntry, 0)
-	i := 0
-	for listindex <= lastindex && i < 10 {
-		i += 1
-		orig := listindex
-		corrected_items := items
-		if items > lastindex-listindex+1 || i == 10 {
-			corrected_items = lastindex - listindex + 1
+	for current_index < first_index_past_minscore && len(b.Data) < total_entries {
+		entry_start_index := current_index
+		range_left := (uint32(list[current_index].Score) - minscore) + 1
+		entries_left := total_entries - len(b.Data)
+		range_per_entry := int(range_left) / entries_left
+		if range_per_entry < 1 {
+			range_per_entry = 1
+		}
+		score_after_entry := int(list[current_index].Score) - range_per_entry
+		index_after_entry := len(list)
+		for i, item := range list[current_index:] {
+			if int(item.Score) <= score_after_entry {
+				index_after_entry = i + current_index
+				break
+			}
+		}
+		items_in_entry := index_after_entry - entry_start_index
+		if items_in_entry < bucket_items {
+			items_in_entry = bucket_items
 		}
 
-		filter, eps := b.CreateBloomEntryFilter(b.N_est, corrected_items, b.numpeers)
+		if items_in_entry > first_index_past_minscore-entry_start_index || len(b.Data) == 9 {
+			items_in_entry = first_index_past_minscore - entry_start_index
+		}
+
+		filter, eps := b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers)
 
 		//m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
 		//eps := EstimateEps(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
 		entry := &BloomHistogramEntry{filter, 0, 0, eps}
 
-		endindex := listindex + corrected_items
-		first := true
-		for listindex < len(list) && (listindex < endindex) {
-			entry.filter.Add(IntKeyToByteKey(list[listindex].Id))
-			if first {
-				entry.max = uint32(list[listindex].Score)
-				first = false
-			}
-			listindex += 1
+		endindex := current_index + items_in_entry
+		for current_index < len(list) && (current_index < endindex) {
+			item := list[current_index]
+			entry.Add(uint(item.Id), uint(item.Score))
+			current_index += 1
 		}
-		entry.n_max = listindex - orig
+		entry.n_max = current_index - entry_start_index
 		b.Data = append(b.Data, entry)
 		if PRINT_BUCKETS {
-			fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[listindex-1].Score, "#", listindex-orig, "k", entry.filter.NumberHashes())
+			max := entry.max
+			min := list[current_index-1].Score
+			fmt.Println("Interval", len(b.Data), "max", max, "min", min, "range", max-uint32(min), "#", current_index-entry_start_index, "k", entry.filter.NumberHashes() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
 		}
-		items = b.topk
+		bucket_items = b.topk
 	}
-	if listindex < len(list) {
-		b.cutoff = uint32(list[listindex].Score)
+	if current_index < len(list) {
+		b.cutoff = uint32(list[current_index].Score)
+		//fmt.Println("Cutoff", b.cutoff, list[current_index-1].Score, current_index, first_index_past_minscore, len(list))
 	}
 
 }
 
+/*
+func (b *BloomHistogram) CreateFromList(list ItemList) {
+	//topk := 10
+	//n := 33
+	scorek := list[b.topk-1].Score
+	minscore := uint32(scorek) / uint32(b.numpeers)
+
+	first_index_past_minscore := len(list)
+	for i, item := range list {
+		if uint32(item.Score) < minscore {
+			first_index_past_minscore = i
+			break
+		}
+	}
+
+	if PRINT_BUCKETS {
+		fmt.Println("first_idx_past_min ", first_index_past_minscore, "minscore", minscore, "score-k", scorek)
+	}
+	current_index := 0
+	bucket_items := b.topk
+	b.Data = make([]*BloomHistogramEntry, 0)
+	for current_index < first_index_past_minscore && len(b.Data) < 10 {
+		entry_start_index := current_index
+		items_in_entry := bucket_items
+		if items_in_entry > first_index_past_minscore-entry_start_index || len(b.Data) == 9 {
+			items_in_entry = first_index_past_minscore - entry_start_index
+		}
+
+		filter, eps := b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers)
+
+		//m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
+		//eps := EstimateEps(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
+		entry := &BloomHistogramEntry{filter, 0, 0, eps}
+
+		endindex := current_index + items_in_entry
+		for current_index < len(list) && (current_index < endindex) {
+			item := list[current_index]
+			entry.Add(uint(item.Id), uint(item.Score))
+			current_index += 1
+		}
+		entry.n_max = current_index - entry_start_index
+		b.Data = append(b.Data, entry)
+		if PRINT_BUCKETS {
+			fmt.Println("Interval", len(b.Data), "max", entry.max, "min", list[current_index-1].Score, "#", current_index-entry_start_index, "k", entry.filter.NumberHashes())
+		}
+		bucket_items = b.topk
+	}
+	if current_index < len(list) {
+		b.cutoff = uint32(list[current_index].Score)
+		//fmt.Println("Cutoff", b.cutoff, list[current_index-1].Score, current_index, first_index_past_minscore, len(list))
+	}
+
+}
+*/
 func (s *BloomHistogram) PassesInt(key int) bool {
 	tmp := make([]byte, 16)
 	binary.PutUvarint(tmp, uint64(key))
