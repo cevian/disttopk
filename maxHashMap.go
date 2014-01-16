@@ -104,7 +104,7 @@ func (t *MaxHashMap) GetFilterApprox(thresh uint, maxNumberHashValues int) (*Gcs
 	approxThresh := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
 	approxThresh = approxThresh - int(t.cutoff) //this is a correction. Not going from mapValues to query values.
 
-	fmt.Println(mapValuesSorted, approxThresh, t.cutoff)
+	//fmt.Println(mapValuesSorted, approxThresh, t.cutoff)
 
 	if int(mapValueThresh) > approxThresh {
 		panic("I do not expect this, may not be an error")
