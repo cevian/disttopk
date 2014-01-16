@@ -280,7 +280,7 @@ func (src *Coord) Run() error {
 	}
 
 	bytesRound = round2items*disttopk.RECORD_SIZE + total_back_bytes
-	fmt.Println("Round 2 tr: got ", round2items, " items, bytes for records:", round2items*disttopk.RECORD_SIZE, "bytes filter:", total_back_bytes, ". Total BW: ", bytesRound)
+	fmt.Print("Round 2 tr: got ", round2items, " items (", round2items/nnodes, "/node), bytes for records: ", round2items*disttopk.RECORD_SIZE, "bytes filter: ", total_back_bytes, ". Total BW: ", bytesRound, "\n")
 	fmt.Printf("Round 2 tr: access %+v\n", round2Access)
 	bytes += bytesRound
 	src.Stats.Bytes_transferred = uint64(bytes)

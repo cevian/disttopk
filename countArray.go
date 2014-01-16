@@ -27,6 +27,16 @@ func (t *CountArray) Equal(other *CountArray) bool {
 	return true
 }
 
+func (t *CountArray) CountNonZero() int {
+	c := 0
+	for _, v := range t.Data {
+		if v > 0 {
+			c += 1
+		}
+	}
+	return c
+}
+
 func (t *CountArray) Len() int {
 	return len(t.Data)
 }

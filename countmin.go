@@ -124,7 +124,7 @@ func (c *CountMinSketch) ByteSize() int {
 func (c *CountMinSketch) GetInfo() string {
 	cmItems := c.Hashes * c.Columns
 
-	ret := fmt.Sprintln("Count min: hashes ", c.Hashes, "Columns", c.Columns, "Items", cmItems, "Cutoff", c.Cutoff)
+	ret := fmt.Sprintln("Count min: hashes ", c.Hashes, "Columns", c.Columns, "Cells", cmItems, "Cutoff", c.Cutoff, "Items[0]", c.Data[0].CountNonZero())
 
 	return ret
 
