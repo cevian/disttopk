@@ -1,9 +1,12 @@
 package disttopk
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 type MaxHashMap struct {
-	data         map[uint32]uint32 //the over-approximation should be data[hash] + cutoff
+	data         map[uint32]uint32 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
 	cutoff       uint32
 	modulus_bits uint32
 }
@@ -82,5 +85,47 @@ func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 		gcs.Data.Insert(value)
 	}
 	return gcs
+
+}
+
+func (t *MaxHashMap) GetFilterApprox(thresh uint, maxNumberHashValues int) (*Gcs, uint) {
+	if uint32(thresh) < t.cutoff {
+		panic("error")
+	}
+
+	mapValueThresh := uint32(thresh) - t.cutoff
+
+	mapValuesSorted := make([]int, 0, len(t.data))
+	for _, mapValue := range t.data {
+		mapValuesSorted = append(mapValuesSorted, int(mapValue))
+	}
+	sort.Ints(mapValuesSorted)
+
+	approxThresh := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
+
+	if int(mapValueThresh) > approxThresh {
+		panic("I do not expect this, may not be an error")
+	}
+
+	values := make([]uint32, 0)
+	count := 0
+	for hashValue, mapValue := range t.data {
+		if int(mapValue) >= approxThresh {
+			//fmt.Println("Diff", mapValue-mapValueThresh, mapValue, mapValueThresh, count)
+			values = append(values, hashValue)
+			count += 1
+		}
+	}
+
+	//n := len(values)
+
+	m := (1 << (uint(t.modulus_bits)))
+	//fmt.Printf("Get Filter. m %v (%v), thresh %v, mvthresh %v, #hash values %v, #hash values above thresh %v", m, t.modulus_bits, thresh, mapValueThresh, len(t.data), len(values))
+	gcs := NewGcs(m)
+
+	for _, value := range values {
+		gcs.Data.Insert(value)
+	}
+	return gcs, (uint(approxThresh) + uint(t.cutoff))
 
 }

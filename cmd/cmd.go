@@ -228,6 +228,23 @@ func runApproximateBloomFilter(l []disttopk.ItemList, topk int) (disttopk.ItemLi
 	return coord.FinalList, coord.Stats
 }
 
+func runApproximateBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	runner := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := tworound.NewApproximateBloomGcsMergeCoord(topk)
+	numpeer := len(l)
+	N_est := getNEst(l)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = tworound.NewApproximateBloomGcsMergePeer(list, topk, numpeer, N_est)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList, coord.Stats
+}
+
 func getRecall(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
 	em := exact[:k].AddToMap(nil)
 	found := 0
@@ -344,9 +361,10 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 var algorithms map[string]func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats) = map[string]func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats){
 	//	"Naive-exact":  runNaiveExact,
 	//	"Naive (2k)":   runNaiveK2,
-	//	"Klee3-2R":     runKlee3,
-	//	"Klee4-3R":     runKlee4,
-	//	"Approx bloom": runApproximateBloomFilter,
+	"Klee3-2R":     runKlee3,
+	"Klee4-3R":     runKlee4,
+	"Approx bloom": runApproximateBloomFilter,
+	"Approx GCS-M": runApproximateBloomGcsMergeFilter,
 	"TPUT   ":      runTput,
 	"TPUT-hash":    runTputHash,
 	"2R Gcs  ":     runBloomSketchGcs,

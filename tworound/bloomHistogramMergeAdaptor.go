@@ -205,3 +205,20 @@ func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemLi
 	}
 	return s
 }
+
+type BloomHistogramMergeGcsApproxUnionSketchAdaptor struct {
+	*BloomHistogramMergeSketchAdaptor
+	topk int
+}
+
+func NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk int) UnionSketchAdaptor {
+	bhm := NewBloomHistogramMergeSketchAdaptor()
+	return &BloomHistogramMergeGcsApproxUnionSketchAdaptor{bhm.(*BloomHistogramMergeSketchAdaptor), topk}
+}
+
+func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {
+	bs := us.(*MaxHashMapUnionSketch)
+	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
+	filter, _ /*thresh*/ := bs.GetFilterApprox(uint(thresh), t.topk)
+	return filter
+}

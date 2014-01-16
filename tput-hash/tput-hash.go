@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const APPROXIMATE_T2 = false
+const APPROXIMATE_T2 = true
 
 func NewPeer(list disttopk.ItemList, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0}

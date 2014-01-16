@@ -30,6 +30,10 @@ func NewApproximateBloomFilterPeer(list disttopk.ItemList, topk int, numpeer int
 	return NewPeer(list, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(topk, numpeer, N_est), topk)
 }
 
+func NewApproximateBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+	return NewPeer(list, NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk), topk)
+}
+
 func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), psa, usa, nil, nil, list, k, 0, 1}
 }
@@ -146,6 +150,10 @@ func NewCountMinCoord(k int) *Coord {
 
 func NewApproximateBloomFilterCoord(k int) *Coord {
 	return NewCoord(k, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(k, 0, 0))
+}
+
+func NewApproximateBloomGcsMergeCoord(k int) *Coord {
+	return NewCoord(k, NewBloomHistogramMergePeerSketchAdaptor(k, 0, 0), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(k))
 }
 
 func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {
