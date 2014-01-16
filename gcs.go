@@ -2,7 +2,7 @@ package disttopk
 
 import (
 	"encoding/binary"
-	//	"fmt"
+	"fmt"
 	"io"
 	"math"
 
@@ -140,7 +140,7 @@ func (b *Gcs) CreateNew() *Gcs {
 }
 
 func (b *Gcs) GetInfo() string {
-	return "Gcs"
+	return fmt.Sprintf("Gcs modulus %v, hash values set %v", b.Columns, b.Data.Len())
 }
 func (b *Gcs) ByteSize() int {
 	return (b.Data.Len() * 4)
