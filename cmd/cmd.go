@@ -387,11 +387,14 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	}
 
 	k := 10
-	eps := 0.0001
-	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(data), " L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
 	ids = make(map[int]bool)
 	naive_exact, _ := runNaive(data, 0)
 	ground_truth := naive_exact
+	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(data), "k-score", ground_truth[k-1].Score)
+
+	//stats for count min:
+	// eps := 0.0001
+	//fmt.Println(" L1 Norm is ", l1norm, "Error should be ", eps*l1norm)
 
 	//	var meths_to_run
 	//type rank_algorithm func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)

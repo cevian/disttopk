@@ -218,7 +218,7 @@ func NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk int) UnionSketchAdap
 
 func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {
 	bs := us.(*MaxHashMapUnionSketch)
-	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-	filter, _ /*thresh*/ := bs.GetFilterApprox(uint(thresh), t.topk)
+	filter, approxthresh := bs.GetFilterApprox(uint(thresh), t.topk+1) //+1 to get the max below the k'th elem
+	fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh)
 	return filter
 }
