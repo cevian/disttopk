@@ -358,18 +358,23 @@ func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k i
 	}
 }
 
-var algorithms map[string]func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats) = map[string]func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats){
-	//	"Naive-exact":  runNaiveExact,
-	//	"Naive (2k)":   runNaiveK2,
-	"Klee3-2R":     runKlee3,
-	"Klee4-3R":     runKlee4,
-	"Approx bloom": runApproximateBloomFilter,
-	"Approx GCS-M": runApproximateBloomGcsMergeFilter,
-	"TPUT   ":      runTput,
-	"TPUT-hash":    runTputHash,
-	"2R Gcs  ":     runBloomSketchGcs,
-	"2R Gcs-Merge": runBloomSketchGcsMerge,
-	"Count Min":    runCountMin,
+type Algorithm struct {
+	name   string
+	runner func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
+}
+
+var algorithms []Algorithm = []Algorithm{
+	//	Algorithm{"Naive-exact",  runNaiveExact},
+	//	Algorithm{"Naive (2k)",   runNaiveK2},
+	Algorithm{"Klee3-2R", runKlee3},
+	Algorithm{"Klee4-3R", runKlee4},
+	Algorithm{"Approx bloom", runApproximateBloomFilter},
+	Algorithm{"Approx GCS-M", runApproximateBloomGcsMergeFilter},
+	Algorithm{"TPUT   ", runTput},
+	Algorithm{"TPUT-hash", runTputHash},
+	Algorithm{"2R Gcs  ", runBloomSketchGcs},
+	Algorithm{"2R Gcs-Merge", runBloomSketchGcsMerge},
+	Algorithm{"Count Min", runCountMin},
 }
 
 //var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "TPUT-hash", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
@@ -405,10 +410,11 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 	statsMap := make(map[string]disttopk.AlgoStats)
 	allStats := ""
-	for name, algorithm := range algorithms {
+	for _, algorithm := range algorithms {
+		name := algorithm.name
 		fmt.Println("-----------------------")
 
-		result, stats := algorithm(data, k) //, stats
+		result, stats := algorithm.runner(data, k) //, stats
 		stats.Recall = getRecall(ground_truth, result, k)
 
 		stats.Abs_err = getScoreError(ground_truth, result, k)
@@ -488,14 +494,15 @@ func main() {
 
 	//table header
 	fmt.Print(" ")
-	for name, _ := range algorithms {
-		fmt.Printf("\t& %s", name)
+	for _, algorithm := range algorithms {
+		fmt.Printf("\t& %s", algorithm.name)
 	}
 	fmt.Println()
 	//now the table
 	for dataset, row := range datatable {
 		fmt.Print(dataset)
-		for name, _ := range algorithms {
+		for _, algorithm := range algorithms {
+			name := algorithm.name
 			fmt.Printf("\t& %d (edit dist %.6G)", row[name].Bytes_transferred, row[name].Edit_distance)
 		}
 		fmt.Println()
