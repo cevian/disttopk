@@ -23,7 +23,7 @@ func NewBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer int, N_est i
 }
 
 func NewCountMinPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-	return NewPeer(list, NewCountMinPeerSketchAdaptor(topk, numpeer), NewCountMinUnionSketchAdaptor(), topk)
+	return NewPeer(list, NewCountMinPeerSketchAdaptor(topk, numpeer, N_est), NewCountMinUnionSketchAdaptor(), topk)
 }
 
 func NewApproximateBloomFilterPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
@@ -145,7 +145,7 @@ func NewBloomGcsMergeCoord(k int) *Coord {
 }
 
 func NewCountMinCoord(k int) *Coord {
-	return NewCoord(k, NewCountMinPeerSketchAdaptor(k, 0), NewCountMinUnionSketchAdaptor())
+	return NewCoord(k, NewCountMinPeerSketchAdaptor(k, 0, 0), NewCountMinUnionSketchAdaptor())
 }
 
 func NewApproximateBloomFilterCoord(k int) *Coord {

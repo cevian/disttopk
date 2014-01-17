@@ -11,11 +11,11 @@ type CountMinPeerSketchAdaptor struct {
 	topk    int
 	numpeer int
 	Columns int
-	//N_est   int
+	N_est   int
 }
 
-func NewCountMinPeerSketchAdaptor(topk int, numpeer int) PeerSketchAdaptor {
-	return &CountMinPeerSketchAdaptor{topk, numpeer, 0}
+func NewCountMinPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAdaptor {
+	return &CountMinPeerSketchAdaptor{topk, numpeer, 0, N_est}
 }
 
 func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
@@ -29,8 +29,9 @@ func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRo
 	}
 
 	if t.Columns == 0 {
-		eps := 0.0001
-		t.Columns = disttopk.CountMinColumnsEst(eps)
+		//eps := 0.0001
+		//t.Columns = disttopk.CountMinColumnsEst(eps)
+		t.Columns = t.N_est
 	}
 
 	s := disttopk.NewCountMinSketch(hashes, t.Columns)
