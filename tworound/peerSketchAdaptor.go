@@ -3,7 +3,7 @@ package tworound
 import "github.com/cevian/disttopk"
 
 type PeerSketchAdaptor interface {
-	createSketch(list disttopk.ItemList) FirstRoundSketch
+	createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch
 	serialize(FirstRoundSketch) Serialized
 	deserialize(Serialized) FirstRoundSketch
 }
@@ -18,7 +18,7 @@ func NewBloomHistogramPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSk
 	return &BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}
 }
 
-func (t *BloomHistogramPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+func (t *BloomHistogramPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch {
 	s := disttopk.NewBloomSketch(t.topk, t.numpeer, t.N_est)
 	s.CreateFromList(list)
 	return s
@@ -56,10 +56,8 @@ func NewBloomHistogramGcsPeerSketchAdaptor(topk int, numpeer int, N_est int) Pee
 	return &BloomHistogramGcsPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}}
 }
 
-func (t *BloomHistogramGcsPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+func (t *BloomHistogramGcsPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch {
 	s := disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
 	s.CreateFromList(list)
 	return s
 }
-
-

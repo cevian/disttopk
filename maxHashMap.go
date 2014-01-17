@@ -88,12 +88,26 @@ func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 
 }
 
+func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int) uint {
+	mapValuesSorted := make([]int, 0, len(t.data))
+	for _, mapValue := range t.data {
+		mapValuesSorted = append(mapValuesSorted, int(mapValue))
+	}
+	sort.Ints(mapValuesSorted)
+
+	approxThresh := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
+	approxThresh = approxThresh - int(t.cutoff) //this is a correction. Not going from mapValues to query values.
+
+	return (uint(approxThresh) + uint(t.cutoff)) //this goes from domain of mapValues to Scores
+}
+
+/*
 func (t *MaxHashMap) GetFilterApprox(thresh uint, maxNumberHashValues int) (*Gcs, uint) {
 	if uint32(thresh) < t.cutoff {
-		panic("error")
+		//panic("error")
 	}
 
-	mapValueThresh := uint32(thresh) - t.cutoff
+	//mapValueThresh := uint32(thresh) - t.cutoff
 
 	mapValuesSorted := make([]int, 0, len(t.data))
 	for _, mapValue := range t.data {
@@ -106,9 +120,9 @@ func (t *MaxHashMap) GetFilterApprox(thresh uint, maxNumberHashValues int) (*Gcs
 
 	//fmt.Println(mapValuesSorted, approxThresh, t.cutoff)
 
-	if int(mapValueThresh) > approxThresh {
-		panic("I do not expect this, may not be an error")
-	}
+	//	if int(mapValueThresh) > approxThresh {
+	//		panic("I do not expect this, may not be an error")
+	//	}
 
 	values := make([]uint32, 0)
 	count := 0
@@ -131,4 +145,4 @@ func (t *MaxHashMap) GetFilterApprox(thresh uint, maxNumberHashValues int) (*Gcs
 	}
 	return gcs, (uint(approxThresh) + uint(t.cutoff))
 
-}
+}*/

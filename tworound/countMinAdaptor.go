@@ -18,7 +18,7 @@ func NewCountMinPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAd
 	return &CountMinPeerSketchAdaptor{topk, numpeer, 0, N_est}
 }
 
-func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch {
 	//eps := 0.0001
 	//delta := 0.01
 	//s := disttopk.NewCountMinSketchPb(eps, delta)
@@ -84,7 +84,7 @@ func NewNonePeerSketchAdaptor() PeerSketchAdaptor {
 	return &NonePeerSketchAdaptor{}
 }
 
-func (t *NonePeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+func (t *NonePeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch {
 	return nil
 }
 

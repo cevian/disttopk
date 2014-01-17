@@ -196,10 +196,10 @@ func NewBloomHistogramMergePeerSketchAdaptor(topk int, numpeer int, N_est int) P
 	return &BloomHistogramMergePeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}}
 }
 
-func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
+func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch {
 	s := disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
 	if MERGE_TOPK_AT_COORD {
-		s.CreateFromListWithScoreK(list[t.topk:], list[t.topk-1].Score)
+		s.CreateFromListWithScoreK(list[len(localtop):], list[t.topk-1].Score)
 	} else {
 		s.CreateFromList(list)
 	}
@@ -218,7 +218,12 @@ func NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk int) UnionSketchAdap
 
 func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) UnionFilter {
 	bs := us.(*MaxHashMapUnionSketch)
-	filter, approxthresh := bs.GetFilterApprox(uint(thresh), t.topk+1) //+1 to get the max below the k'th elem
+
+	approxthresh := bs.GetThreshApprox(t.topk)
 	fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh)
+	filter := bs.GetFilter(approxthresh)
 	return filter
+
+	//filter, approxthresh := bs.GetFilterApprox(uint(thresh), t.topk+1) //+1 to get the max below the k'th elem
+	//fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh)
 }

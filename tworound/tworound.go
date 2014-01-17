@@ -27,11 +27,14 @@ func NewCountMinPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *
 }
 
 func NewApproximateBloomFilterPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-	return NewPeer(list, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(topk, numpeer, N_est), topk)
+	peer := NewPeer(list, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(topk, numpeer, N_est), topk)
+	return peer
 }
 
 func NewApproximateBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
-	return NewPeer(list, NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk), topk)
+	peer := NewPeer(list, NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk), topk)
+	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
+	return peer
 }
 
 func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int) *Peer {
@@ -94,7 +97,7 @@ func (src *Peer) Run() error {
 	localtop_index := int(float64(src.k) * src.Alpha)
 	localtop := src.list[:localtop_index]
 
-	sketch := src.createSketch(src.list)
+	sketch := src.createSketch(src.list, localtop)
 	ser := src.PeerSketchAdaptor.serialize(sketch)
 
 	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index, Random_access: 0, Random_items: 0}
@@ -243,10 +246,12 @@ func (src *Coord) Run() error {
 
 	il := disttopk.MakeItemList(m)
 	il.Sort()
+
 	if len(il) < src.k {
-		fmt.Println("ERROR k less than list")
+		fmt.Println("WARNING k less than list, cannot get an exact threshold. Using thresh=0")
+	} else {
+		thresh = il[src.k-1].Score
 	}
-	thresh = il[src.k-1].Score
 	localthresh := thresh
 
 	bytesRound := items*disttopk.RECORD_SIZE + sketchsize
