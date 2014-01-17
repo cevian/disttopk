@@ -99,7 +99,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																		println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																					println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -192,12 +192,12 @@ func (c *BloomHistogram) GetInfo() string {
 
 }
 
-func (b *BloomHistogram) CreateFromList(list ItemList) {
+func (b *BloomHistogram) CreateFromList(list ItemList) (serialAccess int) {
 	scorek := list[b.topk-1].Score
-	b.CreateFromListWithScoreK(list, scorek)
+	return b.CreateFromListWithScoreK(list, scorek)
 }
 
-func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64) {
+func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64) (serialAccess int) {
 	//topk := 10
 	//n := 33
 	//scorek := list[b.topk-1].Score
@@ -268,8 +268,10 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 	}
 	if current_index < len(list) {
 		b.cutoff = uint32(list[current_index].Score)
+		return current_index + 1
 		//fmt.Println("Cutoff", b.cutoff, list[current_index-1].Score, current_index, first_index_past_minscore, len(list))
 	}
+	return current_index
 
 }
 

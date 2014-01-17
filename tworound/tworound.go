@@ -97,10 +97,10 @@ func (src *Peer) Run() error {
 	localtop_index := int(float64(src.k) * src.Alpha)
 	localtop := src.list[:localtop_index]
 
-	sketch := src.createSketch(src.list, localtop)
+	sketch, serialAccessOverLocaltop := src.createSketch(src.list, localtop)
 	ser := src.PeerSketchAdaptor.serialize(sketch)
 
-	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index, Random_access: 0, Random_items: 0}
+	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index + serialAccessOverLocaltop, Random_access: 0, Random_items: 0}
 	select {
 	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, compress(ser), first_round_access}}:
 	case <-src.StopNotifier:

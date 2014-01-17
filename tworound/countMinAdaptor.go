@@ -18,7 +18,7 @@ func NewCountMinPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAd
 	return &CountMinPeerSketchAdaptor{topk, numpeer, 0, N_est}
 }
 
-func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch {
+func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
 	//eps := 0.0001
 	//delta := 0.01
 	//s := disttopk.NewCountMinSketchPb(eps, delta)
@@ -39,18 +39,22 @@ func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList, localto
 	if USE_THRESHOLD {
 		kscore := uint(list[t.topk].Score)
 		cutoff := kscore / uint(t.numpeer)
+		accesses := 0
 		for _, v := range list {
+			accesses += 1
 			if uint(v.Score) > cutoff {
 				s.AddWithCutoff(disttopk.IntKeyToByteKey(v.Id), uint(v.Score), cutoff)
+			} else {
+				break
 			}
 		}
+		return s, accesses - len(localtop)
 	} else {
 		for _, v := range list {
 			s.Add(disttopk.IntKeyToByteKey(v.Id), uint32(v.Score))
 		}
-
+		return s, len(list) - len(localtop)
 	}
-	return s
 }
 
 func (*CountMinPeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
@@ -84,8 +88,8 @@ func NewNonePeerSketchAdaptor() PeerSketchAdaptor {
 	return &NonePeerSketchAdaptor{}
 }
 
-func (t *NonePeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) FirstRoundSketch {
-	return nil
+func (t *NonePeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
+	return nil, 0
 }
 
 func (*NonePeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
