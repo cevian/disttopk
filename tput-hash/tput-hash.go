@@ -7,8 +7,6 @@ import (
 	"fmt"
 )
 
-const APPROXIMATE_T2 = true
-
 func NewPeer(list disttopk.ItemList, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0}
 }
@@ -134,19 +132,20 @@ func (src *Peer) Run() error {
 	return nil
 }
 
-func NewCoord(k int) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, 0.5}
+func NewCoord(k int, approximate_t2 bool) *Coord {
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, 0.5, approximate_t2}
 }
 
 type Coord struct {
 	*stream.HardStopChannelCloser
-	input        chan disttopk.DemuxObject
-	backPointers []chan<- stream.Object
-	lists        [][]disttopk.Item
-	FinalList    []disttopk.Item
-	k            int
-	Stats        disttopk.AlgoStats
-	alpha        float64
+	input          chan disttopk.DemuxObject
+	backPointers   []chan<- stream.Object
+	lists          [][]disttopk.Item
+	FinalList      []disttopk.Item
+	k              int
+	Stats          disttopk.AlgoStats
+	alpha          float64
+	approximate_t2 bool
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -243,7 +242,7 @@ func (src *Coord) Run() error {
 	bytesRound += bytes_cha
 
 	secondthresh := uint(thresh)
-	if APPROXIMATE_T2 {
+	if src.approximate_t2 {
 		secondthresh = cha.GetKthCount(src.k)
 	}
 

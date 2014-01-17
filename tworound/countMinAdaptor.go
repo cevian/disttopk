@@ -10,11 +10,12 @@ const USE_SINGLEHASH = true
 type CountMinPeerSketchAdaptor struct {
 	topk    int
 	numpeer int
+	Columns int
 	//N_est   int
 }
 
 func NewCountMinPeerSketchAdaptor(topk int, numpeer int) PeerSketchAdaptor {
-	return &CountMinPeerSketchAdaptor{topk, numpeer}
+	return &CountMinPeerSketchAdaptor{topk, numpeer, 0}
 }
 
 func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRoundSketch {
@@ -22,12 +23,17 @@ func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList) FirstRo
 	//delta := 0.01
 	//s := disttopk.NewCountMinSketchPb(eps, delta)
 
-	eps := 0.0001
 	hashes := disttopk.CountMinHashesEst(0.01)
 	if USE_SINGLEHASH {
 		hashes = 1
 	}
-	s := disttopk.NewCountMinSketch(hashes, disttopk.CountMinColumnsEst(eps))
+
+	if t.Columns == 0 {
+		eps := 0.0001
+		t.Columns = disttopk.CountMinColumnsEst(eps)
+	}
+
+	s := disttopk.NewCountMinSketch(hashes, t.Columns)
 
 	if USE_THRESHOLD {
 		kscore := uint(list[t.topk].Score)

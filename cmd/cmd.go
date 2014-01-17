@@ -60,9 +60,17 @@ func runTput(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStat
 }
 
 func runTputHash(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return runTputHashApproximateFlag(l, k, false)
+}
+
+func runTputHashExtraRound(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return runTputHashApproximateFlag(l, k, true)
+}
+
+func runTputHashApproximateFlag(l []disttopk.ItemList, k int, approximate_t2 bool) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tput_hash.Peer, len(l))
-	coord := tput_hash.NewCoord(k)
+	coord := tput_hash.NewCoord(k, approximate_t2)
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = tput_hash.NewPeer(list, k)
@@ -365,11 +373,15 @@ type Algorithm struct {
 
 var algorithms []Algorithm = []Algorithm{
 	//	Algorithm{"Naive-exact",  runNaiveExact},
+	// Approximate:
 	//	Algorithm{"Naive (2k)",   runNaiveK2},
 	Algorithm{"Klee3-2R", runKlee3},
 	Algorithm{"Klee4-3R", runKlee4},
 	Algorithm{"Approx bloom", runApproximateBloomFilter},
-	Algorithm{"Approx GCS-M", runApproximateBloomGcsMergeFilter},
+	// Extra-Round Exact
+	Algorithm{"ER GCS-M", runApproximateBloomGcsMergeFilter},
+	Algorithm{"ER TPUT-hash", runTputHashExtraRound},
+	// Exact
 	Algorithm{"TPUT   ", runTput},
 	Algorithm{"TPUT-hash", runTputHash},
 	Algorithm{"2R Gcs  ", runBloomSketchGcs},
