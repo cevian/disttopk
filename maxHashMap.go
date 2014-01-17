@@ -7,12 +7,13 @@ import (
 
 type MaxHashMap struct {
 	data         map[uint32]uint32 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
+	data_under   map[uint32]uint32 //the unse-approximation
 	cutoff       uint32
 	modulus_bits uint32
 }
 
 func NewMaxHashMap() *MaxHashMap {
-	return &MaxHashMap{make(map[uint32]uint32), 0, 0}
+	return &MaxHashMap{make(map[uint32]uint32), make(map[uint32]uint32), 0, 0}
 }
 
 func (t *MaxHashMap) GetInfo() string {
@@ -23,7 +24,7 @@ func (t *MaxHashMap) GetModulusBits() uint {
 	return uint(t.modulus_bits)
 }
 
-func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, cutoff uint) {
+func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
 	//fmt.Println("Adding ", hashValue, modulus_bits, max, cutoff)
 	if t.modulus_bits == 0 {
 		t.modulus_bits = uint32(modulus_bits)
@@ -39,6 +40,7 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, cutoff uin
 		for int(hashValue) < mhm_modulus {
 			count += 1
 			t.data[uint32(hashValue)] += uint32(max - cutoff)
+			t.data_under[uint32(hashValue)] += uint32(min)
 			hashValue += uint(rcv_modulus)
 		}
 
@@ -52,6 +54,7 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, cutoff uin
 	}
 
 	t.data[uint32(hashValue)] += uint32(max - cutoff)
+	t.data_under[uint32(hashValue)] += uint32(min)
 }
 
 func (t *MaxHashMap) AddCutoff(c uint) {
@@ -89,6 +92,20 @@ func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 }
 
 func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int) uint {
+	mapValuesSorted := make([]int, 0, len(t.data_under))
+	for _, mapValue := range t.data_under {
+		mapValuesSorted = append(mapValuesSorted, int(mapValue))
+	}
+	sort.Ints(mapValuesSorted)
+
+	approxThresh := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
+	//approxThresh = approxThresh - int(t.cutoff) //this is a correction. Not going from mapValues to query values.
+
+	return uint(approxThresh)
+}
+
+/*
+func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int) uint {
 	mapValuesSorted := make([]int, 0, len(t.data))
 	for _, mapValue := range t.data {
 		mapValuesSorted = append(mapValuesSorted, int(mapValue))
@@ -100,49 +117,4 @@ func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int) uint {
 
 	return (uint(approxThresh) + uint(t.cutoff)) //this goes from domain of mapValues to Scores
 }
-
-/*
-func (t *MaxHashMap) GetFilterApprox(thresh uint, maxNumberHashValues int) (*Gcs, uint) {
-	if uint32(thresh) < t.cutoff {
-		//panic("error")
-	}
-
-	//mapValueThresh := uint32(thresh) - t.cutoff
-
-	mapValuesSorted := make([]int, 0, len(t.data))
-	for _, mapValue := range t.data {
-		mapValuesSorted = append(mapValuesSorted, int(mapValue))
-	}
-	sort.Ints(mapValuesSorted)
-
-	approxThresh := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
-	approxThresh = approxThresh - int(t.cutoff) //this is a correction. Not going from mapValues to query values.
-
-	//fmt.Println(mapValuesSorted, approxThresh, t.cutoff)
-
-	//	if int(mapValueThresh) > approxThresh {
-	//		panic("I do not expect this, may not be an error")
-	//	}
-
-	values := make([]uint32, 0)
-	count := 0
-	for hashValue, mapValue := range t.data {
-		if int(mapValue) >= approxThresh {
-			//fmt.Println("Diff", mapValue-mapValueThresh, mapValue, mapValueThresh, count)
-			values = append(values, hashValue)
-			count += 1
-		}
-	}
-
-	//n := len(values)
-
-	m := (1 << (uint(t.modulus_bits)))
-	//fmt.Printf("Get Filter. m %v (%v), thresh %v, mvthresh %v, #hash values %v, #hash values above thresh %v", m, t.modulus_bits, thresh, mapValueThresh, len(t.data), len(values))
-	gcs := NewGcs(m)
-
-	for _, value := range values {
-		gcs.Data.Insert(value)
-	}
-	return gcs, (uint(approxThresh) + uint(t.cutoff))
-
-}*/
+*/

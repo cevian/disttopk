@@ -152,7 +152,9 @@ func NewCountMinCoord(k int) *Coord {
 }
 
 func NewApproximateBloomFilterCoord(k int) *Coord {
-	return NewCoord(k, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(k, 0, 0))
+	coord := NewCoord(k, NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(k, 0, 0))
+	coord.Approximate = true
+	return coord
 }
 
 func NewApproximateBloomGcsMergeCoord(k int) *Coord {
@@ -160,7 +162,7 @@ func NewApproximateBloomGcsMergeCoord(k int) *Coord {
 }
 
 func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), psa, usa, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}}
+	return &Coord{stream.NewHardStopChannelCloser(), psa, usa, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, false}
 }
 
 type UnionSketch interface {
@@ -184,6 +186,7 @@ type Coord struct {
 	FinalList    []disttopk.Item
 	k            int
 	Stats        disttopk.AlgoStats
+	Approximate  bool
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -262,7 +265,7 @@ func (src *Coord) Run() error {
 	bytes := bytesRound
 
 	total_back_bytes := 0
-	uf := src.getUnionFilter(ucm, uint32(localthresh), il)
+	uf, ufThresh := src.getUnionFilter(ucm, uint32(localthresh), il)
 	fmt.Println("Uf info: ", uf.GetInfo())
 
 	for _, ch := range src.backPointers {
@@ -309,6 +312,15 @@ func (src *Coord) Run() error {
 			fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
 		}
 	}
+
+	if uint(il[src.k-1].Score) < ufThresh {
+		if src.Approximate {
+			fmt.Println("WARNING, result may be inexact")
+		} else {
+			panic(fmt.Sprintf("topk-score < approx thresh. Need to implement third round. score %v, approxThresh %v", uint(il[src.k-1].Score), ufThresh))
+		}
+	}
+
 	src.FinalList = il
 	return nil
 }
