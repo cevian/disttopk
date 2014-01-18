@@ -91,15 +91,24 @@ func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 
 }
 
-func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int) uint {
+func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int, gamma float64) uint {
 	mapValuesSorted := make([]int, 0, len(t.data_under))
 	for _, mapValue := range t.data_under {
 		mapValuesSorted = append(mapValuesSorted, int(mapValue))
 	}
 	sort.Ints(mapValuesSorted)
 
-	approxThresh := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
-	//approxThresh = approxThresh - int(t.cutoff) //this is a correction. Not going from mapValues to query values.
+	underApprox := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
+
+	mapValuesSorted = make([]int, 0, len(t.data))
+	for _, mapValue := range t.data {
+		mapValuesSorted = append(mapValuesSorted, int(mapValue))
+	}
+	sort.Ints(mapValuesSorted)
+
+	overApprox := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
+
+	approxThresh := underApprox + int(float64(overApprox-underApprox)*gamma)
 
 	return uint(approxThresh)
 }

@@ -23,15 +23,12 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 	//b.Pop() //todo: change
 	count := 0
 	test := make(map[uint32]bool)
-	for k, entry := range b.Data {
+	for _, entry := range b.Data {
 		g := entry.GetFilter().(*disttopk.Gcs)
 		m := g.Columns
 		m_bits := uint32(math.Log2(float64(m)))
 		max := entry.GetMax()
-		min := b.Cutoff()
-		if len(b.Data) > k+1 {
-			min = b.Data[k+1].GetMax()
-		}
+		min := entry.GetMin()
 		//fmt.Println("m = ", m)
 
 		g.Data.Eval(func(hv uint32) {
@@ -211,19 +208,20 @@ func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemLi
 
 type BloomHistogramMergeGcsApproxUnionSketchAdaptor struct {
 	*BloomHistogramMergeSketchAdaptor
-	topk int
+	topk  int
+	gamma float64
 }
 
 func NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk int) UnionSketchAdaptor {
 	bhm := NewBloomHistogramMergeSketchAdaptor()
-	return &BloomHistogramMergeGcsApproxUnionSketchAdaptor{bhm.(*BloomHistogramMergeSketchAdaptor), topk}
+	return &BloomHistogramMergeGcsApproxUnionSketchAdaptor{bhm.(*BloomHistogramMergeSketchAdaptor), topk, 0.5}
 }
 
 func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
 	bs := us.(*MaxHashMapUnionSketch)
 
-	approxthresh := bs.GetThreshApprox(t.topk)
-	fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh)
+	approxthresh := bs.GetThreshApprox(t.topk, t.gamma)
+	fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma)
 	filter := bs.GetFilter(approxthresh)
 	return filter, approxthresh
 

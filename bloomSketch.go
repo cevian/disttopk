@@ -60,13 +60,21 @@ func (t *HashValueFilter) InsertHashValueSlice(modulus_bits uint8, nhvs *HashVal
 type BloomHistogramEntry struct {
 	filter BloomFilter
 	max    uint32
+	min    uint32
 	n_max  int     //debug
 	eps    float64 //debug
+}
+
+func NewBloomHistogramEntry(filter BloomFilter, eps float64) *BloomHistogramEntry {
+	return &BloomHistogramEntry{filter, 0, 0, 0, eps}
 }
 
 func (t *BloomHistogramEntry) Add(id uint, score uint) {
 	if uint32(score) > t.max {
 		t.max = uint32(score)
+	}
+	if uint32(score) < t.min || t.min == 0 {
+		t.min = uint32(score)
 	}
 	t.filter.Add(IntKeyToByteKey(int(id)))
 }
@@ -77,6 +85,9 @@ func (c *BloomHistogramEntry) GetFilter() BloomFilter {
 
 func (c *BloomHistogramEntry) GetMax() uint32 {
 	return c.max
+}
+func (c *BloomHistogramEntry) GetMin() uint32 {
+	return c.min
 }
 
 func (c *BloomHistogramEntry) GetInfo() string {
@@ -99,7 +110,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																					println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																							println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -249,7 +260,7 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 
 		//m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
 		//eps := EstimateEps(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
-		entry := &BloomHistogramEntry{filter, 0, 0, eps}
+		entry := NewBloomHistogramEntry(filter, eps)
 
 		endindex := current_index + items_in_entry
 		for current_index < len(list) && (current_index < endindex) {
@@ -710,6 +721,9 @@ func (p *BloomHistogramEntry) Serialize(w io.Writer) error {
 	if err := binary.Write(w, binary.BigEndian, &p.max); err != nil {
 		return err
 	}
+	if err := binary.Write(w, binary.BigEndian, &p.min); err != nil {
+		return err
+	}
 	if SAVE_DEBUG {
 		if err := SerializeIntAsU32(w, &p.n_max); err != nil {
 			return err
@@ -730,6 +744,9 @@ func (p *BloomHistogramEntry) Deserialize(r io.Reader) error {
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &p.max); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &p.min); err != nil {
 		return err
 	}
 
