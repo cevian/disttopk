@@ -41,6 +41,8 @@ func TestCountArraySerialize(t *testing.T) {
 	}
 
 	b, err := SerializeObject(a)
+	compb := CompressBytes(b)
+	t.Log("Count array serialized plain: ", len(b), " Compressed ", len(compb))
 
 	if err != nil {
 		panic(err)
@@ -75,6 +77,8 @@ func TestCountArraySerializeWithBag(t *testing.T) {
 		panic(err)
 	}
 	b := buf.Bytes()
+	compb := CompressBytes(b)
+	t.Log("Count array serialized Bag: ", len(b), " Compressed ", len(compb))
 
 	var obj CountArray
 
@@ -85,8 +89,41 @@ func TestCountArraySerializeWithBag(t *testing.T) {
 		panic(err)
 	}
 
-	a.transformLog()
-	a.untransformLog()
+	//	a.transformLog()
+	//	a.untransformLog()
+
+	if !a.Equal(&obj) {
+		t.Fail()
+	}
+
+}
+
+func TestCountArraySerializeGcs(t *testing.T) {
+	n := 10000
+	a := NewCountArray(int(n))
+
+	for i := 0; i < n/10; i++ {
+		j := rand.Int() % n
+		v := rand.Int() % n
+		a.Set(int(j), uint(v))
+	}
+
+	buf := new(bytes.Buffer)
+	if err := a.SerializeGcs(buf); err != nil {
+		panic(err)
+	}
+	b := buf.Bytes()
+
+	compb := CompressBytes(b)
+	t.Log("Count array serialized GCS: ", len(b), " Compressed ", len(compb))
+	var obj CountArray
+
+	bufr := bytes.NewReader(b)
+	err := obj.DeserializeGcs(bufr)
+
+	if err != nil {
+		panic(err)
+	}
 
 	if !a.Equal(&obj) {
 		t.Fail()

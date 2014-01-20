@@ -475,13 +475,14 @@ func main() {
 	var l []disttopk.ItemList
 	//l is a list of lists; each top-level list is the data from each peer.
 	if source == "zipf" {
+		//really good GCS-m result. Why?
 		l = disttopk.GetListSet(10, 10000, 0.8, 0.7)
 	} else if source == "zipf-disjoint" {
 		l = disttopk.GetDisjointSimpleList(10, 10000, 0.7)
 	} else if source == "zipf-fo" {
 		l = disttopk.GetFullOverlapSimpleList(10, 10000, 0.7)
 	} else if source == "zipf-perm" {
-		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 10000, 0.7, 100)
+		l = disttopk.GetFullOverlapOrderPermutedSimpleList(10, 100000, 0.7, 100)
 	} else if source == "UCB" {
 		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")

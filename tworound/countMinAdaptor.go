@@ -2,7 +2,7 @@ package tworound
 
 import "github.com/cevian/disttopk"
 
-//import "fmt"
+import "fmt"
 
 const USE_THRESHOLD = true
 const USE_SINGLEHASH = true
@@ -31,7 +31,25 @@ func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList, localto
 	if t.Columns == 0 {
 		//eps := 0.0001
 		//t.Columns = disttopk.CountMinColumnsEst(eps)
-		t.Columns = t.N_est
+		//t.Columns = t.N_est
+		n := len(list)
+		if USE_THRESHOLD {
+			kscore := uint(list[t.topk].Score)
+			cutoff := kscore / uint(t.numpeer)
+			items := 0
+			for _, v := range list {
+				items += 1
+				if uint(v.Score) <= cutoff {
+					break
+				}
+			}
+			n = items
+		}
+
+		eps := disttopk.EstimateEpsCm(t.N_est, n, disttopk.RECORD_SIZE*8, 2)
+		fmt.Println("Est, eps", eps, n)
+		t.Columns = disttopk.CountMinColumnsEstPow2(eps)
+
 	}
 
 	s := disttopk.NewCountMinSketch(hashes, t.Columns)

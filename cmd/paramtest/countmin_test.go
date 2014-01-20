@@ -44,10 +44,17 @@ func RunCountMinExplicitColumns(l []disttopk.ItemList, topk int, columns int) (d
 //import "math/rand"
 
 func TestCountMinParameter(t *testing.T) {
-	l := disttopk.GetFullOverlapOrderPermutedSimpleList(10, 100000, 0.7, 100)
+	N := 100000
+	Nnodes := 10
+	l := disttopk.GetFullOverlapOrderPermutedSimpleList(Nnodes, uint32(N), 0.7, 100)
 	k := 10
 
+	eps_est := disttopk.EstimateEpsCm(N, 15, disttopk.RECORD_SIZE*8, Nnodes)
+	columns_est := disttopk.CountMinColumnsEstPow2(eps_est)
+	_, stats_est := RunCountMinExplicitColumns(l, k, columns_est)
+
 	columns := disttopk.CountMinColumnsEst(0.001)
+	//columns = 10000
 	stats_str := ""
 
 	lowest_value := uint64(0)
@@ -138,4 +145,5 @@ func TestCountMinParameter(t *testing.T) {
 
 	   	}*/
 	fmt.Println(stats_str)
+	fmt.Println("Estimate ", eps_est, stats_est.Bytes_transferred)
 }

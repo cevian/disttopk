@@ -79,7 +79,7 @@ func (t *CountArray) Get(idx int) uint {
 	return uint(t.Data[idx])
 }
 
-func (t *CountArray) Serialize(w io.Writer) error {
+func (t *CountArray) GetValueBits() uint8 {
 	max := uint32(0)
 	for _, v := range t.Data {
 		if v > max {
@@ -88,7 +88,11 @@ func (t *CountArray) Serialize(w io.Writer) error {
 	}
 
 	bits := uint8(math.Ceil(math.Log2(float64(max))))
-	return t.SerializeBits(w, bits)
+	return bits
+}
+
+func (t *CountArray) Serialize(w io.Writer) error {
+	return t.SerializeBits(w, t.GetValueBits())
 }
 
 func (t *CountArray) SerializeBits(w io.Writer, bits uint8) error {
@@ -138,7 +142,7 @@ func (orig *CountArray) LogNormalize(scale float64) {
 		v := orig.Get(i)
 		if v > 0 {
 			newval := uint(math.Ceil(math.Log(float64(v)) * scale))
-			orig.Set(i, newval)
+			orig.Set(i, newval+1)
 		}
 	}
 }
@@ -147,7 +151,7 @@ func (orig *CountArray) LogDenormalize(scale float64) {
 	for i := 0; i < orig.Len(); i++ {
 		v := orig.Get(i)
 		if v > 0 {
-			newval := uint(math.Exp(float64(v) / scale))
+			newval := uint(math.Exp(float64(v-1) / scale))
 			orig.Set(i, newval)
 		}
 	}
@@ -320,4 +324,95 @@ func (ca *CountArray) DeserializeWithBag(r io.Reader) error {
 	//ca.untransformLog()
 	return nil
 
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////GCS SERIALIZE//////////////////////////
+
+func (t *CountArray) SerializeGcs(w io.Writer) error {
+	return t.SerializeBitsGcs(w, t.GetValueBits())
+}
+
+func (t *CountArray) SerializeBitsGcs(w io.Writer, bits uint8) error {
+	length := uint32(len(t.Data))
+	if err := binary.Write(w, binary.BigEndian, &length); err != nil {
+		return err
+	}
+
+	if err := binary.Write(w, binary.BigEndian, &bits); err != nil {
+		return err
+	}
+
+	nonzero := uint32(t.CountNonZero())
+	if err := binary.Write(w, binary.BigEndian, &nonzero); err != nil {
+		return err
+	}
+
+	bw := NewBitWriter(w)
+	cellIndexes := make([]int, 0, nonzero)
+	for cellIndex, v := range t.Data {
+		if v > 0 {
+			if err := bw.AddBits(uint(v), uint(bits)); err != nil {
+				return err
+			}
+			cellIndexes = append(cellIndexes, cellIndex)
+		}
+	}
+	if err := bw.Close(true); err != nil {
+		return err
+	}
+
+	//println("Cellindexes", len(cellIndexes))
+	return GolumbEncodeWriter(w, cellIndexes)
+}
+
+/*
+func (t *CountArray) SerializeHashArray(w io.Writer) error {
+	nonzero := uint32(t.CountNonZero())
+	cellIndexes := make([]int, 0, nonzero)
+	for cellIndex, v := range t.Data {
+		if v > 0 {
+			cellIndexes = append(cellIndexes, cellIndex)
+		}
+	}
+
+	return GolumbEncodeWriter(w, cellIndexes)
+}*/
+
+func (t *CountArray) DeserializeGcs(r io.Reader) error {
+	length := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return err
+	}
+	bits := uint8(0)
+	if err := binary.Read(r, binary.BigEndian, &bits); err != nil {
+		return err
+	}
+	nonzero := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &nonzero); err != nil {
+		return err
+	}
+
+	t.Data = make([]uint32, length)
+
+	values := make([]uint32, nonzero)
+	br := NewBitReader(r)
+	for k, _ := range values {
+		val, err := br.ReadBits64(uint(bits))
+		if err != nil {
+			return err
+		}
+		values[k] = uint32(val)
+	}
+
+	cellIndexes, err := GolumbDecodeReader(r)
+	if err != nil {
+		return err
+	}
+
+	for k, cellIndex := range cellIndexes {
+		t.Data[cellIndex] = values[k]
+	}
+
+	return nil
 }

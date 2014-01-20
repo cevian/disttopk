@@ -43,7 +43,7 @@ func (src *SimpleZipfSource) GenerateItem(rank int) Item {
 
 	//fmt.Println("gen", zipfValue, score, (zipfValue * src.scale), src.scale, id, id%100)
 
-	return Item{id, float64(int(score))}
+	return Item{id, float64(math.Ceil(score))}
 }
 
 func (src *SimpleZipfSource) GetList() ItemList {

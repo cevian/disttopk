@@ -17,6 +17,7 @@ import (
 const USE_NORMALIZATION = true //this saves a lot of bandwidth
 const NORM_SCALE = 10.0
 const SERIALIZE_BAG = false //this is innefctive if using standard compression as well
+const SERIALIZE_GCS = true
 const ADD_VALUES_ON_ADD = false
 
 type Sketch interface {
@@ -111,6 +112,24 @@ func (s *CountMinHash) ByteSize() int {
 	return 8
 }
 
+func EstimateEpsCm(N_est int, n_est int, penalty_bits int, NumTransfers int) float64 {
+	//TODO change! -- this is base on the bloom filter approximation with k != 1
+	//for compressed filters, needs to change.
+
+	//for m = size of bloom, p = size of each record sent as false pos, s = # times filter sent across the wire
+	//total (t) = s  * m + (N-n) * eps * p
+	// m = n *  1.44 * 0.7 * log_2(1/eps) = n * 1.44 * 1/ln(2) * ln (1/eps)
+	// dt/deps  = s * n * 1.44 * 0.7 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (N-n) * p
+	// 0 =   -1 * s *  n * 1.44 * 0.7  / ln (2) * 1 / eps + (N-n) * p
+	// (s * n * (1.44 * 0.7 / ln (2))) / ((N -n) * p) = eps
+	// eps = s * 1.44 * 0.7 / (N/n -1) * p * ln (2)
+
+	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
+
+	eps := (float64(NumTransfers) * 1.44 * 0.7) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	return eps
+}
+
 type CountMinSketch struct {
 	*CountMinHash
 	Data   []*CountArray
@@ -119,6 +138,10 @@ type CountMinSketch struct {
 
 func (c *CountMinSketch) ByteSize() int {
 	return len(c.Data) * 4 * c.Data[0].Len()
+}
+
+func (t *CountMinSketch) GetValueBits(hashNo int) uint8 {
+	return t.Data[hashNo].GetValueBits()
 }
 
 func (c *CountMinSketch) GetInfo() string {
@@ -140,6 +163,16 @@ func (c *CountMinSketch) CreateFromList(list ItemList) {
 func CountMinColumnsEst(eps float64) int {
 	columns := math.Ceil(math.E / eps)
 	return int(columns)
+}
+
+func CountMinColumnsEstPow2(eps float64) int {
+	columns := math.Ceil(math.E / eps)
+	bits := math.Log2(columns)
+	rounded, f := math.Modf(bits)
+	if f > 0.5 {
+		rounded += 1
+	}
+	return int(1 << uint(rounded))
 }
 
 func CountMinHashesEst(prob float64) int {
@@ -251,11 +284,37 @@ func (s *CountMinSketch) Merge(toadd Sketch) {
 	}
 
 	for k, hashArray := range s.Data {
-		for hash_idx := 0; hash_idx < hashArray.Len(); hash_idx++ {
-			prev := hashArray.Get(hash_idx)
-			newv := cm.Data[k].Get(hash_idx)
-			s.Data[k].Set(hash_idx, prev+newv)
+		/*if hashArray.Len() != cm.Data[k].Len() {
+			panic("Has to be the same length")
+		}*/
+		if hashArray.Len() <= cm.Data[k].Len() {
+			if cm.Data[k].Len()%hashArray.Len() != 0 {
+				panic("Has to be divisible")
+			}
+			for hash_idx := 0; hash_idx < cm.Data[k].Len(); hash_idx++ {
+				my_idx := hash_idx % hashArray.Len()
+				prev := hashArray.Get(my_idx)
+				newv := cm.Data[k].Get(hash_idx)
+				s.Data[k].Set(my_idx, prev+newv)
+			}
+
+		} else {
+			if hashArray.Len()%cm.Data[k].Len() != 0 {
+				panic("Has to be divisible")
+			}
+			for hash_idx := 0; hash_idx < hashArray.Len(); hash_idx++ {
+				toadd_idx := hash_idx % cm.Data[k].Len()
+				prev := hashArray.Get(hash_idx)
+				newv := cm.Data[k].Get(toadd_idx)
+				s.Data[k].Set(hash_idx, prev+newv)
+			}
 		}
+		/*
+			for hash_idx := 0; hash_idx < hashArray.Len(); hash_idx++ {
+				prev := hashArray.Get(hash_idx)
+				newv := cm.Data[k].Get(hash_idx)
+				s.Data[k].Set(hash_idx, prev+newv)
+			}*/
 		//s.Data[k] += cm.Data[k]
 	}
 	s.Cutoff += cm.Cutoff
@@ -281,6 +340,9 @@ func (p *CountMinSketch) Serialize(w io.Writer) error {
 		serf := v.Serialize
 		if SERIALIZE_BAG {
 			serf = v.SerializeWithBag
+		}
+		if SERIALIZE_GCS {
+			serf = v.SerializeGcs
 		}
 		if err := serf(w); err != nil {
 			return err
@@ -309,6 +371,9 @@ func (p *CountMinSketch) Deserialize(r io.Reader) error {
 		deserf := ca.Deserialize
 		if SERIALIZE_BAG {
 			deserf = ca.DeserializeWithBag
+		}
+		if SERIALIZE_GCS {
+			deserf = ca.DeserializeGcs
 		}
 		if err := deserf(r); err != nil {
 			return err
