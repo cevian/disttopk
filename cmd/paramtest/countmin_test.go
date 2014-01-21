@@ -10,6 +10,8 @@ import (
 
 import "github.com/cevian/disttopk"
 
+var _ = math.Ceil
+
 //import cmd "github.com/cevian/disttopk/cmd"
 func getNEst(l []disttopk.ItemList) int {
 	ids := make(map[int]bool)
@@ -43,18 +45,35 @@ func RunCountMinExplicitColumns(l []disttopk.ItemList, topk int, columns int) (d
 
 //import "math/rand"
 
+func Getn(list disttopk.ItemList, topk int, nnodes int) int {
+	kscore := uint(list[topk].Score)
+	cutoff := kscore / uint(nnodes)
+	items := 0
+	for _, v := range list {
+		items += 1
+		if uint(v.Score) <= cutoff {
+			break
+		}
+	}
+	return items
+}
+
 func TestCountMinParameter(t *testing.T) {
 	N := 100000
 	Nnodes := 10
-	l := disttopk.GetFullOverlapOrderPermutedSimpleList(Nnodes, uint32(N), 0.7, 100)
+	l := disttopk.GetFullOverlapOrderPermutedSimpleList(Nnodes, uint32(N), 0.3, 100)
 	k := 10
 
-	eps_est := disttopk.EstimateEpsCm(N, 15, disttopk.RECORD_SIZE*8, Nnodes)
-	columns_est := disttopk.CountMinColumnsEstPow2(eps_est)
+	n := Getn(l[0], k, Nnodes)
+	//n := 398
+	//eps_est := disttopk.EstimateEpsCm(N, n, disttopk.RECORD_SIZE*8, 1)
+	eps_est := disttopk.EstimateEpsCmNew(N, n, 400, disttopk.RECORD_SIZE*8)
+	columns_est := disttopk.CountMinColumnsEstBloomPow2(n, eps_est)
+	fmt.Println("eps est", eps_est, columns_est)
 	_, stats_est := RunCountMinExplicitColumns(l, k, columns_est)
 
-	columns := disttopk.CountMinColumnsEst(0.001)
-	//columns = 10000
+	//columns := disttopk.CountMinColumnsEstPow2(0.001)
+	columns := 10000
 	stats_str := ""
 
 	lowest_value := uint64(0)
@@ -64,7 +83,7 @@ func TestCountMinParameter(t *testing.T) {
 	scale := 2
 	for i := 0; i < 20; i++ {
 		_, stats := RunCountMinExplicitColumns(l, k, columns)
-		stats_str += fmt.Sprintf("columns: %4.2e eps: %4.2e\tbytes %v left %v right %v lowest (cols:%e, eps:%e bytes: %v) \n", float64(columns), math.E/float64(columns), stats.Bytes_transferred, left_column, right_column, float64(lowest_value_columns), math.E/float64(lowest_value_columns), lowest_value)
+		stats_str += fmt.Sprintf("columns: %4.2e eps: %4.2e\tbytes %v left %v right %v lowest (cols:%e, eps:%e bytes: %v) \n", float64(columns), float64(n)/float64(columns), stats.Bytes_transferred, left_column, right_column, float64(lowest_value_columns), float64(n)/float64(lowest_value_columns), lowest_value)
 
 		if right_column == 0 {
 			//initialization stage
@@ -145,5 +164,5 @@ func TestCountMinParameter(t *testing.T) {
 
 	   	}*/
 	fmt.Println(stats_str)
-	fmt.Println("Estimate ", eps_est, stats_est.Bytes_transferred)
+	fmt.Println("Estimate ", eps_est, columns_est, stats_est.Bytes_transferred, int(lowest_value)-int(stats_est.Bytes_transferred), (float64(lowest_value)-float64(stats_est.Bytes_transferred))/float64(lowest_value))
 }

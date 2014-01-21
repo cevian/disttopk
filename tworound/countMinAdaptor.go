@@ -4,6 +4,8 @@ import "github.com/cevian/disttopk"
 
 import "fmt"
 
+var _ = fmt.Print
+
 const USE_THRESHOLD = true
 const USE_SINGLEHASH = true
 
@@ -46,9 +48,9 @@ func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList, localto
 			n = items
 		}
 
-		eps := disttopk.EstimateEpsCm(t.N_est, n, disttopk.RECORD_SIZE*8, 2)
-		fmt.Println("Est, eps", eps, n)
-		t.Columns = disttopk.CountMinColumnsEstPow2(eps)
+		eps := disttopk.EstimateEpsCmNew(t.N_est, n, t.topk, disttopk.RECORD_SIZE*8)
+		//fmt.Println("Est, eps", eps, n)
+		t.Columns = disttopk.CountMinColumnsEstBloomPow2(n, eps)
 
 	}
 

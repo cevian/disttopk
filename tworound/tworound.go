@@ -261,7 +261,7 @@ func (src *Coord) Run() error {
 	if ucm != nil {
 		fmt.Println(ucm.GetInfo())
 	}
-	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "sketches bytes", sketchsize, " total bytes", bytesRound)
+	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "sketches bytes", sketchsize, sketchsize/nnodes, "/node total bytes", bytesRound)
 	bytes := bytesRound
 
 	total_back_bytes := 0

@@ -112,7 +112,42 @@ func (s *CountMinHash) ByteSize() int {
 	return 8
 }
 
-func EstimateEpsCm(N_est int, n_est int, penalty_bits int, NumTransfers int) float64 {
+func EstimateEpsCmNew(N_est int, n_sent int, n_filter int, penalty_bits int) float64 {
+	//for b = size of bloom in bits, p = size of each record sent as false pos in bits,
+	//n_filter = number of items sent from central in filter (# bits set in filter)
+	//n_sent = number of items in cm sent from peers to controller
+	//total (t) = b + (N) * eps_filter * p
+	// b =  n_sent *  1.44 * 0.7 * log_2(1/eps)
+	// eps_filter = n_filter/m
+	// m = n_sent / eps
+	// t =  n_sent *  1.44 * 0.7 * log_2(1/eps) + N * n_filter/n_sent * eps * p
+	// dt/deps = n_sent * 1.44 * 0.7 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2  + N * p * n_filter/n_sent
+	// 0 = n_sent * (-1.44 * 0.7 / ln(2) ) * 1/eps + N * p * n_filter/n_sent
+	// eps = n_sent * (1.44 * 0.7 / ln(2) ) /  ( N * p * n_filter/n_sent )
+	// eps = (1.44 * 0.7 / ln(2) ) /  ( N * p * n_filter/n_sent^2 )
+
+	// the 2.0 is a correction (may be because sketch sent twice more than actual records (to and from coord))
+	eps := (2.0 * (1.0 / math.Log(2)) * 1.44 * 0.7) / ((float64(N_est) * float64(penalty_bits) * float64(n_filter)) / (float64(n_sent) * float64(n_sent)))
+
+	size_bits := float64(n_sent) * (1.44 * 0.7) * math.Log2(1/eps)
+	eps_filter := (float64(n_filter) / float64(n_sent)) * eps
+	fp_bits := float64(N_est) * eps_filter * float64(penalty_bits)
+	fp_items := float64(N_est) * eps_filter
+	cols := float64(n_sent) / eps
+	info := fmt.Sprintln("size_bits", size_bits, "eps_filter", eps_filter, "fp_bits", fp_bits, "tot bits", size_bits+fp_bits, "fp_items", fp_items, "cols", cols, "n_sent", n_sent, "n_filter", n_filter)
+	_ = info
+	//fmt.Println(info)
+
+	/*eps_2 := eps * 2.0
+	size_bits_2 := float64(n_sent) * (1.44 * 0.7) * math.Log2(1/eps_2)
+	eps_filter_2 := (float64(n_filter) / float64(n_sent)) * eps_2
+	fp_bits_2 := float64(N_est) * eps_filter_2 * float64(penalty_bits)
+	fmt.Println("size_bits 2", size_bits_2, "eps_filter 2", eps_filter_2, "fp_bits 2", fp_bits_2, "tot bits", size_bits_2+fp_bits_2) */
+	return eps
+
+}
+
+/*func EstimateEpsCm(N_est int, n_est int, penalty_bits int, NumTransfers int) float64 {
 	//TODO change! -- this is base on the bloom filter approximation with k != 1
 	//for compressed filters, needs to change.
 
@@ -126,9 +161,49 @@ func EstimateEpsCm(N_est int, n_est int, penalty_bits int, NumTransfers int) flo
 
 	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
 
+	//for b = size of bloom in bits, p = size of each record sent as false pos in bits,
+	//n_filter = number of items sent from central in filter (# bits set in filter)
+	//n_sent = number of items in cm sent from peers to controller
+	//total (t) = b + (N) * eps_filter * p
+	// b =  n_sent *  1.44 * 0.7 * log_2(1/eps)
+	// eps_filter = n_filter/m
+	// m = n_sent / eps
+	// t =  n_sent *  1.44 * 0.7 * log_2(1/eps) + N * n_filter/n_sent * eps * p
+	// dt/deps = n_sent * 1.44 * 0.7 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2  + N * p * n_filter/n_sent
+	// 0 = n_sent * (-1.44 * 0.7 / ln(2) ) * 1/eps + N * p * n_filter/n_sent
+	// eps = n_sent * (-1.44 * 0.7 / ln(2) ) /  ( N * p * n_filter/n_sent )
+	// eps = (-1.44 * 0.7 / ln(2) ) /  ( N * p * n_filter/n_sent^2 )
+
+	//
+	//total (t) = s  * m + (N) * eps * p
+	// m = n *  1.44 * 0.7 * log_2(1/eps) = n * 1.44 * 1/ln(2) * ln (1/eps)
+	// dt/deps  = s * n * 1.44 * 0.7 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (N) * p
+	// 0 =   -1 * s *  n * 1.44 * 0.7  / ln (2) * 1 / eps + (N) * p
+	// (s * n * (1.44 * 0.7 / ln (2))) / (N * p) = eps
+	// eps = s * 1.44 * 0.7 / (N/n) * p * ln (2)
+
+	if true || float64(N_est/n_est) < 2.0 {
+		eps := (float64(NumTransfers) * 1.44 * 0.7) / (float64(penalty_bits) * math.Log(2) * (float64(N_est / n_est)))
+
+		//this eps (eps_est) is for n_est but we will have n_actual if n_actual << n_est then
+		// m_est := n_est/eps_est
+		// for n_actual the eps will be : eps_actual = n_actual/m_est = n_actual / (n_est/eps_est) = n_actual * eps_est / n_est= n_actual/n_est * eps
+
+		size_bits := float64(n_est) * (1.44 * 0.7) * math.Log2(1/eps)
+		fp_bits := float64(N_est) * eps * float64(penalty_bits)
+		fp_items := float64(N_est) * eps
+		cols := float64(n_est) / eps
+		fmt.Print("size_bits", size_bits, "fp_bits", fp_bits, "fp_items", fp_items, "cols", cols)
+		//fmt.Println("Eps alt", eps, N_est, n_est, (float64(NumTransfers)*1.44*0.7)*math.Log2(1/eps), , float64(N_est)*eps,
+		//float64(n_est)*1.44*0.7*math.Log2(1/eps), float64(n_est)/eps, 398.0/float64(n_est)*eps, 398.0/float64(n_est)*eps*float64(N_est))
+		return eps
+		//N_est = n_est * 2
+	}
+
 	eps := (float64(NumTransfers) * 1.44 * 0.7) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	fmt.Println("Eps", eps, N_est, n_est)
 	return eps
-}
+}*/
 
 type CountMinSketch struct {
 	*CountMinHash
@@ -167,6 +242,16 @@ func CountMinColumnsEst(eps float64) int {
 
 func CountMinColumnsEstPow2(eps float64) int {
 	columns := math.Ceil(math.E / eps)
+	bits := math.Log2(columns)
+	rounded, f := math.Modf(bits)
+	if f > 0.5 {
+		rounded += 1
+	}
+	return int(1 << uint(rounded))
+}
+
+func CountMinColumnsEstBloomPow2(n int, eps float64) int {
+	columns := math.Ceil(float64(n) / eps)
 	bits := math.Log2(columns)
 	rounded, f := math.Modf(bits)
 	if f > 0.5 {
