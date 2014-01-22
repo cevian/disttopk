@@ -104,15 +104,22 @@ func EstimateEpsGcs(N_est int, n_est int, penalty_bits int, NumTransfers int) fl
 	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
 
 	/* this is a hack to prevent eps going to inf */
-	if n_est*2 > N_est {
+	/*if n_est*2 > N_est {
 		n_est = N_est / 2
-	}
+	}*/
 
-	eps := (float64(NumTransfers) * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	eps := (2.0 * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
+	/*if eps > 1 {
+		eps = 1
+	}*/
 	return eps
 }
 
 func EstimateMGcs(n int, eps float64) int {
+	if eps >= 1 {
+		return 0
+	}
 	// eps=(1-e^(kn/m))^k
 	//For k=1:
 	//eps=(1-e^(n/m))
@@ -125,9 +132,11 @@ func EstimateMGcs(n int, eps float64) int {
 }
 
 func NewGcs(m int) *Gcs {
-	if m < 1 {
-		panic("Wrong size")
-	}
+	/*
+		m == 0 should be valid
+		if m < 1 {
+			panic(fmt.Sprintf("Wrong size %v", m))
+		}*/
 	s := Gcs{
 		NewCountMinHash(1, m),
 		NewHashValueSlice(),
@@ -157,6 +166,9 @@ func (s *Gcs) AddInt(key int) {
 }
 
 func (b *Gcs) Add(id []byte) {
+	if b.Columns == 0 {
+		return
+	}
 	index := b.GetIndexNoOffset(id, 0)
 	b.Data.Insert(index)
 }
@@ -178,11 +190,17 @@ func (s *Gcs) QueryHashValues(hvs []uint32) bool {
 		panic("wrong num idx")
 	}
 	cols := s.Columns
+	if cols == 0 {
+		return true
+	}
 	index := hvs[0] % uint32(cols)
 	return s.Data.Contains(index)
 }
 
 func (s *Gcs) Query(key []byte) bool {
+	if s.Columns == 0 {
+		return true
+	}
 	index := s.GetIndexNoOffset(key, 0)
 	return s.Data.Contains(index)
 }

@@ -109,24 +109,27 @@ func GolumbParameter(sum uint, num_samples uint) uint {
 }
 
 func GolumbEncodeSortedWriter(w io.Writer, sorted []int) error {
-	if sorted[len(sorted)-1] < start_offset {
+	if len(sorted) > 1 && sorted[len(sorted)-1] < start_offset {
 		panic("Illegal input")
 	}
+	sortedl := uint32(len(sorted))
+	if err := binary.Write(w, binary.BigEndian, &sortedl); err != nil {
+		return err
+	}
+	if sortedl == 0 {
+		return nil
+	}
+
 	sum_of_increments := uint((sorted[len(sorted)-1] - start_offset)) // (a1-start)+(a2-a1)+(a3-a2) = a3-start
 	num_increments := uint(len(sorted))
 
 	m_bits := GolumbParameter(sum_of_increments, num_increments)
-
 	m_bits8 := uint8(m_bits)
 	if err := binary.Write(w, binary.BigEndian, &m_bits8); err != nil {
 		return err
 	}
 
 	//have to encode length and not rely on stream eof cause there may be other stuff in stream
-	sortedl := uint32(len(sorted))
-	if err := binary.Write(w, binary.BigEndian, &sortedl); err != nil {
-		return err
-	}
 
 	egs := NewGolumbEncoder(w, m_bits)
 
@@ -143,13 +146,17 @@ func GolumbEncodeSortedWriter(w io.Writer, sorted []int) error {
 }
 
 func GolumbDecodeReader(r io.Reader) ([]int, error) {
-	var m_bits uint8
-	if err := binary.Read(r, binary.BigEndian, &m_bits); err != nil {
+	var length uint32
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
 		return nil, err
 	}
 
-	var length uint32
-	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+	if length == 0 {
+		return []int{}, nil
+	}
+
+	var m_bits uint8
+	if err := binary.Read(r, binary.BigEndian, &m_bits); err != nil {
 		return nil, err
 	}
 
