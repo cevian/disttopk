@@ -59,15 +59,40 @@ func Getn(list disttopk.ItemList, topk int, nnodes int) int {
 }
 
 func TestCountMinParameter(t *testing.T) {
-	N := 100000
-	Nnodes := 10
-	l := disttopk.GetFullOverlapOrderPermutedSimpleList(Nnodes, uint32(N), 0.3, 100)
-	k := 10
+	err_sum := 0.0
+	count := 0
+	for _, zipfParam := range []float64{1, 0.7, 0.3} {
+		exp_size, _, optsize, _ := RunCountMinParamTest(100000, 10, 10, zipfParam, 100)
+		error_rate := math.Abs((float64(exp_size) - float64(optsize)) / float64(optsize))
+		fmt.Println("ZipfParam", zipfParam, "Error Rate", error_rate)
+		err_sum += error_rate
+		count++
+	}
+	fmt.Println("Average error", err_sum/float64(count))
+}
+
+func RunCountMinParamTest(N, Nnodes, k int, zipParam float64, permParam int) (expSize int, expValue int, optSize int, optValue int) {
+	l := disttopk.GetFullOverlapOrderPermutedSimpleList(Nnodes, uint32(N), zipParam, permParam)
 
 	n := Getn(l[0], k, Nnodes)
 	//n := 398
 	//eps_est := disttopk.EstimateEpsCm(N, n, disttopk.RECORD_SIZE*8, 1)
-	eps_est := disttopk.EstimateEpsCmNew(N, n, 400, disttopk.RECORD_SIZE*8)
+
+	//Very good results are obtained when running with the exact number of filtered items
+	//But it is impossible to know this locally. So we approximate it
+	//exact_filter_est := map[float64]int{0.3: 400, 0.7: 15, 1.0: 10}
+
+	//n_filter_approx := Getn(l[0], k, 2)
+
+	//This is a simple approximation but seems to work quite well.
+	n_filter_approx := n / Nnodes
+
+	/*if n_filter_approx < n/10 {
+		n_filter_approx = n / 10
+	}*/
+
+	fmt.Println("approximating n_filter", n_filter_approx, k, n)
+	eps_est := disttopk.EstimateEpsCmNew(N, n, n_filter_approx, disttopk.RECORD_SIZE*8)
 	columns_est := disttopk.CountMinColumnsEstBloomPow2(n, eps_est)
 	fmt.Println("eps est", eps_est, columns_est)
 	_, stats_est := RunCountMinExplicitColumns(l, k, columns_est)
@@ -165,4 +190,5 @@ func TestCountMinParameter(t *testing.T) {
 	   	}*/
 	fmt.Println(stats_str)
 	fmt.Println("Estimate ", eps_est, columns_est, stats_est.Bytes_transferred, int(lowest_value)-int(stats_est.Bytes_transferred), (float64(lowest_value)-float64(stats_est.Bytes_transferred))/float64(lowest_value))
+	return int(stats_est.Bytes_transferred), columns_est, int(lowest_value), lowest_value_columns
 }

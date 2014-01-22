@@ -48,7 +48,7 @@ func (t *CountMinPeerSketchAdaptor) createSketch(list disttopk.ItemList, localto
 			n = items
 		}
 
-		eps := disttopk.EstimateEpsCmNew(t.N_est, n, t.topk, disttopk.RECORD_SIZE*8)
+		eps := disttopk.EstimateEpsCmNew(t.N_est, n, n/t.numpeer, disttopk.RECORD_SIZE*8)
 		//fmt.Println("Est, eps", eps, n)
 		t.Columns = disttopk.CountMinColumnsEstBloomPow2(n, eps)
 

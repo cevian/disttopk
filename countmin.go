@@ -129,6 +129,8 @@ func EstimateEpsCmNew(N_est int, n_sent int, n_filter int, penalty_bits int) flo
 	// the 2.0 is a correction (may be because sketch sent twice more than actual records (to and from coord))
 	eps := (2.0 * (1.0 / math.Log(2)) * 1.44 * 0.7) / ((float64(N_est) * float64(penalty_bits) * float64(n_filter)) / (float64(n_sent) * float64(n_sent)))
 
+	//eps := (2.0 * 1.44 * 0.7) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_sent) - 1.0))
+
 	size_bits := float64(n_sent) * (1.44 * 0.7) * math.Log2(1/eps)
 	eps_filter := (float64(n_filter) / float64(n_sent)) * eps
 	fp_bits := float64(N_est) * eps_filter * float64(penalty_bits)
