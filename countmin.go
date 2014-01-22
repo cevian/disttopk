@@ -14,7 +14,7 @@ import (
 	"math/rand"
 )
 
-const USE_NORMALIZATION = true //this saves a lot of bandwidth
+const USE_NORMALIZATION = false //this saves a lot of bandwidth without gcs. With gcs (and maybe thresholding) not effective.
 const NORM_SCALE = 10.0
 const SERIALIZE_BAG = false //this is innefctive if using standard compression as well
 const SERIALIZE_GCS = true

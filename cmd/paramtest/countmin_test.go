@@ -61,13 +61,18 @@ func Getn(list disttopk.ItemList, topk int, nnodes int) int {
 func TestCountMinParameter(t *testing.T) {
 	err_sum := 0.0
 	count := 0
+	res := ""
 	for _, zipfParam := range []float64{1, 0.7, 0.3} {
 		exp_size, _, optsize, _ := RunCountMinParamTest(100000, 10, 10, zipfParam, 100)
 		error_rate := math.Abs((float64(exp_size) - float64(optsize)) / float64(optsize))
-		fmt.Println("ZipfParam", zipfParam, "Error Rate", error_rate)
+		s := fmt.Sprintln("ZipfParam", zipfParam, "Error Rate", error_rate, "Expected Size", exp_size, "Opt size", optsize)
+		fmt.Print(s)
+		res += s
 		err_sum += error_rate
 		count++
 	}
+	fmt.Println("***************************************")
+	fmt.Print(res)
 	fmt.Println("Average error", err_sum/float64(count))
 }
 
