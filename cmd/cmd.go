@@ -23,7 +23,7 @@ const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/dat
 
 //const BASE_DATA_PATH = "/home/arye/go-stream/src/github.com/cevian/disttopk/data/"
 
-func runNaive(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunNaive(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*naive.NaivePeer, len(l))
 	coord := naive.NewNaiveCoord(cutoff)
@@ -38,13 +38,13 @@ func runNaive(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.Al
 	return coord.FinalList, coord.Stats
 }
 
-func runNaiveK2(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
-	return runNaive(l, 2*cutoff)
+func RunNaiveK2(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunNaive(l, 2*cutoff)
 }
-func runNaiveExact(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
-	return runNaive(l, 0)
+func RunNaiveExact(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunNaive(l, 0)
 }
-func runTput(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunTput(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tput.Peer, len(l))
 	coord := tput.NewCoord(k)
@@ -59,15 +59,15 @@ func runTput(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStat
 	return coord.FinalList, coord.Stats
 }
 
-func runTputHash(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
-	return runTputHashApproximateFlag(l, k, false)
+func RunTputHash(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunTputHashApproximateFlag(l, k, false)
 }
 
-func runTputHashExtraRound(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
-	return runTputHashApproximateFlag(l, k, true)
+func RunTputHashExtraRound(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunTputHashApproximateFlag(l, k, true)
 }
 
-func runTputHashApproximateFlag(l []disttopk.ItemList, k int, approximate_t2 bool) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunTputHashApproximateFlag(l []disttopk.ItemList, k int, approximate_t2 bool) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tput_hash.Peer, len(l))
 	coord := tput_hash.NewCoord(k, approximate_t2)
@@ -82,15 +82,15 @@ func runTputHashApproximateFlag(l []disttopk.ItemList, k int, approximate_t2 boo
 	return coord.FinalList, coord.Stats
 }
 
-func runKlee3(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
-	return runKlee(l, k, false)
+func RunKlee3(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunKlee(l, k, false)
 }
 
-func runKlee4(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
-	return runKlee(l, k, true)
+func RunKlee4(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunKlee(l, k, true)
 }
 
-func runKlee(l []disttopk.ItemList, k int, clRound bool) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunKlee(l []disttopk.ItemList, k int, clRound bool) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*klee.Peer, len(l))
 	coord := klee.NewCoord(k, clRound)
@@ -151,7 +151,7 @@ func getNEst(l []disttopk.ItemList) int {
 	return len(ids)
 }
 
-func runBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
+func RunBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewBloomCoord(topk)
@@ -168,7 +168,7 @@ func runBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
 	return coord.FinalList
 }
 
-func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewBloomGcsCoord(topk)
@@ -185,7 +185,7 @@ func runBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, dist
 	return coord.FinalList, coord.Stats
 }
 
-func runBloomSketchGcsMerge(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunBloomSketchGcsMerge(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewBloomGcsMergeCoord(topk)
@@ -202,7 +202,7 @@ func runBloomSketchGcsMerge(l []disttopk.ItemList, topk int) (disttopk.ItemList,
 	return coord.FinalList, coord.Stats
 }
 
-func runCountMin(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunCountMin(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewCountMinCoord(topk)
@@ -219,7 +219,7 @@ func runCountMin(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.A
 	return coord.FinalList, coord.Stats
 }
 
-func runApproximateBloomFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunApproximateBloomFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewApproximateBloomFilterCoord(topk)
@@ -236,7 +236,7 @@ func runApproximateBloomFilter(l []disttopk.ItemList, topk int) (disttopk.ItemLi
 	return coord.FinalList, coord.Stats
 }
 
-func runApproximateBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunApproximateBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
 	coord := tworound.NewApproximateBloomGcsMergeCoord(topk)
@@ -375,18 +375,18 @@ var algorithms []Algorithm = []Algorithm{
 	//	Algorithm{"Naive-exact",  runNaiveExact},
 	// Approximate:
 	//	Algorithm{"Naive (2k)",   runNaiveK2},
-	Algorithm{"Klee3-2R", runKlee3},
-	Algorithm{"Klee4-3R", runKlee4},
-	Algorithm{"Approx bloom", runApproximateBloomFilter},
+	Algorithm{"Klee3-2R", RunKlee3},
+	Algorithm{"Klee4-3R", RunKlee4},
+	Algorithm{"Approx bloom", RunApproximateBloomFilter},
 	// Extra-Round Exact
-	Algorithm{"ER GCS-M", runApproximateBloomGcsMergeFilter},
-	Algorithm{"ER TPUT-hash", runTputHashExtraRound},
+	Algorithm{"ER GCS-M", RunApproximateBloomGcsMergeFilter},
+	Algorithm{"ER TPUT-hash", RunTputHashExtraRound},
 	// Exact
-	Algorithm{"TPUT   ", runTput},
-	Algorithm{"TPUT-hash", runTputHash},
-	Algorithm{"2R Gcs  ", runBloomSketchGcs},
-	Algorithm{"2R Gcs-Merge", runBloomSketchGcsMerge},
-	Algorithm{"Count Min", runCountMin},
+	Algorithm{"TPUT   ", RunTput},
+	Algorithm{"TPUT-hash", RunTputHash},
+	Algorithm{"2R Gcs  ", RunBloomSketchGcs},
+	Algorithm{"2R Gcs-Merge", RunBloomSketchGcsMerge},
+	Algorithm{"Count Min", RunCountMin},
 }
 
 //var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "TPUT-hash", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
@@ -405,7 +405,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 
 	k := 10
 	ids = make(map[int]bool)
-	naive_exact, _ := runNaive(data, 0)
+	naive_exact, _ := RunNaive(data, 0)
 	ground_truth := naive_exact
 	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(data), "k-score", ground_truth[k-1].Score)
 

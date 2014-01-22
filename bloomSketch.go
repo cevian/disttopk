@@ -110,7 +110,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																			println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -280,6 +280,7 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 	}
 	if current_index < len(list) {
 		b.cutoff = uint32(list[current_index].Score)
+		//fmt.Println("Cutoff", b.cutoff)
 		return current_index + 1
 		//fmt.Println("Cutoff", b.cutoff, list[current_index-1].Score, current_index, first_index_past_minscore, len(list))
 	}

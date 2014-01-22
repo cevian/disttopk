@@ -15,7 +15,7 @@ type SimpleZipfSource struct {
 	scale    float64
 }
 
-func NewSimpleZipfSource(maxItems uint32, param float64) SimpleZipfSource {
+func NewSimpleZipfSource(maxItems uint32, param float64, nlists int) SimpleZipfSource {
 	var norm float64
 	norm = 0
 	i := uint32(1)
@@ -30,6 +30,14 @@ func NewSimpleZipfSource(maxItems uint32, param float64) SimpleZipfSource {
 	// scale = 1/MinZipfValue
 	scaleBy := 1.0 / minItem
 
+	maxItem := math.Pow(float64(1), -param) / norm
+	if maxItem*float64(nlists)*scaleBy > math.MaxUint32 {
+		fmt.Println("Have to rescale to fit in uint32")
+		// has to be maxItem*nlists*scaleby = (math.MaxUint32-1)
+		//scaleby = (math.MaxUint32-1)/(maxItem*nlists)
+		scaleBy = (math.MaxUint32 - 1) / (maxItem * float64(nlists))
+	}
+
 	return SimpleZipfSource{maxItems, param, norm, scaleBy}
 
 }
@@ -43,7 +51,11 @@ func (src *SimpleZipfSource) GenerateItem(rank int) Item {
 
 	//fmt.Println("gen", zipfValue, score, (zipfValue * src.scale), src.scale, id, id%100)
 
-	return Item{id, float64(math.Ceil(score))}
+	act_score := float64(math.Ceil(score))
+	if act_score < 1.0 {
+		panic("Score less than 1")
+	}
+	return Item{id, act_score}
 }
 
 func (src *SimpleZipfSource) GetList() ItemList {
@@ -60,7 +72,7 @@ func (src *SimpleZipfSource) GetList() ItemList {
 }
 
 func GetDisjointSimpleList(nlists int, nitemsPerList uint32, param float64) []ItemList {
-	src := NewSimpleZipfSource(nitemsPerList, param)
+	src := NewSimpleZipfSource(nitemsPerList, param, nlists)
 	lists := make([]ItemList, nlists)
 	for k, _ := range lists {
 		l := src.GetList()
@@ -71,7 +83,7 @@ func GetDisjointSimpleList(nlists int, nitemsPerList uint32, param float64) []It
 }
 
 func GetFullOverlapSimpleList(nlists int, nitemsPerList uint32, param float64) []ItemList {
-	src := NewSimpleZipfSource(nitemsPerList, param)
+	src := NewSimpleZipfSource(nitemsPerList, param, nlists)
 	reference_list := src.GetList()
 	reference_list = MakeSureItemsUnique(reference_list)
 

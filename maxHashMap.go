@@ -63,7 +63,7 @@ func (t *MaxHashMap) AddCutoff(c uint) {
 
 func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 	if uint32(thresh) < t.cutoff {
-		panic("error")
+		panic(fmt.Sprintf("error thresh(%v, %v) < cutoff(%v)", thresh, uint32(thresh), t.cutoff))
 	}
 
 	mapValueThresh := uint32(thresh) - t.cutoff
