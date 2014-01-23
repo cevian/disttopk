@@ -78,6 +78,11 @@ func (src *Peer) Run() error {
 
 	cha := NewCountHashArray(arraySize)
 
+	cha_topk := NewCountHashArray(arraySize)
+	for _, list_item := range src.list[:src.k] {
+		cha_topk.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
+	}
+
 	//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index, "k", src.k, "list[index+1].score", src.list[index+1].Score)
 	//v.Score >= thresh included
 
@@ -85,7 +90,10 @@ func (src *Peer) Run() error {
 	if last_index_to_send >= src.k {
 		for _, list_item := range src.list[src.k : last_index_to_send+1] {
 			items_looked_at += 1
-			cha.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
+			index := cha.GetIndex(disttopk.IntKeyToByteKey(list_item.Id))
+			if cha_topk.Data.Get(int(index)) == 0 {
+				cha.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
+			}
 		}
 	}
 

@@ -85,12 +85,15 @@ func (t *CountHashArray) GetBloomFilter(thresh uint, responses map[int]int, oldt
 	b := disttopk.NewBloom(1, t.Data.Len())
 	for i := uint(0); i < uint(t.Data.Len()); i++ {
 		current := t.Data.Get(int(i))
+		if nnodes < uint(responses[int(i)]) {
+			panic(fmt.Sprint("Cannot have more responses than nodes ", nnodes, responses[int(i)]))
+		}
 		missing := nnodes - uint(responses[int(i)])
 		if current != 0 && missing == nnodes {
 			panic("Should not happen")
 		}
 		upperBound := (missing * oldthresh) + current
-		//fmt.Println("HV", i, "Missing ", missing, nnodes, oldthresh, current, upperBound)
+		fmt.Println("HV", i, "Missing ", missing, "nnodes", nnodes, "oldthresh", oldthresh, "current", current, "upperbound", upperBound)
 
 		if upperBound >= thresh {
 			if missing == nnodes {
