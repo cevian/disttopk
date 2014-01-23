@@ -110,7 +110,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																									println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																			println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -153,6 +153,9 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	}
 	//m_log_rounded = 20 //CHANGE!
 	m := (1 << (uint(m_log_rounded)))
+	if m == 0 {
+		return nil, eps
+	}
 	//fmt.Printf("GCS info: N_est %v, n %v, eps %v m_est %v, m_log %v (rounded %v) m %v\n", N_est, n, eps, m_est, m_log, m_log_rounded, m)
 	entry := NewGcs(m)
 	return entry, eps
@@ -266,6 +269,9 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 
 		//fmt.Println("range", range_per_entry, "num", items_in_entry, "range_left", range_left, "entries_left", entries_left)
 		filter, eps := b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers, uint(list[entry_start_index].Score), uint(scorek))
+		if filter == nil { // the algorithm can decide that it is not worth sending a filter, will be more expensive than its worth
+			break
+		}
 
 		//m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
 		//eps := EstimateEps(2700000, corrected_items, RECORD_SIZE) // * (totalblooms - (k - 1))
@@ -281,8 +287,8 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 		b.Data = append(b.Data, entry)
 		if PRINT_BUCKETS {
 			max := entry.max
-			min := list[current_index].Score + 1
-			fmt.Println("Interval", len(b.Data), "max", max, "min", min, "range", max-uint32(min), "#", current_index-entry_start_index, "k", entry.filter.NumberHashes() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
+			min := list[current_index-1].Score
+			fmt.Println("Interval", len(b.Data), "max", max, "min (tight)", min, "range", max-uint32(min), "#", current_index-entry_start_index, "k", entry.filter.NumberHashes() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
 		}
 		bucket_items = b.topk
 	}

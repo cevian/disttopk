@@ -110,7 +110,10 @@ func (src *Peer) Run() error {
 	var uf UnionFilter
 	select {
 	case obj := <-src.back:
-		uf = src.UnionSketchAdaptor.deserialize(decompress(obj.(SecondRound).ufser))
+		ufser := obj.(SecondRound).ufser
+		if ufser != nil {
+			uf = src.UnionSketchAdaptor.deserialize(decompress(ufser))
+		}
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -266,13 +269,20 @@ func (src *Coord) Run() error {
 
 	total_back_bytes := 0
 	uf, ufThresh := src.getUnionFilter(ucm, uint32(localthresh), il)
-	fmt.Println("Uf info: ", uf.GetInfo())
+	if uf != nil {
+		fmt.Println("Uf info: ", uf.GetInfo())
+	} else {
+		fmt.Println("Uf is Nil. ALL remaining items will be sent in second round")
+	}
 
 	for _, ch := range src.backPointers {
 		//uf := src.getUnionFilter(ucm, uint32(localthresh))
-		cuf := src.copyUnionFilter(uf)
-		ser := Serialized(compress(src.UnionSketchAdaptor.serialize(cuf)))
-		total_back_bytes += ser.ByteSize()
+		var ser Serialized
+		if uf != nil {
+			cuf := src.copyUnionFilter(uf)
+			ser = Serialized(compress(src.UnionSketchAdaptor.serialize(cuf)))
+			total_back_bytes += ser.ByteSize()
+		}
 		select {
 		case ch <- SecondRound{ser}:
 		case <-src.StopNotifier:

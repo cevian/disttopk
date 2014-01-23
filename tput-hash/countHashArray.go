@@ -93,7 +93,7 @@ func (t *CountHashArray) GetBloomFilter(thresh uint, responses map[int]int, oldt
 			panic("Should not happen")
 		}
 		upperBound := (missing * oldthresh) + current
-		fmt.Println("HV", i, "Missing ", missing, "nnodes", nnodes, "oldthresh", oldthresh, "current", current, "upperbound", upperBound)
+		//fmt.Println("HV", i, "Missing ", missing, "nnodes", nnodes, "oldthresh", oldthresh, "current", current, "upperbound", upperBound)
 
 		if upperBound >= thresh {
 			if missing == nnodes {

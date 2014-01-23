@@ -25,7 +25,11 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 	test := make(map[uint32]bool)
 	for _, entry := range b.Data {
 		g := entry.GetFilter().(*disttopk.Gcs)
+		//fmt.Println("On Merge, merging len filter", g.Data.Len(), k, g.Columns)
 		m := g.Columns
+		if m == 0 {
+			panic("Should never get 0 length filters")
+		}
 		m_bits := uint32(math.Log2(float64(m)))
 		max := entry.GetMax()
 		min := entry.GetMin()
@@ -90,7 +94,11 @@ func (t *BloomHistogramMergeSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
 	bs := us.(*MaxHashMapUnionSketch)
 	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-	return bs.GetFilter(uint(thresh)), uint(thresh)
+	flt, v := bs.GetFilter(uint(thresh)), uint(thresh)
+	if flt != nil {
+		return flt, v
+	}
+	return nil, v
 }
 
 func (t *BloomHistogramMergeSketchAdaptor) copyUnionFilter(uf UnionFilter) UnionFilter {
@@ -124,6 +132,13 @@ func (*BloomHistogramMergeSketchAdaptor) deserialize(s Serialized) UnionFilter {
 }
 
 func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+	if uf == nil {
+		remaining_list := list[cutoff_sent:]
+		exactlist := make([]disttopk.Item, len(remaining_list))
+		copy(exactlist, remaining_list)
+		return exactlist, &disttopk.AlgoStats{Serial_items: len(remaining_list)}
+	}
+
 	gcs := uf.(*disttopk.Gcs)
 	//fmt.Println("entering get round two list")
 	//list_items := list.Len()
