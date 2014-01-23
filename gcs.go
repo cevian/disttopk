@@ -116,6 +116,33 @@ func EstimateEpsGcs(N_est int, n_est int, penalty_bits int, NumTransfers int) fl
 	return eps
 }
 
+func EstimateEpsGcsAdjuster(N_est int, n_est int, penalty_bits int, NumTransfers int, adjuster float64) float64 {
+	//TODO change! -- this is base on the bloom filter approximation with k != 1
+	//for compressed filters, needs to change.
+
+	//for m = size of bloom, p = size of each record sent as false pos, s = # times filter sent across the wire, A = probability filter will be used
+	//total (t) = s  * m + (N-n) * eps * p * A
+	// m = n *  1.44 * log_2(1/eps) = n * 1.44 * 1/ln(2) * ln (1/eps)
+	// dt/deps  = s * n * 1.44 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (N-n) * p * A
+	// 0 =   -1 * s *  n * 1.44 / ln (2) * 1 / eps + (N-n) * p * A
+	// (s * n * (1.44 / ln (2))) / ((N -n) * p * A) = eps
+	// eps = s * 1.44 / (N/n -1) * p * ln (2) * A
+
+	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
+
+	/* this is a hack to prevent eps going to inf */
+	/*if n_est*2 > N_est {
+		n_est = N_est / 2
+	}*/
+
+	eps := (2.0 * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(N_est/n_est) - 1.0))
+	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
+	/*if eps > 1 {
+		eps = 1
+	}*/
+	return eps
+}
+
 func EstimateMGcs(n int, eps float64) int {
 	if eps >= 1 {
 		return 0

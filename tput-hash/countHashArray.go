@@ -26,8 +26,14 @@ func (t *CountHashArray) Len() int {
 func (t *CountHashArray) Add(key []byte, count uint) {
 	index := int(t.GetIndexNoOffset(key, uint32(0)))
 	current := t.Data.Get(index)
+	if index == 89 {
+		fmt.Println("Setting 89 to", index, count, current)
+	}
 	if count > current {
 		//fmt.Println("Setting", index, )
+		if count == 1 {
+			fmt.Println("Setting to 1", index)
+		}
 		t.Data.Set(index, count)
 	}
 }
@@ -50,6 +56,9 @@ func (t *CountHashArray) Merge(cha *CountHashArray) {
 	for i := 0; i < t.Data.Len(); i++ {
 		current := t.Data.Get(i)
 		n := cha.Data.Get(i)
+		if i == 89 {
+			fmt.Println("merging 89", current, n)
+		}
 		t.Data.Set(i, current+n)
 	}
 }
@@ -88,8 +97,8 @@ func (t *CountHashArray) GetBloomFilter(thresh uint, responses map[int]int, oldt
 		if current != 0 && missing == nnodes {
 			panic("Should not happen")
 		}
-		//fmt.Println("Missing ", missing, nnodes)
 		upperBound := (missing * oldthresh) + current
+		fmt.Println("HV", i, "Missing ", missing, nnodes, oldthresh, current, upperBound)
 
 		if upperBound >= thresh {
 			if missing == nnodes {

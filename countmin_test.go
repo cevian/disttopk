@@ -70,7 +70,7 @@ func GetExpectedValuesEncoding(n int, valueBits uint8) int {
 }
 
 func RunCountMinHashComp(eps float64, n int) (int, int, uint8) {
-	src := NewSimpleZipfSource(uint32(n), 0.7)
+	src := NewSimpleZipfSource(uint32(n), 0.7, 1)
 	// for k=1 : m  ~ n/eps
 	hash := NewCountMinSketch(1, int(float64(n)/float64(eps)))
 
@@ -98,7 +98,7 @@ func RunCountMinHashComp(eps float64, n int) (int, int, uint8) {
 }
 
 func RunCountMinHashCompHashArrayOnly(eps float64, n int) (int, int, uint8) {
-	src := NewSimpleZipfSource(uint32(n), 0.7)
+	src := NewSimpleZipfSource(uint32(n), 0.7, 1)
 	// for k=1 : m  ~ n/eps
 	hash := NewCountMinSketch(1, int(float64(n)/float64(eps)))
 

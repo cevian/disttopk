@@ -2,7 +2,7 @@ package disttopk
 
 import (
 	"encoding/binary"
-	//"fmt"
+	//	"fmt"
 	"io"
 	"math"
 )
@@ -86,8 +86,7 @@ func (t *CountArray) GetValueBits() uint8 {
 			max = v
 		}
 	}
-
-	bits := uint8(math.Ceil(math.Log2(float64(max))))
+	bits := uint8(math.Floor(math.Log2(float64(max)))) + 1
 	return bits
 }
 

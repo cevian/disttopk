@@ -89,6 +89,8 @@ func (src *Peer) Run() error {
 		}
 	}
 
+	fmt.Println("Getting 89 before serialize, ", cha.Data.Get(89))
+
 	cha_ser, err := disttopk.SerializeObject(cha)
 	if err != nil {
 		panic(err)
@@ -231,6 +233,7 @@ func (src *Coord) Run() error {
 			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
 				panic(err)
 			}
+			fmt.Println("89 after deserialize", cha_got.Data.Get(89))
 			access_stats.Serial_items += int(sr.items_looked_at)
 
 			cha.Merge(cha_got)
