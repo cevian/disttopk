@@ -216,7 +216,7 @@ func (orig_do_not_change *CountArray) SerializeWithBag(w io.Writer) error {
 
 	rang := max - min
 
-	fullRangeBits := uint8(math.Ceil(math.Log2(float64(rang))))
+	fullRangeBits := uint8(math.Floor(math.Log2(float64(rang))) + 1)
 	keyBits := uint8(math.Ceil(math.Log2(float64(orig.Len()))))
 	NonBagBits := fullRangeBits
 
