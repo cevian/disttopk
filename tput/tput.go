@@ -81,7 +81,7 @@ func (src *Peer) Run() error {
 	for _, id := range ids {
 		index, ok := ri[id]
 		score, ok := m[id]
-		if ok && score <= thresh && index >= src.k { //haven't sent before
+		if ok && score < thresh && index >= src.k { //haven't sent before
 			exactlist = append(exactlist, disttopk.Item{id, m[id]})
 		}
 	}

@@ -182,8 +182,12 @@ func (t *OverviewPrinter) EnterNewN() {
 	t.s += "---------------------------------------------------------------------------\n"
 }
 
+func (t *OverviewPrinter) RowDescriptionHeaders() string {
+	return "N\tZip"
+}
+
 func (t *OverviewPrinter) Start() {
-	t.s = "N\tZip"
+	t.s = t.RowDescriptionHeaders()
 	for _, proto := range t.protocols {
 		t.s += "\t" + proto.Name
 	}
@@ -212,7 +216,7 @@ type ApproxPrinter struct {
 }
 
 func (t *ApproxPrinter) Start() {
-	t.s = "N\tZip"
+	t.s = t.RowDescriptionHeaders()
 	for _, proto := range t.protocols {
 		t.s += "\t" + proto.Name + "\tRelE.\tRecall"
 	}
@@ -264,7 +268,7 @@ type ExactPrinter struct {
 }
 
 func (t *ExactPrinter) Start() {
-	t.s = "N\tZip"
+	t.s = t.RowDescriptionHeaders()
 	for _, proto := range t.protocols {
 		t.s += "\t" + proto.Name
 	}
