@@ -31,7 +31,13 @@ func NewApproximateBloomFilterPeer(list disttopk.ItemList, topk int, numpeer int
 	return peer
 }
 
-func NewApproximateBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+func NewApproximateBloomGcsFilterPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
+	//use gcs here to allow for indexing to reduce serial accesses
+	peer := NewPeer(list, NewNonePeerSketchAdaptor(), NewApproximateBloomGcsFilterAdaptor(topk, numpeer, N_est), topk)
+	return peer
+}
+
+func NewExtraRoundBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
 	peer := NewPeer(list, NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk), topk)
 	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
 	return peer
@@ -173,7 +179,13 @@ func NewApproximateBloomFilterCoord(k int) *Coord {
 	return coord
 }
 
-func NewApproximateBloomGcsMergeCoord(k int) *Coord {
+func NewApproximateBloomGcsFilterCoord(k int, N_est int) *Coord {
+	coord := NewCoord(k, NewNonePeerSketchAdaptor(), NewApproximateBloomGcsFilterAdaptor(k, 0, N_est))
+	coord.Approximate = true
+	return coord
+}
+
+func NewExtraRoundBloomGcsMergeCoord(k int) *Coord {
 	return NewCoord(k, NewBloomHistogramMergePeerSketchAdaptor(k, 0, 0), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(k))
 }
 

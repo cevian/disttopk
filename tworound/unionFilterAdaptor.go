@@ -4,7 +4,7 @@ import "github.com/cevian/disttopk"
 
 import (
 	"fmt"
-	"math"
+	//"math"
 )
 
 type UnionSketchAdaptor interface {
@@ -94,54 +94,8 @@ func NewBloomHistogramGcsUnionSketchAdaptor() UnionSketchAdaptor {
 func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
 	bhc := uf.(*disttopk.BloomHistogramCollection)
 
-	hvf := disttopk.NewHashValueFilter()
-	bhc.AddToHashValueFilter(hvf)
-
-	//create hash table
-	ht_bits := uint8(math.Ceil(math.Log2(float64(list.Len()))))
-	ht := disttopk.NewHashTable(ht_bits)
-	for _, v := range list {
-		ht.Insert(v.Id, v.Score)
-	}
-
-	hvs_sent := disttopk.NewHashValueSlice() //store hashes tested and sent here
-
-	ids_sent := make(map[uint]bool)
-	for i := 0; i < cutoff_sent; i++ {
-		ids_sent[uint(list[i].Id)] = true
-	}
-
-	exactlist := make([]disttopk.Item, 0)
-	items_tested := 0
-	random_access := 0
-
-	for mod_bits, hf_hvslice := range hvf.GetFilters() {
-		//println("Mod 2", mod_bits, hvslice.Len())
-		for _, hf_hv := range hf_hvslice.GetSlice() {
-			table_hvs := ht.GetTableHashValues(uint(hf_hv), mod_bits)
-			for _, table_hv := range table_hvs {
-				if !hvs_sent.Contains(uint32(table_hv)) { //if we haven't processed this hv before
-					hvs_sent.Insert(uint32(table_hv))
-					random_access += 1
-
-					visitor := func(id uint, score uint) {
-						id_check := ids_sent[id]
-						if id_check == false { //not sent in previous round
-							items_tested += 1
-							if bhc.PassesInt(int(id)) {
-
-								exactlist = append(exactlist, disttopk.Item{int(id), float64(score)})
-							}
-						}
-					}
-
-					ht.VisitHashValue(table_hv, visitor)
-				}
-			}
-		}
-	}
-	//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
-	return exactlist, &disttopk.AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested}
+	filter := NewBloomHistogramCollectionIndexableFilter(bhc)
+	return GetListIndexedHashTable(filter, list, sent_item_filter)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -43,6 +43,14 @@ func (t *BitArray) CountSetBit() uint {
 	return c
 }
 
+func (t *BitArray) VisitSetBit(visitor func(k int)) {
+	for index := uint(0); index < t.num_bits; index++ {
+		if t.Check(index) {
+			visitor(int(index))
+		}
+	}
+}
+
 func (t *BitArray) countSetBitByte(v byte) uint {
 	c := uint(0) // c accumulates the total bits set in v
 	for ; v > 0; c++ {

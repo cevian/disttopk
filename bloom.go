@@ -86,6 +86,10 @@ func (b *Bloom) CountSetBit() uint {
 	return b.Data.CountSetBit()
 }
 
+func (b *Bloom) VisitSetHashValues(visitor func(int)) {
+	b.Data.VisitSetBit(visitor)
+}
+
 func (s *Bloom) AddString(key string) {
 	s.Add([]byte(key))
 }

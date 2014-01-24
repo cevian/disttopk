@@ -236,15 +236,32 @@ func RunApproximateBloomFilter(l []disttopk.ItemList, topk int) (disttopk.ItemLi
 	return coord.FinalList, coord.Stats
 }
 
-func RunApproximateBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunApproximateBloomGcsFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewApproximateBloomGcsMergeCoord(topk)
+	N_est := getNEst(l)
+	coord := tworound.NewApproximateBloomGcsFilterCoord(topk, N_est)
+	numpeer := len(l)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = tworound.NewApproximateBloomGcsFilterPeer(list, topk, numpeer, N_est)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList, coord.Stats
+}
+
+func RunExtraRoundBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	runner := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := tworound.NewExtraRoundBloomGcsMergeCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
 	runner.Add(coord)
 	for i, list := range l {
-		peers[i] = tworound.NewApproximateBloomGcsMergePeer(list, topk, numpeer, N_est)
+		peers[i] = tworound.NewExtraRoundBloomGcsMergePeer(list, topk, numpeer, N_est)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
@@ -265,8 +282,9 @@ var algorithms []Algorithm = []Algorithm{
 	Algorithm{"Klee3-2R", RunKlee3},
 	Algorithm{"Klee4-3R", RunKlee4},
 	Algorithm{"Approx bloom", RunApproximateBloomFilter},
+	Algorithm{"App bloom GCS", RunApproximateBloomGcsFilter},
 	// Extra-Round Exact
-	Algorithm{"ER GCS-M", RunApproximateBloomGcsMergeFilter},
+	Algorithm{"ER GCS-M", RunExtraRoundBloomGcsMergeFilter},
 	Algorithm{"ER TPUT-hash", RunTputHashExtraRound},
 	// Exact
 	Algorithm{"TPUT   ", RunTput},

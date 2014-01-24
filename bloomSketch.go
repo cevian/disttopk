@@ -110,7 +110,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																			println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																					println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -146,13 +146,7 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	eps := EstimateEpsGcsAdjuster(N_est, n, RECORD_SIZE*8, numpeers+1, adjuster)
 	//eps := 0.01
 	m_est := EstimateMGcs(n, eps)
-	m_log := math.Log2(float64(m_est))
-	m_log_rounded, frac := math.Modf(m_log)
-	if frac >= 0.5 {
-		m_log_rounded++
-	}
-	//m_log_rounded = 20 //CHANGE!
-	m := (1 << (uint(m_log_rounded)))
+	m := MakePowerOf2(m_est)
 	if m == 0 {
 		return nil, eps
 	}

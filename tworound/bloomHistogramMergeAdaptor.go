@@ -140,63 +140,8 @@ func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list 
 	}
 
 	gcs := uf.(*disttopk.Gcs)
-	//fmt.Println("entering get round two list")
-	//list_items := list.Len()
-
-	/*exactlist := make([]disttopk.Item, 0)
-	for index, v := range list {
-		if index >= cutoff_sent && gcs.Query(disttopk.IntKeyToByteKey(v.Id)) == true {
-			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
-		}
-	}
-	return exactlist, &disttopk.AlgoStats{Serial_items: len(list), Random_access: 0, Random_items: 0}
-	*/
-	hvf := disttopk.NewHashValueFilter()
-	m_bits := hvf.GetModulusBits(gcs.GetM())
-	hvs := gcs.HashValues()
-	hvf.InsertHashValueSlice(m_bits, hvs)
-
-	//create hash table
-	ht_bits := uint8(math.Ceil(math.Log2(float64(list.Len()))))
-	ht := disttopk.NewHashTable(ht_bits)
-	for _, v := range list {
-		ht.Insert(v.Id, v.Score)
-	}
-
-	hvs_sent := disttopk.NewHashValueSlice() //store hashes tested and sent here
-
-	exactlist := make([]disttopk.Item, 0)
-	items_tested := 0
-	random_access := 0
-
-	for mod_bits, hf_hvslice := range hvf.GetFilters() {
-		//println("Mod 2", mod_bits, hvslice.Len())
-		for _, hf_hv := range hf_hvslice.GetSlice() {
-			table_hvs := ht.GetTableHashValues(uint(hf_hv), mod_bits)
-			for _, table_hv := range table_hvs {
-				if !hvs_sent.Contains(uint32(table_hv)) { //if we haven't processed this hv before
-					hvs_sent.Insert(uint32(table_hv))
-					random_access += 1
-
-					visitor := func(id uint, score uint) {
-						items_tested += 1
-						id_check := sent_item_filter[int(id)]
-						if id_check == false { //not sent in previous round
-							if gcs.Query(disttopk.IntKeyToByteKey(int(id))) {
-
-								exactlist = append(exactlist, disttopk.Item{int(id), float64(score)})
-							}
-						}
-					}
-
-					ht.VisitHashValue(table_hv, visitor)
-				}
-			}
-		}
-	}
-	//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
-	return exactlist, &disttopk.AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested}
-
+	filter := NewGcsMergeIndexableFilter(gcs)
+	return GetListIndexedHashTable(filter, list, sent_item_filter)
 }
 
 type BloomHistogramMergePeerSketchAdaptor struct {
