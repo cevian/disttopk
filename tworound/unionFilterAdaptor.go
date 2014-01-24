@@ -14,7 +14,7 @@ type UnionSketchAdaptor interface {
 	copyUnionFilter(UnionFilter) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	serialize(UnionFilter) Serialized        //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	deserialize(Serialized) UnionFilter
-	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats)
+	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats)
 }
 
 type BloomHistogramUnionSketchAdaptor struct{}
@@ -72,7 +72,7 @@ func (*BloomHistogramUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *BloomHistogramUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+func (t *BloomHistogramUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
 	bhc := uf.(*disttopk.BloomHistogramCollection)
 	exactlist := make([]disttopk.Item, 0)
 	for index, v := range list {
@@ -91,7 +91,7 @@ func NewBloomHistogramGcsUnionSketchAdaptor() UnionSketchAdaptor {
 	return &BloomHistogramGcsUnionSketchAdaptor{&BloomHistogramUnionSketchAdaptor{}}
 }
 
-func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
 	bhc := uf.(*disttopk.BloomHistogramCollection)
 
 	hvf := disttopk.NewHashValueFilter()
@@ -198,7 +198,7 @@ func (*CountMinUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *CountMinUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+func (t *CountMinUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
 	cmf := uf.(*disttopk.CountMinFilter)
 	exactlist := make([]disttopk.Item, 0)
 	for index, v := range list {

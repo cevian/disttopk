@@ -131,7 +131,7 @@ func (*BloomHistogramMergeSketchAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int) ([]disttopk.Item, *disttopk.AlgoStats) {
+func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
 	if uf == nil {
 		remaining_list := list[cutoff_sent:]
 		exactlist := make([]disttopk.Item, len(remaining_list))
@@ -165,11 +165,6 @@ func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list 
 
 	hvs_sent := disttopk.NewHashValueSlice() //store hashes tested and sent here
 
-	ids_sent := make(map[uint]bool)
-	for i := 0; i < cutoff_sent; i++ {
-		ids_sent[uint(list[i].Id)] = true
-	}
-
 	exactlist := make([]disttopk.Item, 0)
 	items_tested := 0
 	random_access := 0
@@ -184,9 +179,9 @@ func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list 
 					random_access += 1
 
 					visitor := func(id uint, score uint) {
-						id_check := ids_sent[id]
+						items_tested += 1
+						id_check := sent_item_filter[int(id)]
 						if id_check == false { //not sent in previous round
-							items_tested += 1
 							if gcs.Query(disttopk.IntKeyToByteKey(int(id))) {
 
 								exactlist = append(exactlist, disttopk.Item{int(id), float64(score)})
@@ -223,23 +218,28 @@ func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemLi
 
 type BloomHistogramMergeGcsApproxUnionSketchAdaptor struct {
 	*BloomHistogramMergeSketchAdaptor
-	topk  int
-	gamma float64
+	topk                int
+	gamma               float64
+	numUnionFilterCalls int
 }
 
 func NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk int) UnionSketchAdaptor {
 	bhm := NewBloomHistogramMergeSketchAdaptor()
-	return &BloomHistogramMergeGcsApproxUnionSketchAdaptor{bhm.(*BloomHistogramMergeSketchAdaptor), topk, 0.5}
+	return &BloomHistogramMergeGcsApproxUnionSketchAdaptor{bhm.(*BloomHistogramMergeSketchAdaptor), topk, 0.5, 0}
 }
 
 func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
-	bs := us.(*MaxHashMapUnionSketch)
+	if t.numUnionFilterCalls == 0 {
+		bs := us.(*MaxHashMapUnionSketch)
 
-	approxthresh := bs.GetThreshApprox(t.topk, t.gamma)
-	fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma)
-	filter := bs.GetFilter(approxthresh)
-	return filter, approxthresh
-
+		approxthresh := bs.GetThreshApprox(t.topk, t.gamma)
+		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma)
+		filter := bs.GetFilter(approxthresh)
+		t.numUnionFilterCalls = 1
+		return filter, approxthresh
+	} else {
+		return t.BloomHistogramMergeSketchAdaptor.getUnionFilter(us, thresh, il)
+	}
 	//filter, approxthresh := bs.GetFilterApprox(uint(thresh), t.topk+1) //+1 to get the max below the k'th elem
 	//fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh)
 }

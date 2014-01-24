@@ -94,8 +94,12 @@ func (src *Peer) Run() error {
 		src.k = len(src.list)
 	}
 
+	sent_items := make(map[int]bool)
 	localtop_index := int(float64(src.k) * src.Alpha)
 	localtop := src.list[:localtop_index]
+	for _, item := range localtop {
+		sent_items[item.Id] = true
+	}
 
 	sketch, serialAccessOverLocaltop := src.createSketch(src.list, localtop)
 	ser := src.PeerSketchAdaptor.serialize(sketch)
@@ -107,32 +111,41 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	var uf UnionFilter
-	select {
-	case obj := <-src.back:
-		ufser := obj.(SecondRound).ufser
-		if ufser != nil {
-			uf = src.UnionSketchAdaptor.deserialize(decompress(ufser))
+	for {
+		var uf UnionFilter
+		select {
+		case obj, ok := <-src.back:
+			if !ok {
+				return nil
+			}
+			ufser := obj.(SecondRound).ufser
+			if ufser != nil {
+				uf = src.UnionSketchAdaptor.deserialize(decompress(ufser))
+			}
+		case <-src.StopNotifier:
+			return nil
 		}
-	case <-src.StopNotifier:
-		return nil
-	}
 
-	exactlist, round2Access := src.getRoundTwoList(uf, src.list, localtop_index)
-	runtime.GC()
-	/*exactlist := make([]disttopk.Item, 0)
-	for index, v := range src.list {
-		if index >= src.k && uf.PassesInt(v.Id) == true {
-			exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
+		exactlist, round2Access := src.getRoundTwoList(uf, src.list, localtop_index, sent_items)
+		for _, item := range exactlist {
+			sent_items[item.Id] = true
 		}
-	}*/
 
-	//fmt.Println("SR", sr.cmf.GetInfo())
+		runtime.GC()
+		/*exactlist := make([]disttopk.Item, 0)
+		for index, v := range src.list {
+			if index >= src.k && uf.PassesInt(v.Id) == true {
+				exactlist = append(exactlist, disttopk.Item{v.Id, v.Score})
+			}
+		}*/
 
-	select {
-	case src.forward <- disttopk.DemuxObject{src.id, SecondRoundPeerReply{disttopk.ItemList(exactlist), round2Access}}:
-	case <-src.StopNotifier:
-		return nil
+		//fmt.Println("SR", sr.cmf.GetInfo())
+
+		select {
+		case src.forward <- disttopk.DemuxObject{src.id, SecondRoundPeerReply{disttopk.ItemList(exactlist), round2Access}}:
+		case <-src.StopNotifier:
+			return nil
+		}
 	}
 
 	return nil
@@ -209,7 +222,6 @@ func (src *Coord) Run() error {
 	}()
 
 	m := make(map[int]float64)
-	mresp := make(map[int]int)
 
 	nnodes := len(src.backPointers)
 	thresh := 0.0
@@ -225,7 +237,6 @@ func (src *Coord) Run() error {
 			il := fr.list
 			items += len(il)
 			m = il.AddToMap(m)
-			mresp = il.AddToCountMap(mresp)
 
 			compressedsize := fr.sketch.ByteSize()
 			decompressed := decompress(fr.sketch)
@@ -267,8 +278,63 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "sketches bytes", sketchsize, sketchsize/nnodes, "/node total bytes", bytesRound)
 	bytes := bytesRound
 
+	err, round2Access, round2items, m, ufThresh, total_back_bytes := src.RunSendFilterThreshold(ucm, uint32(localthresh), il, m)
+	if err != nil {
+		return err
+	}
+
+	bytesRound = round2items*disttopk.RECORD_SIZE + total_back_bytes
+	bytes += bytesRound
+	fmt.Print("Round 2 tr: got ", round2items, " items (", round2items/nnodes, "/node), bytes for records: ", round2items*disttopk.RECORD_SIZE, "bytes filter: ", total_back_bytes, ". BW Round: ", bytesRound, "BW total: ", bytes, "\n")
+	fmt.Printf("Round 2 tr: access %+v\n", round2Access)
+	src.Stats.Bytes_transferred = uint64(bytes)
+	src.Stats.Merge(*round1Access)
+	src.Stats.Merge(*round2Access)
+	src.Stats.Rounds = 2
+
+	il = disttopk.MakeItemList(m)
+	il.Sort()
+	//fmt.Println("Sorted Global List: ", il[:src.k])
+	if uint(il[src.k-1].Score) < ufThresh {
+		if src.Approximate {
+			fmt.Println("WARNING, result may be inexact")
+		} else {
+			src.Stats.Rounds = 3
+			round3Thresh := il[src.k-1].Score
+			err, round3Access, round3items, m, ufThresh, round3_back_bytes := src.RunSendFilterThreshold(ucm, uint32(round3Thresh), il, m)
+			if err != nil {
+				return err
+			}
+			if ufThresh < uint(round3Thresh) {
+				panic("Should never happen")
+			}
+
+			bytesRound = round3items*disttopk.RECORD_SIZE + round3_back_bytes
+			bytes += bytesRound
+			fmt.Print("Round 3 tr: got ", round3items, " items (", round3items/nnodes, "/node), bytes for records: ", round3items*disttopk.RECORD_SIZE, "bytes filter: ", round3_back_bytes, ". BW Round: ", bytesRound, "BW total: ", bytes, "\n")
+			fmt.Printf("Round 3 tr: access %+v\n", round3Access)
+			src.Stats.Bytes_transferred = uint64(bytes)
+			src.Stats.Merge(*round3Access)
+			il = disttopk.MakeItemList(m)
+			il.Sort()
+			//		panic(fmt.Sprintf("topk-score < approx thresh. Need to implement third round. score %v, approxThresh %v", uint(il[src.k-1].Score), ufThresh))
+		}
+	}
+
+	if disttopk.OUTPUT_RESP {
+		for _, it := range il[:src.k] {
+			fmt.Println("Resp: ", it.Id, it.Score)
+		}
+	}
+
+	src.FinalList = il
+	return nil
+}
+
+func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il disttopk.ItemList, m map[int]float64) (err error, access *disttopk.AlgoStats, items int, ret_m map[int]float64, usedThresh uint, bytes_back int) {
+
 	total_back_bytes := 0
-	uf, ufThresh := src.getUnionFilter(ucm, uint32(localthresh), il)
+	uf, ufThresh := src.getUnionFilter(ucm, thresh, il)
 	if uf != nil {
 		fmt.Println("Uf info: ", uf.GetInfo())
 	} else {
@@ -286,51 +352,24 @@ func (src *Coord) Run() error {
 		select {
 		case ch <- SecondRound{ser}:
 		case <-src.StopNotifier:
-			return nil
+			panic("wtf!")
 		}
 	}
 
 	round2items := 0
 	round2Access := &disttopk.AlgoStats{}
-	for cnt := 0; cnt < nnodes; cnt++ {
+	for cnt := 0; cnt < len(src.backPointers); cnt++ {
 		select {
 		case dobj := <-src.input:
 			srpr := dobj.Obj.(SecondRoundPeerReply)
 			il := srpr.list
 			m = il.AddToMap(m)
 			round2items += len(il)
-			mresp = il.AddToCountMap(mresp)
 			round2Access.Merge(*srpr.stats)
 		case <-src.StopNotifier:
-			return nil
+			panic("wtf")
 		}
 	}
 
-	bytesRound = round2items*disttopk.RECORD_SIZE + total_back_bytes
-	bytes += bytesRound
-	fmt.Print("Round 2 tr: got ", round2items, " items (", round2items/nnodes, "/node), bytes for records: ", round2items*disttopk.RECORD_SIZE, "bytes filter: ", total_back_bytes, ". BW Round: ", bytesRound, "BW total: ", bytes, "\n")
-	fmt.Printf("Round 2 tr: access %+v\n", round2Access)
-	src.Stats.Bytes_transferred = uint64(bytes)
-	src.Stats.Merge(*round1Access)
-	src.Stats.Merge(*round2Access)
-
-	il = disttopk.MakeItemList(m)
-	il.Sort()
-	//fmt.Println("Sorted Global List: ", il[:src.k])
-	if disttopk.OUTPUT_RESP {
-		for _, it := range il[:src.k] {
-			fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
-		}
-	}
-
-	if uint(il[src.k-1].Score) < ufThresh {
-		if src.Approximate {
-			fmt.Println("WARNING, result may be inexact")
-		} else {
-			panic(fmt.Sprintf("topk-score < approx thresh. Need to implement third round. score %v, approxThresh %v", uint(il[src.k-1].Score), ufThresh))
-		}
-	}
-
-	src.FinalList = il
-	return nil
+	return nil, round2Access, round2items, m, ufThresh, total_back_bytes
 }

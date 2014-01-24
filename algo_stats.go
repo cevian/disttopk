@@ -10,6 +10,7 @@ type AlgoStats struct {
 	Abs_err       float64
 	Rel_err       float64
 	Edit_distance float64
+	Rounds        int
 }
 
 func (t *AlgoStats) Merge(other AlgoStats) {
