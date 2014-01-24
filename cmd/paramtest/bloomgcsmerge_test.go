@@ -56,8 +56,8 @@ type Protocol struct {
 	isExact bool
 }
 
-func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol) map[string]disttopk.AlgoStats {
-	l := disttopk.GetFullOverlapOrderPermutedSimpleList(Nnodes, uint32(N), zipParam, permParam)
+func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol, seed int64) map[string]disttopk.AlgoStats {
+	l := disttopk.GetFullOverlapOrderPermutedSimpleListSeed(Nnodes, uint32(N), zipParam, permParam, seed)
 
 	naive_exact, _ := cmd.RunNaive(l, 0)
 	ground_truth := naive_exact
@@ -142,7 +142,7 @@ func TestAll(t *testing.T) {
 	}
 	for _, listSize := range []int{ /*500000, 100000, */ 10000, 1000} {
 		for _, zipfParam := range []float64{2, 1, 0.7, 0.5, 0.3} {
-			results := RunAll(listSize, 10, 10, zipfParam, 100, protocols)
+			results := RunAll(listSize, 10, 10, zipfParam, 100, protocols, 99)
 			for _, p := range printers {
 				row := p.EnterRow(RowDescription{listSize, zipfParam}, results)
 				fmt.Print("Res ", row, "\n")
@@ -150,6 +150,37 @@ func TestAll(t *testing.T) {
 		}
 		for _, p := range printers {
 			p.EnterNewN()
+		}
+
+		fmt.Println("=====================================")
+	}
+	fmt.Println("***********************************")
+
+	for _, p := range printers {
+		fmt.Print(p.Summary())
+		fmt.Println("*******************************************************************************")
+	}
+
+}
+
+func TestSeedsAll(t *testing.T) {
+	printers := []Printer{&OverviewPrinter{protocols, ""},
+		&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
+		&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
+		&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
+	}
+	for _, p := range printers {
+		p.Start()
+	}
+
+	listSize := 10000
+	zipfParam := 0.3
+
+	for seed := 0; seed < 10; seed++ {
+		results := RunAll(listSize, 10, 10, zipfParam, 100, protocols, int64(seed))
+		for _, p := range printers {
+			row := p.EnterRow(RowDescription{listSize, zipfParam}, results)
+			fmt.Print("Res ", row, "\n")
 		}
 
 		fmt.Println("=====================================")

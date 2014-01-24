@@ -97,7 +97,11 @@ func GetFullOverlapSimpleList(nlists int, nitemsPerList uint32, param float64) [
 }
 
 func GetFullOverlapOrderPermutedSimpleList(nlists int, nitemsPerList uint32, param float64, reorder int) []ItemList {
-	rand.Seed(99)
+	return GetFullOverlapOrderPermutedSimpleListSeed(nlists, nitemsPerList, param, reorder, 99)
+}
+
+func GetFullOverlapOrderPermutedSimpleListSeed(nlists int, nitemsPerList uint32, param float64, reorder int, seed int64) []ItemList {
+	rand.Seed(seed)
 	lists := GetFullOverlapSimpleList(nlists, nitemsPerList, param)
 
 	for k, list := range lists {
