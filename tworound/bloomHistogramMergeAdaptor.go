@@ -233,8 +233,17 @@ func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us Union
 		bs := us.(*MaxHashMapUnionSketch)
 
 		approxthresh := bs.GetThreshApprox(t.topk, t.gamma)
+		cutoff := bs.Cutoff()
 		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma)
+		if cutoff >= approxthresh {
+			old := approxthresh
+			approxthresh = cutoff + 1
+			fmt.Println("The Approximation threshold is too high for cutoff, resetting to", approxthresh, " Was ", old, ", cutoff ", cutoff)
+		}
 		filter := bs.GetFilter(approxthresh)
+		if filter == nil {
+			panic("Should never get nil filter here")
+		}
 		t.numUnionFilterCalls = 1
 		return filter, approxthresh
 	} else {

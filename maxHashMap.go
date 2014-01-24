@@ -24,6 +24,10 @@ func (t *MaxHashMap) GetModulusBits() uint {
 	return uint(t.modulus_bits)
 }
 
+func (t *MaxHashMap) Cutoff() uint {
+	return uint(t.cutoff)
+}
+
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
 	//fmt.Println("Adding ", hashValue, modulus_bits, max, cutoff)
 	if t.modulus_bits == 0 {
@@ -62,8 +66,8 @@ func (t *MaxHashMap) AddCutoff(c uint) {
 }
 
 func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
-	if uint32(thresh) < t.cutoff {
-		fmt.Printf("WARNING: in MaxHashMap thresh(%v) < cutoff(%v). Sending no filter, everything will be sent", thresh, t.cutoff)
+	if uint32(thresh) <= t.cutoff {
+		fmt.Printf("WARNING: in MaxHashMap thresh(%v) <= cutoff(%v). Sending no filter, everything will be sent", thresh, t.cutoff)
 		return nil
 	}
 

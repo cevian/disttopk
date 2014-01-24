@@ -66,6 +66,7 @@ func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol
 	//n := Getn(l[0], k, Nnodes)
 	results := make(map[string]disttopk.AlgoStats)
 	for _, proto := range protos {
+		fmt.Println("---- Running:", proto.Name)
 		proto_list, res := proto.Runner(l, k)
 		res.CalculatePerformance(ground_truth, proto_list, k)
 		if proto.isExact && res.Abs_err != 0.0 {
@@ -140,19 +141,24 @@ func TestAll(t *testing.T) {
 	for _, p := range printers {
 		p.Start()
 	}
-	for _, listSize := range []int{ /*500000, 100000, */ 10000, 1000} {
-		for _, zipfParam := range []float64{2, 1, 0.7, 0.5, 0.3} {
-			results := RunAll(listSize, 10, 10, zipfParam, 100, protocols, 99)
-			for _, p := range printers {
-				row := p.EnterRow(RowDescription{listSize, zipfParam}, results)
-				fmt.Print("Res ", row, "\n")
-			}
-		}
-		for _, p := range printers {
-			p.EnterNewN()
-		}
 
-		fmt.Println("=====================================")
+	k := 10
+	nodes := 10
+	for _, perms := range []int{k, 5 * k, 10 * k, 100 * k} {
+		for _, listSize := range []int{ /*500000, 100000, */ 10000, 1000} {
+			for _, zipfParam := range []float64{2, 1, 0.7, 0.5, 0.3} {
+				results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, 99)
+				for _, p := range printers {
+					row := p.EnterRow(RowDescription{listSize, zipfParam, perms}, results)
+					fmt.Print("Res ", row, "\n")
+				}
+			}
+			for _, p := range printers {
+				p.EnterNewN()
+			}
+
+			fmt.Println("=====================================")
+		}
 	}
 	fmt.Println("***********************************")
 
@@ -175,11 +181,12 @@ func TestSeedsAll(t *testing.T) {
 
 	listSize := 10000
 	zipfParam := 0.3
+	perms := 100
 
 	for seed := 0; seed < 10; seed++ {
-		results := RunAll(listSize, 10, 10, zipfParam, 100, protocols, int64(seed))
+		results := RunAll(listSize, 10, 10, zipfParam, perms, protocols, int64(seed))
 		for _, p := range printers {
-			row := p.EnterRow(RowDescription{listSize, zipfParam}, results)
+			row := p.EnterRow(RowDescription{listSize, zipfParam, perms}, results)
 			fmt.Print("Res ", row, "\n")
 		}
 
@@ -195,8 +202,9 @@ func TestSeedsAll(t *testing.T) {
 }
 
 type RowDescription struct {
-	N   int
-	zip float64
+	N     int
+	zip   float64
+	perms int
 }
 
 type Printer interface {
@@ -216,7 +224,7 @@ func (t *OverviewPrinter) EnterNewN() {
 }
 
 func (t *OverviewPrinter) RowDescriptionHeaders() string {
-	return "N\tZip"
+	return "N\tZip\tPerm"
 }
 
 func (t *OverviewPrinter) Start() {
@@ -228,7 +236,7 @@ func (t *OverviewPrinter) Start() {
 }
 
 func (t *OverviewPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%4.1E\t%2.1f", float64(rd.N), float64(rd.zip))
+	return fmt.Sprintf("%4.1E\t%2.1f\t%d", float64(rd.N), float64(rd.zip), rd.perms)
 }
 
 func (t *OverviewPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
