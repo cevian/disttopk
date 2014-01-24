@@ -73,6 +73,7 @@ func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol
 			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.Name, res.Abs_err))
 		}
 		results[proto.Name] = res
+		runtime.GC()
 	}
 
 	return results
@@ -134,6 +135,7 @@ func TestAll(t *testing.T) {
 	printers := []Printer{&OverviewPrinter{protocols, ""},
 		&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
 		&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
+		&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
 	}
 	for _, p := range printers {
 		p.Start()
@@ -283,6 +285,25 @@ func (t *ExactPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoS
 		s += fmt.Sprintf("\t%4.1E", float64(stats.Bytes_transferred))
 	}
 	s += "\t" + t.BestProtoBytes(res)
+	t.s += s + "\n"
+	return s
+}
+
+type GcsTputPrinter struct {
+	*OverviewPrinter
+}
+
+func (t *GcsTputPrinter) Start() {
+	t.s = t.RowDescriptionHeaders()
+	t.s += "\tGcsM\tTputH\tImprovement\n"
+}
+
+func (t *GcsTputPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
+	s := t.GetRowDescription(rd)
+	size_tputHash := res[TputHash.Name].Bytes_transferred
+	size_gcs := res[GcsMerge.Name].Bytes_transferred
+	improvement := (float64(size_tputHash) - float64(size_gcs)) / float64(size_tputHash)
+	s += fmt.Sprintf("\t%4.1E\t%4.1E\t%3.2f", float64(size_gcs), float64(size_tputHash), improvement*100)
 	t.s += s + "\n"
 	return s
 }
