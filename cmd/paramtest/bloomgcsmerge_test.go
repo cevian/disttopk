@@ -42,6 +42,13 @@ func RunBloomGcsMergeParamTest(N, Nnodes, k int, zipParam float64, permParam int
 	_, stats_tput := cmd.RunTputHash(l, k)
 	return int(stats.Bytes_transferred), int(stats_tput.Bytes_transferred)
 }
+func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
+	for i := 0; i < k; i++ {
+		if ground_truth[i] != result[i] {
+			fmt.Println("Lists do not match at position", i, "Ground truth:", ground_truth[i], "vs", result[i])
+		}
+	}
+}
 
 type Protocol struct {
 	Name    string
@@ -62,6 +69,7 @@ func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol
 		proto_list, res := proto.Runner(l, k)
 		res.CalculatePerformance(ground_truth, proto_list, k)
 		if proto.isExact && res.Abs_err != 0.0 {
+			PrintDiff(ground_truth, proto_list, k)
 			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.Name, res.Abs_err))
 		}
 		results[proto.Name] = res
