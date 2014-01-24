@@ -83,12 +83,13 @@ var protocols []Protocol = []Protocol{
 func TestAll(t *testing.T) {
 	res_all := MakeTitles(protocols) + "\n"
 	for _, listSize := range []int{ /*500000, 100000, */ 10000, 1000} {
-		for _, zipfParam := range []float64{2, 1, 0.7 /* 0.5, 0.3*/} {
+		for _, zipfParam := range []float64{2, 1, 0.7, 0.5, 0.3} {
 			results := RunAll(listSize, 10, 10, zipfParam, 100, protocols)
 			row := MakeRow(listSize, zipfParam, protocols, results)
 			fmt.Print("Res ", row, "\n")
 			res_all += row + "\n"
 		}
+		res_all += "---------------------------------------------------------------------------------------" + "\n"
 		fmt.Println("=====================================")
 	}
 	fmt.Println("***********************************")

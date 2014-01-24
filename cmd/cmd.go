@@ -253,119 +253,6 @@ func RunApproximateBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttop
 	return coord.FinalList, coord.Stats
 }
 
-func getRecall(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
-	em := exact[:k].AddToMap(nil)
-	found := 0
-	for i := 0; i < k; i++ {
-		item := approx[i]
-		_, ok := em[item.Id]
-		if ok {
-			found += 1
-		}
-	}
-	return float64(found) / float64(k)
-}
-
-func getScoreError(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
-	err := 0.0
-	for i := 0; i < k; i++ {
-		aitem := approx[i]
-		eitem := exact[i]
-		e := 0.0
-		if aitem.Score > eitem.Score {
-			e = aitem.Score - eitem.Score
-		} else {
-			e = eitem.Score - aitem.Score
-		}
-		err += e
-	}
-	return err / float64(k)
-}
-
-func getScoreErrorRel(exact disttopk.ItemList, approx disttopk.ItemList, k int) float64 {
-	err := 0.0
-	for i := 0; i < k; i++ {
-		aitem := approx[i]
-		eitem := exact[i]
-		e := 0.0
-		if aitem.Score > eitem.Score {
-			e = aitem.Score - eitem.Score
-		} else {
-			e = eitem.Score - aitem.Score
-		}
-		err += (e / eitem.Score)
-	}
-	return err / float64(k)
-}
-
-func itemList2item(ilist disttopk.ItemList) []int {
-	keys := make([]int, len(ilist))
-	for i, item := range ilist {
-		keys[i] = item.Id
-	}
-	return keys
-}
-
-func IMax(i, j int) int {
-	if i > j {
-		return i
-	} else {
-		return j
-	}
-}
-
-func IMin(i, j int) int {
-	if i < j {
-		return i
-	} else {
-		return j
-	}
-}
-
-func JWDistance(exact_list disttopk.ItemList, approx_list disttopk.ItemList, k int) float64 {
-	// approximately the Jaro edit distance: 0 is no match, 1 is perfect match
-	//Inspiration from https://code.google.com/p/duke/source/browse/src/main/java/no/priv/garshol/duke/JaroWinkler.java
-	matches := 0.0
-	transpositions := 0.0
-
-	exact_keys := itemList2item(exact_list)[0:k]
-	approx_keys := itemList2item(approx_list)
-
-	if len(approx_keys) < k {
-		fmt.Printf("XXX, this case not yet implemented in JWDistance")
-		os.Exit(1)
-		//perhaps should just append with nils?
-	}
-
-	search_window_width := len(approx_keys) / 2
-	last_match_in_approx := -1
-	for i := 0; i < k; i++ {
-		to_match := exact_keys[i]
-		search_start := IMax(0, i-search_window_width)
-		search_end := IMin(i+search_window_width+1, len(approx_keys))
-		for j := search_start; j < search_end; j++ {
-			if to_match == approx_keys[j] {
-				matches++
-				if last_match_in_approx != -1 && j < last_match_in_approx {
-					transpositions++ // moved back before earlier
-				}
-				last_match_in_approx = j
-				break
-			}
-		}
-	}
-
-	fmt.Println("Edit distance debug: ", matches, "matches", transpositions, "transpositions, k= ", k, "algo output length", len(approx_keys))
-
-	if matches == 0 {
-		return 0
-	} else {
-		k_f := float64(k)
-		return (matches/k_f + matches/k_f + (matches-transpositions)/matches) / 3.0
-
-	}
-}
-
 type Algorithm struct {
 	name   string
 	runner func([]disttopk.ItemList, int) (disttopk.ItemList, disttopk.AlgoStats)
@@ -427,11 +314,8 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 		fmt.Println("-----------------------")
 
 		result, stats := algorithm.runner(data, k) //, stats
-		stats.Recall = getRecall(ground_truth, result, k)
+		stats.CalculatePerformance(ground_truth, result, k)
 
-		stats.Abs_err = getScoreError(ground_truth, result, k)
-		stats.Rel_err = getScoreErrorRel(ground_truth, result, k)
-		stats.Edit_distance = JWDistance(ground_truth, result, k)
 		stat_string := fmt.Sprintf("%v results: \t\t BW = %v \t Recall = %v (%v)\t Error = %v (rel. %e) \t Access: serial %v, random :%v (%v)\n", name, stats.Bytes_transferred, stats.Recall, stats.Edit_distance, stats.Abs_err, stats.Rel_err, stats.Serial_items, stats.Random_items, stats.Random_access)
 
 		fmt.Print(stat_string)
