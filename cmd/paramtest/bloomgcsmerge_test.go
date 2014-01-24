@@ -137,6 +137,7 @@ func TestAll(t *testing.T) {
 		&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
 		&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
 		&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
+		&ExportPrinter{&OverviewPrinter{protocols, ""}},
 	}
 	for _, p := range printers {
 		p.Start()
@@ -174,6 +175,7 @@ func TestSeedsAll(t *testing.T) {
 		&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
 		&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
 		&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
+		&ExportPrinter{&OverviewPrinter{protocols, ""}},
 	}
 	for _, p := range printers {
 		p.Start()
@@ -345,4 +347,30 @@ func (t *GcsTputPrinter) EnterRow(rd RowDescription, res map[string]disttopk.Alg
 	s += fmt.Sprintf("\t%4.1E\t%4.1E\t%3.2f", float64(size_gcs), float64(size_tputHash), improvement*100)
 	t.s += s + "\n"
 	return s
+}
+
+type ExportPrinter struct {
+	*OverviewPrinter
+}
+
+func (t *ExportPrinter) EnterNewN() {
+}
+func (t *ExportPrinter) Start() {
+	t.s = "--------------Start Export----------\nExport\t" + t.RowDescriptionHeaders()
+	t.s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\n"
+}
+
+func (t *ExportPrinter) GetRowDescription(rd RowDescription) string {
+	return fmt.Sprintf("%f\t%f\t%d", float64(rd.N), float64(rd.zip), rd.perms)
+}
+
+func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
+	s := ""
+	for _, proto := range t.protocols {
+		s += "Export\t" + t.GetRowDescription(rd)
+		stats := res[proto.Name]
+		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\n", proto.Name, proto.isExact, stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance)
+	}
+	t.s += s
+	return ""
 }
