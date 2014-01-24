@@ -283,6 +283,7 @@ func (src *Coord) Run() error {
 
 	bytesRound = 0
 	if src.clrRound {
+		src.Stats.Rounds = 3
 		bytes_clround := 0
 		max_size_candidate_list := uint32(0)
 		for _, bh := range bh_map {
@@ -378,6 +379,7 @@ func (src *Coord) Run() error {
 		bytes += bytes_clround
 		//bytes_round += bytes_clround
 	} else {
+		src.Stats.Rounds = 2
 		for _, ch := range src.backPointers {
 			select {
 			case ch <- localthresh:

@@ -298,12 +298,14 @@ func (src *Coord) Run() error {
 	bytes += bytesRound
 	src.Stats.Bytes_transferred = uint64(bytes)
 	src.Stats.Merge(*access_stats)
+	src.Stats.Rounds = 3
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
 
 	score_k := uint(il[src.k-1].Score)
 	if score_k < secondthresh {
+		src.Stats.Rounds = 4
 		panic(fmt.Sprintln("4th round needed but not implemented yet", score_k, secondthresh))
 	}
 

@@ -104,6 +104,7 @@ func (src *NaiveCoord) Run() error {
 
 				//				fmt.Printf("Total bytes naive (cutoff=%d): %E\n", src.cutoff, float64(items*disttopk.RECORD_SIZE))
 				src.Stats.Bytes_transferred = uint64(items * disttopk.RECORD_SIZE)
+				src.Stats.Rounds = 1
 				if disttopk.OUTPUT_RESP {
 					for _, it := range il[:10] {
 						fmt.Println("Resp: ", it.Id, it.Score) //, mresp[it.Id])

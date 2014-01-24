@@ -229,6 +229,7 @@ func (src *Coord) Run() error {
 	bytes += bytesRound
 	src.Stats.Bytes_transferred = uint64(bytes)
 	src.Stats.Merge(*access_stats)
+	src.Stats.Rounds = 3
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
