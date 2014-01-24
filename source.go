@@ -145,3 +145,14 @@ func GetListSet(nlists int, nitems uint32, param float64, overlap float64) []Ite
 
 	return lists
 }
+
+func GetTrueList(lists []ItemList) ItemList {
+	m := lists[0].AddToMap(nil)
+	for _, list := range lists[1:] {
+		list.AddToMap(m)
+	}
+
+	il := MakeItemList(m)
+	return il
+
+}

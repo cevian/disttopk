@@ -51,11 +51,11 @@ func (src *SimpleZipfSource) GenerateItem(rank int) Item {
 
 	//fmt.Println("gen", zipfValue, score, (zipfValue * src.scale), src.scale, id, id%100)
 
-	act_score := float64(math.Ceil(score))
+	act_score := float64(score)
 	if act_score < 1.0 {
-		panic("Score less than 1")
+		act_score = 1.0
 	}
-	return Item{id, act_score}
+	return Item{id, float64(uint(act_score))}
 }
 
 func (src *SimpleZipfSource) GetList() ItemList {
@@ -97,6 +97,7 @@ func GetFullOverlapSimpleList(nlists int, nitemsPerList uint32, param float64) [
 }
 
 func GetFullOverlapOrderPermutedSimpleList(nlists int, nitemsPerList uint32, param float64, reorder int) []ItemList {
+	rand.Seed(99)
 	lists := GetFullOverlapSimpleList(nlists, nitemsPerList, param)
 
 	for k, list := range lists {

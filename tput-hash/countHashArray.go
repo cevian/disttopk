@@ -43,6 +43,15 @@ func (t *CountHashArray) Query(key []byte) uint {
 	return t.Data.Get(index)
 }
 
+func (t *CountHashArray) DebugSum() uint {
+	sum := uint(0)
+	for i := 0; i < t.Data.Len(); i++ {
+		current := t.Data.Get(i)
+		sum += current
+	}
+	return sum
+}
+
 func (t *CountHashArray) Merge(cha *CountHashArray) {
 	if t.Data.Len() != cha.Data.Len() {
 		panic("Has to be the same size")
