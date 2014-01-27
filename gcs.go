@@ -136,6 +136,54 @@ func EstimateEpsGcsAdjuster(N_est int, n_est int, penalty_bits int, NumTransfers
 	}*/
 
 	eps := (2.0 * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(N_est/n_est) - 1.0))
+
+	m := float64(n_est) * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
+	sketch := 2.0 * m
+
+	penalty := (float64(N_est) - float64(n_est)) * float64(penalty_bits) * adjuster * eps
+	fmt.Println("Eps debug: eps", eps, "sketch", sketch, "penalty", penalty)
+	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
+	/*if eps > 1 {
+		eps = 1
+	}*/
+	return eps
+}
+
+func EstimateEpsGcsAlt(N_est int, n_est int, penalty_bits int, numNodes int, itemsPerNode int, numTransfers int) float64 {
+	//TODO change! -- this is base on the bloom filter approximation with k != 1
+	//for compressed filters, needs to change.
+
+	//for m = size of bloom, p = size of each record sent as false pos, s = # times filter sent across the wire, A = probability filter will be used
+	// x = num nodes, l = items per node
+	//total (t) = s*x*m + (l-n) * eps * p * x
+	// m = n *  1.44 * log_2(1/eps) = n * 1.44 * 1/ln(2) * ln (1/eps)
+	// dt/deps  =  s*x*n * 1.44 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (l-n) * p * x
+	// 0 =   -1  * s * x * n * 1.44 / ln (2) * 1 / eps + (l-n) * p * x
+	// ( s* x *n * (1.44 / ln (2))) / ((l -n) * p * x) = eps
+	// eps = s * 1.44 / (l/n -1) * p * ln (2)
+
+	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
+
+	/* this is a hack to prevent eps going to inf */
+	/*if n_est*2 > N_est {
+		n_est = N_est / 2
+	}*/
+
+	fmt.Println("n_est", n_est, "penalty_bits", penalty_bits, "numNodes", numNodes, "itemspn", itemsPerNode)
+	size_adj := 0.8
+	eps := (float64(numTransfers) * size_adj * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(itemsPerNode/n_est) - 1.0))
+
+	m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
+	sketch := (m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
+	penalty := (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps
+	fmt.Println("Eps debug: eps", eps, "sketch per transfer ", sketch, "bits ", sketch/8, "bytes penalty", penalty, "bits", penalty/8, "bytes sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
+
+	actual_m := MakePowerOf2(EstimateMGcs(n_est, eps))
+	eps_test := float64(n_est) / float64(actual_m)
+	m = float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps_test)
+	sketch = (m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
+	penalty = (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps_test
+	fmt.Println("Eps debug: eps", eps, "sketch per transfer", sketch, "bits ", sketch/8, "bytes penalty", penalty, "bits", penalty/8, "bytes sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
 	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
 	/*if eps > 1 {
 		eps = 1
@@ -155,7 +203,9 @@ func EstimateMGcs(n int, eps float64) int {
 	//m = -n/ln(1-eps)
 	//by the taylor series for eps in our range ln(1-eps) ~ -eps. so
 	//m  ~ n/eps
-	return int(float64(n) / eps)
+	m := int(float64(n) / eps)
+	fmt.Println("M =", m)
+	return m
 }
 
 func NewGcs(m int) *Gcs {
@@ -164,6 +214,11 @@ func NewGcs(m int) *Gcs {
 		if m < 1 {
 			panic(fmt.Sprintf("Wrong size %v", m))
 		}*/
+
+	if m > math.MaxUint32 {
+		panic("m bigger than uint32")
+	}
+
 	s := Gcs{
 		NewCountMinHash(1, m),
 		NewHashValueSlice(),

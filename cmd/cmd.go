@@ -241,6 +241,7 @@ func RunApproximateBloomGcsFilter(l []disttopk.ItemList, topk int) (disttopk.Ite
 	peers := make([]*tworound.Peer, len(l))
 	N_est := getNEst(l)
 	coord := tworound.NewApproximateBloomGcsFilterCoord(topk, N_est)
+	coord.GroundTruth = GroundTruth
 	numpeer := len(l)
 	runner.Add(coord)
 	for i, list := range l {
@@ -296,6 +297,8 @@ var algorithms []Algorithm = []Algorithm{
 
 //var algo_names []string = []string{"Naive-exact", "Naive (2k)", "Klee3-2R", "Klee4-3R", "Approx bloom", "TPUT   ", "TPUT-hash", "2R Gcs  ", "2R Gcs-Merge", "Count Min"}
 
+var GroundTruth disttopk.ItemList
+
 func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	l1norm := 0.0
 	items := 0
@@ -312,6 +315,7 @@ func analyze_dataset(data []disttopk.ItemList) map[string]disttopk.AlgoStats {
 	ids = make(map[int]bool)
 	naive_exact, _ := RunNaive(data, 0)
 	ground_truth := naive_exact
+	GroundTruth = ground_truth
 	fmt.Println("#Items (sum in lists) ", items, " (unique)", len(ids), ", #lists", len(data), "k-score", ground_truth[k-1].Score)
 
 	//stats for count min:

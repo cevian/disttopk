@@ -6,21 +6,26 @@ import "fmt"
 var _ = fmt.Println
 
 type ApproximateBloomGcsFilterAdaptor struct {
-	topk    int
-	numpeer int
-	N_est   int
-	Beta    float64
-	Gamma   float64
+	topk        int
+	numpeer     int
+	N_est       int
+	Beta        float64
+	Gamma       float64
+	FilterItems disttopk.ItemList
 }
 
 func NewApproximateBloomGcsFilterAdaptor(topk int, numpeer int, N_est int) UnionSketchAdaptor {
-	return &ApproximateBloomGcsFilterAdaptor{topk, numpeer, N_est, 0.0, 1.0}
+	return &ApproximateBloomGcsFilterAdaptor{topk, numpeer, N_est, 0.0, 1.0, disttopk.NewItemList()}
 }
 
 func (t *ApproximateBloomGcsFilterAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList) UnionSketch {
 	return nil
 }
 func (t *ApproximateBloomGcsFilterAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
+}
+
+func (t *ApproximateBloomGcsFilterAdaptor) getFilteredItems() disttopk.ItemList {
+	return t.FilterItems
 }
 
 func (t *ApproximateBloomGcsFilterAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
@@ -31,7 +36,8 @@ func (t *ApproximateBloomGcsFilterAdaptor) getUnionFilter(us UnionSketch, thresh
 	}
 	//fmt.Println("guf:", t.Gamma, maxCount, len(il), orig_len)
 
-	eps := disttopk.EstimateEpsGcsAdjuster(t.N_est, maxCount, disttopk.RECORD_SIZE*8, 2, 1.0)
+	//eps := disttopk.EstimateEpsGcsAdjuster(t.N_est, maxCount, disttopk.RECORD_SIZE*8, 2, 1.0)
+	eps := disttopk.EstimateEpsGcsAlt(t.N_est, maxCount, disttopk.RECORD_SIZE*8, 10, 100000, 1)
 
 	m_est := disttopk.EstimateMGcs(maxCount, eps)
 	m := disttopk.MakePowerOf2(m_est)
@@ -43,6 +49,7 @@ func (t *ApproximateBloomGcsFilterAdaptor) getUnionFilter(us UnionSketch, thresh
 
 	for _, v := range il {
 		gcs.Add(disttopk.IntKeyToByteKey(v.Id))
+		t.FilterItems = append(t.FilterItems, v)
 	}
 	return gcs, uint(il[len(il)-1].Score)
 

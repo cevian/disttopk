@@ -190,7 +190,7 @@ func NewExtraRoundBloomGcsMergeCoord(k int) *Coord {
 }
 
 func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), psa, usa, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, false}
+	return &Coord{stream.NewHardStopChannelCloser(), psa, usa, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, false, nil}
 }
 
 type UnionSketch interface {
@@ -215,6 +215,7 @@ type Coord struct {
 	k            int
 	Stats        disttopk.AlgoStats
 	Approximate  bool
+	GroundTruth  disttopk.ItemList
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -370,6 +371,8 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 
 	round2items := 0
 	round2Access := &disttopk.AlgoStats{}
+	groundtruthfp := -1
+	filterfp := -1
 	for cnt := 0; cnt < len(src.backPointers); cnt++ {
 		select {
 		case dobj := <-src.input:
@@ -378,10 +381,53 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 			m = il.AddToMap(m)
 			round2items += len(il)
 			round2Access.Merge(*srpr.stats)
+
+			fir, ok := src.UnionSketchAdaptor.(UnionSketchFilterItemsReporter)
+			if ok {
+				if filterfp == -1 {
+					filterfp = 0
+				}
+				filtered_items := fir.getFilteredItems()
+				if src.GroundTruth != nil {
+					if groundtruthfp == -1 {
+						groundtruthfp = 0
+					}
+
+					fp := src.CountFalsePositives(src.GroundTruth[:src.k], filtered_items)
+
+					//fmt.Println("There were", fp, "items added to the filter that are not part of groundtruth")
+					groundtruthfp += fp
+				}
+
+				fp_sketch := src.CountFalsePositives(filtered_items, il)
+				filterfp += fp_sketch
+				//fmt.Println("There were", fp_sketch, "items sent as false positive through the sketch")
+
+			}
 		case <-src.StopNotifier:
 			panic("wtf")
 		}
 	}
+	if groundtruthfp != -1 {
+		fmt.Println("There was a total of ", groundtruthfp, "items added to the filter that are not part of groundtruth across all nodes")
+	}
+	if filterfp != -1 {
+		fmt.Printf("There was a total of %v (%v/node) items sent as false positive through the sketch\n", filterfp, filterfp/len(src.backPointers))
+	}
 
 	return nil, round2Access, round2items, m, ufThresh, total_back_bytes
+}
+
+func (src *Coord) CountFalsePositives(reference disttopk.ItemList, test disttopk.ItemList) int {
+	m := make(map[int]bool)
+	for _, true_item := range reference {
+		m[true_item.Id] = true
+	}
+	fp := 0
+	for _, item := range test {
+		if !m[item.Id] {
+			fp++
+		}
+	}
+	return fp
 }

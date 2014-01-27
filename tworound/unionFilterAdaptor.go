@@ -17,6 +17,10 @@ type UnionSketchAdaptor interface {
 	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats)
 }
 
+type UnionSketchFilterItemsReporter interface {
+	getFilteredItems() disttopk.ItemList
+}
+
 type BloomHistogramUnionSketchAdaptor struct{}
 
 func NewBloomHistogramUnionSketchAdaptor() UnionSketchAdaptor {
