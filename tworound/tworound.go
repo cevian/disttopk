@@ -70,6 +70,7 @@ func NewApproximateBloomGcsFilterPR(topk int, numpeer int, N_est int) *ProtocolR
 	peer := NewProtocolRunner(NewNonePeerSketchAdaptor(), NewApproximateBloomGcsFilterAdaptor(topk, numpeer, N_est), topk, numpeer, N_est)
 	peer.Approximate = true
 	peer.SendLength = true
+	peer.CompressSketches = false
 	return peer
 }
 
@@ -93,7 +94,7 @@ type ProtocolRunner struct {
 }
 
 func NewProtocolRunner(psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int, numpeer int, N_est int) *ProtocolRunner {
-	return &ProtocolRunner{psa, usa, k, numpeer, N_est, 1, false, false, false, nil}
+	return &ProtocolRunner{psa, usa, k, numpeer, N_est, 1, false, true, false, nil}
 }
 
 func (t *ProtocolRunner) NewPeer(list disttopk.ItemList) *Peer {
@@ -104,12 +105,20 @@ func (t *ProtocolRunner) NewCoord() *Coord {
 	return NewCoord(t)
 }
 
-func compress(in []byte) []byte {
-	return disttopk.CompressBytes(in)
+func (t *ProtocolRunner) compress(in []byte) []byte {
+	if t.CompressSketches {
+		return disttopk.CompressBytes(in)
+	} else {
+		return in
+	}
 }
 
-func decompress(in []byte) []byte {
-	return disttopk.DecompressBytes(in)
+func (t *ProtocolRunner) decompress(in []byte) []byte {
+	if t.CompressSketches {
+		return disttopk.DecompressBytes(in)
+	} else {
+		return in
+	}
 }
 
 type Peer struct {
@@ -176,7 +185,7 @@ func (src *Peer) Run() error {
 
 	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index + serialAccessOverLocaltop, Random_access: 0, Random_items: 0}
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, compress(ser), first_round_access, uint32(listlen)}}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, src.compress(ser), first_round_access, uint32(listlen)}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -190,7 +199,7 @@ func (src *Peer) Run() error {
 			}
 			ufser := obj.(SecondRound).ufser
 			if ufser != nil {
-				uf = src.UnionSketchAdaptor.deserialize(decompress(ufser))
+				uf = src.UnionSketchAdaptor.deserialize(src.decompress(ufser))
 			}
 		case <-src.StopNotifier:
 			return nil
@@ -315,11 +324,11 @@ func (src *Coord) Run() error {
 			m = il.AddToMap(m)
 
 			compressedsize := fr.sketch.ByteSize()
-			decompressed := decompress(fr.sketch)
+			decompressed := src.decompress(fr.sketch)
 			if len(decompressed) > 0 {
 				sketchsize += compressedsize
 			}
-			sketch := src.PeerSketchAdaptor.deserialize(decompress(fr.sketch))
+			sketch := src.PeerSketchAdaptor.deserialize(decompressed)
 
 			//cm := fr.cm.(*disttopk.CountMinSketch)
 			//sketchsize += cm.ByteSize()
@@ -427,7 +436,7 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 		var ser Serialized
 		if uf != nil {
 			cuf := src.copyUnionFilter(uf)
-			ser = Serialized(compress(src.UnionSketchAdaptor.serialize(cuf)))
+			ser = Serialized(src.compress(src.UnionSketchAdaptor.serialize(cuf)))
 			total_back_bytes += ser.ByteSize()
 		}
 		select {

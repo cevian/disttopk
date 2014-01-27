@@ -199,7 +199,9 @@ func RunApproximateBloomFilter(l []disttopk.ItemList, topk int) (disttopk.ItemLi
 func RunApproximateBloomGcsFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	N_est := getNEst(l)
-	return RunProtocolRunner(tworound.NewApproximateBloomGcsFilterPR(topk, numpeer, N_est), l)
+	pr := tworound.NewApproximateBloomGcsFilterPR(topk, numpeer, N_est)
+	pr.GroundTruth = GroundTruth
+	return RunProtocolRunner(pr, l)
 }
 
 func RunExtraRoundBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
