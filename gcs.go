@@ -173,17 +173,20 @@ func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, itemsPerNode i
 	size_adj := 0.8
 	eps := (float64(numTransfers) * size_adj * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(itemsPerNode/n_est) - 1.0))
 
-	m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
-	sketch := (m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
+	effective_m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
+	sketch := (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
 	penalty := (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps
-	fmt.Println("Eps debug: eps", eps, "sketch per transfer ", sketch, "bits ", sketch/8, "bytes penalty", penalty, "bits", penalty/8, "bytes sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
+	fmt.Println("Eps debug: eps", eps, "sketch per transfer ", sketch, "bits ", sketch/8, "bytes\n penalty", penalty, "bits", penalty/8, "bytes sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
 
 	actual_m := MakePowerOf2(EstimateMGcs(n_est, eps))
 	eps_test := float64(n_est) / float64(actual_m)
-	m = float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps_test)
-	sketch = (m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
+	effective_m = float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps_test)
+	sketch = (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
 	penalty = (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps_test
-	fmt.Println("Eps debug: eps", eps, "sketch per transfer", sketch, "bits ", sketch/8, "bytes penalty", penalty, "bits", penalty/8, "bytes sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
+	fmt.Println("ipn", itemsPerNode, "n_est", n_est, "eps_test", eps_test)
+	penalty_items := (float64(itemsPerNode) - float64(n_est)) * eps_test
+	fmt.Println("Eps debug: m ", actual_m, effective_m, "eps", eps, "sketch per transfer", sketch, "bits ", sketch/8, "bytes\npenalty", penalty, "bits", penalty/8, " bytes. Items sent as fp ", penalty_items, "/node. Sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
+
 	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
 	/*if eps > 1 {
 		eps = 1
@@ -204,11 +207,11 @@ func EstimateMGcs(n int, eps float64) int {
 	//by the taylor series for eps in our range ln(1-eps) ~ -eps. so
 	//m  ~ n/eps
 	m := int(float64(n) / eps)
-	fmt.Println("M =", m)
 	return m
 }
 
 func NewGcs(m int) *Gcs {
+	//fmt.Println("Making GCS of size M=", m)
 	/*
 		m == 0 should be valid
 		if m < 1 {

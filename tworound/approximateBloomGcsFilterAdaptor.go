@@ -40,7 +40,10 @@ func (t *ApproximateBloomGcsFilterAdaptor) getUnionFilter(us UnionSketch, thresh
 	eps := disttopk.EstimateEpsGcsAlt(maxCount, disttopk.RECORD_SIZE*8, t.numpeer, listlensum/t.numpeer, 1)
 
 	m_est := disttopk.EstimateMGcs(maxCount, eps)
+
+	//reason to make power of 2 here is so that it will be compatible with hashtable at the peers
 	m := disttopk.MakePowerOf2(m_est)
+
 	if m == 0 {
 		panic(fmt.Sprint("Should never get 0 here", t.N_est, maxCount, eps))
 	}

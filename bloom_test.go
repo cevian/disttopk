@@ -38,6 +38,48 @@ func TestBloom(t *testing.T) {
 
 }
 
+func TestGcsFp(t *testing.T) {
+	n := 10
+	eps := 0.00002077
+	nTest := 10 * int(1/eps)
+
+	m := MakePowerOf2(EstimateMGcs(n, eps))
+	rounded_eps := float64(n) / float64(m)
+
+	fp_sum := float64(0)
+	num_seeds := 100
+	for i := 0; i < num_seeds; i++ {
+		rand.Seed(int64(i))
+		gcs := NewGcs(m)
+
+		println("nTest = ", nTest, "n", n, "m", m)
+
+		member := make(map[int]bool)
+
+		for i := 0; i < n; i++ {
+			j := rand.Int()
+			member[j] = true
+			gcs.Add(IntKeyToByteKey(j))
+		}
+
+		fp := 0
+		for i := 0; i < nTest; i++ {
+			j := rand.Int()
+			is_member, _ := member[j]
+			if !is_member && gcs.Query(IntKeyToByteKey(j)) == true {
+				fp += 1
+			}
+		}
+
+		fp_rate := float64(fp) / float64(nTest)
+		fp_sum += fp_rate
+		println("FP rate = ", fp_rate, "Expected", rounded_eps)
+	}
+
+	println("FP rate avg = ", fp_sum/float64(num_seeds), "Expected", rounded_eps)
+
+}
+
 func TestBloomSerialize(t *testing.T) {
 	n := 100
 	eps := 0.000001
