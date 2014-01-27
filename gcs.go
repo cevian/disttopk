@@ -149,7 +149,7 @@ func EstimateEpsGcsAdjuster(N_est int, n_est int, penalty_bits int, NumTransfers
 	return eps
 }
 
-func EstimateEpsGcsAlt(N_est int, n_est int, penalty_bits int, numNodes int, itemsPerNode int, numTransfers int) float64 {
+func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, itemsPerNode int, numTransfers int) float64 {
 	//TODO change! -- this is base on the bloom filter approximation with k != 1
 	//for compressed filters, needs to change.
 

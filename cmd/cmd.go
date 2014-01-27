@@ -151,124 +151,61 @@ func getNEst(l []disttopk.ItemList) int {
 	return len(ids)
 }
 
-func RunBloomSketch(l []disttopk.ItemList, topk int) disttopk.ItemList {
+func RunProtocolRunner(pr *tworound.ProtocolRunner, l []disttopk.ItemList) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewBloomCoord(topk)
-	numpeer := len(l)
-	N_est := getNEst(l)
+	coord := pr.NewCoord()
 	runner.Add(coord)
 	for i, list := range l {
-		peers[i] = tworound.NewBloomPeer(list, topk, numpeer, N_est)
+		peers[i] = pr.NewPeer(list)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
 	runner.AsyncRunAll()
 	runner.WaitGroup().Wait()
-	return coord.FinalList
+	return coord.FinalList, coord.Stats
+}
+
+func RunBloomSketch(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	numpeer := len(l)
+	N_est := getNEst(l)
+	return RunProtocolRunner(tworound.NewBloomPR(topk, numpeer, N_est), l)
 }
 
 func RunBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
-	runner := stream.NewRunner()
-	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewBloomGcsCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
-	runner.Add(coord)
-	for i, list := range l {
-		peers[i] = tworound.NewBloomGcsPeer(list, topk, numpeer, N_est)
-		coord.Add(peers[i])
-		runner.Add(peers[i])
-	}
-	runner.AsyncRunAll()
-	runner.WaitGroup().Wait()
-	return coord.FinalList, coord.Stats
+	return RunProtocolRunner(tworound.NewBloomGcsPR(topk, numpeer, N_est), l)
 }
 
 func RunBloomSketchGcsMerge(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
-	runner := stream.NewRunner()
-	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewBloomGcsMergeCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
-	runner.Add(coord)
-	for i, list := range l {
-		peers[i] = tworound.NewBloomGcsMergePeer(list, topk, numpeer, N_est)
-		coord.Add(peers[i])
-		runner.Add(peers[i])
-	}
-	runner.AsyncRunAll()
-	runner.WaitGroup().Wait()
-	return coord.FinalList, coord.Stats
+	return RunProtocolRunner(tworound.NewBloomGcsMergePR(topk, numpeer, N_est), l)
 }
 
 func RunCountMin(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
-	runner := stream.NewRunner()
-	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewCountMinCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
-	runner.Add(coord)
-	for i, list := range l {
-		peers[i] = tworound.NewCountMinPeer(list, topk, numpeer, N_est)
-		coord.Add(peers[i])
-		runner.Add(peers[i])
-	}
-	runner.AsyncRunAll()
-	runner.WaitGroup().Wait()
-	return coord.FinalList, coord.Stats
+	return RunProtocolRunner(tworound.NewCountMinPR(topk, numpeer, N_est), l)
 }
 
 func RunApproximateBloomFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
-	runner := stream.NewRunner()
-	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewApproximateBloomFilterCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
-	runner.Add(coord)
-	for i, list := range l {
-		peers[i] = tworound.NewApproximateBloomFilterPeer(list, topk, numpeer, N_est)
-		coord.Add(peers[i])
-		runner.Add(peers[i])
-	}
-	runner.AsyncRunAll()
-	runner.WaitGroup().Wait()
-	return coord.FinalList, coord.Stats
+	return RunProtocolRunner(tworound.NewApproximateBloomFilterPR(topk, numpeer, N_est), l)
 }
 
 func RunApproximateBloomGcsFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
-	runner := stream.NewRunner()
-	peers := make([]*tworound.Peer, len(l))
-	N_est := getNEst(l)
-	coord := tworound.NewApproximateBloomGcsFilterCoord(topk, N_est)
-	coord.GroundTruth = GroundTruth
 	numpeer := len(l)
-	runner.Add(coord)
-	for i, list := range l {
-		peers[i] = tworound.NewApproximateBloomGcsFilterPeer(list, topk, numpeer, N_est)
-		coord.Add(peers[i])
-		runner.Add(peers[i])
-	}
-	runner.AsyncRunAll()
-	runner.WaitGroup().Wait()
-	return coord.FinalList, coord.Stats
+	N_est := getNEst(l)
+	return RunProtocolRunner(tworound.NewApproximateBloomGcsFilterPR(topk, numpeer, N_est), l)
 }
 
 func RunExtraRoundBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
-	runner := stream.NewRunner()
-	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewExtraRoundBloomGcsMergeCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
-	runner.Add(coord)
-	for i, list := range l {
-		peers[i] = tworound.NewExtraRoundBloomGcsMergePeer(list, topk, numpeer, N_est)
-		coord.Add(peers[i])
-		runner.Add(peers[i])
-	}
-	runner.AsyncRunAll()
-	runner.WaitGroup().Wait()
-	return coord.FinalList, coord.Stats
+	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergePR(topk, numpeer, N_est), l)
 }
 
 type Algorithm struct {

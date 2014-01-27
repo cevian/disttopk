@@ -11,6 +11,7 @@ import (
 
 var _ = math.Log2
 
+/*
 func NewBloomPeer(list disttopk.ItemList, topk int, numpeer int, N_est int) *Peer {
 	return NewPeer(list, NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramUnionSketchAdaptor(), topk)
 }
@@ -41,10 +42,66 @@ func NewExtraRoundBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer in
 	peer := NewPeer(list, NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk), topk)
 	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
 	return peer
+}*/
+
+func NewBloomPR(topk int, numpeer int, N_est int) *ProtocolRunner {
+	return NewProtocolRunner(NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramUnionSketchAdaptor(), topk, numpeer, N_est)
 }
 
-func NewPeer(list disttopk.ItemList, psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), psa, usa, nil, nil, list, k, 0, 1}
+func NewBloomGcsPR(topk int, numpeer int, N_est int) *ProtocolRunner {
+	return NewProtocolRunner(NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramGcsUnionSketchAdaptor(), topk, numpeer, N_est)
+}
+func NewBloomGcsMergePR(topk int, numpeer int, N_est int) *ProtocolRunner {
+	return NewProtocolRunner(NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeSketchAdaptor(), topk, numpeer, N_est)
+}
+
+func NewCountMinPR(topk int, numpeer int, N_est int) *ProtocolRunner {
+	return NewProtocolRunner(NewCountMinPeerSketchAdaptor(topk, numpeer, N_est), NewCountMinUnionSketchAdaptor(), topk, numpeer, N_est)
+}
+
+func NewApproximateBloomFilterPR(topk int, numpeer int, N_est int) *ProtocolRunner {
+	peer := NewProtocolRunner(NewNonePeerSketchAdaptor(), NewApproximateBloomFilterAdaptor(topk, numpeer, N_est), topk, numpeer, N_est)
+	peer.Approximate = true
+	return peer
+}
+
+func NewApproximateBloomGcsFilterPR(topk int, numpeer int, N_est int) *ProtocolRunner {
+	//use gcs here to allow for indexing to reduce serial accesses
+	peer := NewProtocolRunner(NewNonePeerSketchAdaptor(), NewApproximateBloomGcsFilterAdaptor(topk, numpeer, N_est), topk, numpeer, N_est)
+	peer.Approximate = true
+	peer.SendLength = true
+	return peer
+}
+
+func NewExtraRoundBloomGcsMergePR(topk int, numpeer int, N_est int) *ProtocolRunner {
+	peer := NewProtocolRunner(NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk), topk, numpeer, N_est)
+	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
+	return peer
+}
+
+type ProtocolRunner struct {
+	PeerSketchAdaptor
+	UnionSketchAdaptor
+	k                int
+	numpeer          int
+	N_est            int
+	Alpha            float64
+	SendLength       bool
+	CompressSketches bool
+	Approximate      bool
+	GroundTruth      disttopk.ItemList
+}
+
+func NewProtocolRunner(psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int, numpeer int, N_est int) *ProtocolRunner {
+	return &ProtocolRunner{psa, usa, k, numpeer, N_est, 1, false, false, false, nil}
+}
+
+func (t *ProtocolRunner) NewPeer(list disttopk.ItemList) *Peer {
+	return NewPeer(list, t)
+}
+
+func (t *ProtocolRunner) NewCoord() *Coord {
+	return NewCoord(t)
 }
 
 func compress(in []byte) []byte {
@@ -57,14 +114,15 @@ func decompress(in []byte) []byte {
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	PeerSketchAdaptor
-	UnionSketchAdaptor
+	*ProtocolRunner
 	forward chan<- disttopk.DemuxObject
 	back    <-chan stream.Object
 	list    disttopk.ItemList
-	k       int
 	id      int
-	Alpha   float64
+}
+
+func NewPeer(list disttopk.ItemList, pr *ProtocolRunner) *Peer {
+	return &Peer{stream.NewHardStopChannelCloser(), pr, nil, nil, list, 0}
 }
 
 type FirstRoundSketch interface {
@@ -79,6 +137,7 @@ type FirstRound struct {
 	list   disttopk.ItemList
 	sketch Serialized
 	stats  *disttopk.AlgoStats
+	length uint32
 }
 
 type SecondRound struct {
@@ -110,9 +169,14 @@ func (src *Peer) Run() error {
 	sketch, serialAccessOverLocaltop := src.createSketch(src.list, localtop)
 	ser := src.PeerSketchAdaptor.serialize(sketch)
 
+	listlen := 0
+	if src.SendLength {
+		listlen = len(src.list)
+	}
+
 	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index + serialAccessOverLocaltop, Random_access: 0, Random_items: 0}
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, compress(ser), first_round_access}}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, compress(ser), first_round_access, uint32(listlen)}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -157,6 +221,7 @@ func (src *Peer) Run() error {
 	return nil
 }
 
+/*
 func NewBloomCoord(k int) *Coord {
 	return NewCoord(k, NewBloomHistogramPeerSketchAdaptor(k, 0, 0), NewBloomHistogramUnionSketchAdaptor())
 }
@@ -188,11 +253,7 @@ func NewApproximateBloomGcsFilterCoord(k int, N_est int) *Coord {
 func NewExtraRoundBloomGcsMergeCoord(k int) *Coord {
 	return NewCoord(k, NewBloomHistogramMergePeerSketchAdaptor(k, 0, 0), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(k))
 }
-
-func NewCoord(k int, psa PeerSketchAdaptor, usa UnionSketchAdaptor) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), psa, usa, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, false, nil}
-}
-
+*/
 type UnionSketch interface {
 	//	Merge(disttopk.Sketch)
 	GetInfo() string
@@ -206,16 +267,16 @@ type UnionFilter interface {
 
 type Coord struct {
 	*stream.HardStopChannelCloser
-	PeerSketchAdaptor
-	UnionSketchAdaptor
+	*ProtocolRunner
 	input        chan disttopk.DemuxObject
 	backPointers []chan<- stream.Object
 	lists        [][]disttopk.Item
 	FinalList    []disttopk.Item
-	k            int
 	Stats        disttopk.AlgoStats
-	Approximate  bool
-	GroundTruth  disttopk.ItemList
+}
+
+func NewCoord(pr *ProtocolRunner) *Coord {
+	return &Coord{stream.NewHardStopChannelCloser(), pr, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, disttopk.AlgoStats{}}
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -243,6 +304,8 @@ func (src *Coord) Run() error {
 	var ucm UnionSketch
 
 	round1Access := &disttopk.AlgoStats{}
+	listlensum := 0
+	listlenbytes := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
@@ -268,6 +331,11 @@ func (src *Coord) Run() error {
 				src.mergeIntoUnionSketch(ucm, sketch, il)
 				//ucm.Merge(sketch.(disttopk.Sketch))
 			}
+
+			if src.SendLength {
+				listlensum += int(fr.length)
+				listlenbytes += 4
+			}
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -284,14 +352,14 @@ func (src *Coord) Run() error {
 	}
 	localthresh := thresh
 
-	bytesRound := items*disttopk.RECORD_SIZE + sketchsize
+	bytesRound := items*disttopk.RECORD_SIZE + sketchsize + listlenbytes
 	if ucm != nil {
 		fmt.Println(ucm.GetInfo())
 	}
 	fmt.Println("Round 1 tr: got ", items, " items, thresh ", thresh, "sketches bytes", sketchsize, sketchsize/nnodes, "/node total bytes", bytesRound)
 	bytes := bytesRound
 
-	err, round2Access, round2items, m, ufThresh, total_back_bytes := src.RunSendFilterThreshold(ucm, uint32(localthresh), il, m)
+	err, round2Access, round2items, m, ufThresh, total_back_bytes := src.RunSendFilterThreshold(ucm, uint32(localthresh), il, m, listlensum)
 	if err != nil {
 		return err
 	}
@@ -314,7 +382,7 @@ func (src *Coord) Run() error {
 		} else {
 			src.Stats.Rounds = 3
 			round3Thresh := il[src.k-1].Score
-			err, round3Access, round3items, m, ufThresh, round3_back_bytes := src.RunSendFilterThreshold(ucm, uint32(round3Thresh), il, m)
+			err, round3Access, round3items, m, ufThresh, round3_back_bytes := src.RunSendFilterThreshold(ucm, uint32(round3Thresh), il, m, listlensum)
 			if err != nil {
 				return err
 			}
@@ -344,10 +412,10 @@ func (src *Coord) Run() error {
 	return nil
 }
 
-func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il disttopk.ItemList, m map[int]float64) (err error, access *disttopk.AlgoStats, items int, ret_m map[int]float64, usedThresh uint, bytes_back int) {
+func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il disttopk.ItemList, m map[int]float64, listlensum int) (err error, access *disttopk.AlgoStats, items int, ret_m map[int]float64, usedThresh uint, bytes_back int) {
 
 	total_back_bytes := 0
-	uf, ufThresh := src.getUnionFilter(ucm, thresh, il)
+	uf, ufThresh := src.getUnionFilter(ucm, thresh, il, listlensum)
 	if uf != nil {
 		fmt.Println("Uf info: ", uf.GetInfo())
 	} else {

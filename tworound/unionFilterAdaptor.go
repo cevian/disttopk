@@ -10,7 +10,7 @@ import (
 type UnionSketchAdaptor interface {
 	getUnionSketch(FirstRoundSketch, disttopk.ItemList) UnionSketch
 	mergeIntoUnionSketch(UnionSketch, FirstRoundSketch, disttopk.ItemList)
-	getUnionFilter(us UnionSketch, threshhold uint32, il disttopk.ItemList) (uf UnionFilter, threshold uint)
+	getUnionFilter(us UnionSketch, threshhold uint32, il disttopk.ItemList, listlensum int) (uf UnionFilter, threshold uint)
 	copyUnionFilter(UnionFilter) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	serialize(UnionFilter) Serialized        //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	deserialize(Serialized) UnionFilter
@@ -40,7 +40,7 @@ func (t *BloomHistogramUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, 
 	bsc.Merge(bs)
 }
 
-func (t *BloomHistogramUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
+func (t *BloomHistogramUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	bs := us.(*disttopk.BloomHistogramCollection)
 	fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 	bs.SetThresh(thresh)
@@ -122,7 +122,7 @@ func (t *CountMinUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs Fi
 	ucm.Merge(cm)
 }
 
-func (t *CountMinUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
+func (t *CountMinUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, lislensum int) (UnionFilter, uint) {
 	ucm := us.(*disttopk.CountMinSketch)
 	return disttopk.NewCountMinFilterFromSketch(ucm, uint32(thresh)), uint(thresh)
 

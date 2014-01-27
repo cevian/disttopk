@@ -91,7 +91,7 @@ func (t *BloomHistogramMergeSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, 
 	mhm.Merge(bs, il)
 }
 
-func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
+func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	bs := us.(*MaxHashMapUnionSketch)
 	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 	flt, v := bs.GetFilter(uint(thresh)), uint(thresh)
@@ -173,7 +173,7 @@ func NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk int) UnionSketchAdap
 	return &BloomHistogramMergeGcsApproxUnionSketchAdaptor{bhm.(*BloomHistogramMergeSketchAdaptor), topk, 0.5, 0}
 }
 
-func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
+func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*MaxHashMapUnionSketch)
 
@@ -192,7 +192,7 @@ func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us Union
 		t.numUnionFilterCalls = 1
 		return filter, approxthresh
 	} else {
-		return t.BloomHistogramMergeSketchAdaptor.getUnionFilter(us, thresh, il)
+		return t.BloomHistogramMergeSketchAdaptor.getUnionFilter(us, thresh, il, listlensum)
 	}
 	//filter, approxthresh := bs.GetFilterApprox(uint(thresh), t.topk+1) //+1 to get the max below the k'th elem
 	//fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh)

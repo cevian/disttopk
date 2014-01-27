@@ -23,7 +23,7 @@ func (t *ApproximateBloomFilterAdaptor) getUnionSketch(frs FirstRoundSketch, il 
 func (t *ApproximateBloomFilterAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
 }
 
-func (t *ApproximateBloomFilterAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList) (UnionFilter, uint) {
+func (t *ApproximateBloomFilterAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	maxCount := int(float64(t.topk) * t.Gamma)
 	if maxCount != 0 && maxCount < len(il) {
 		il.Sort()
