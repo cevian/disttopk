@@ -29,6 +29,10 @@ func (t *MaxHashMap) Cutoff() uint {
 }
 
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
+	if max < min {
+		panic(fmt.Sprintf("Max < min", max, min))
+	}
+
 	//fmt.Println("Adding ", hashValue, modulus_bits, max, cutoff)
 	if t.modulus_bits == 0 {
 		t.modulus_bits = uint32(modulus_bits)
