@@ -89,6 +89,7 @@ func (t *HashValueSlice) Contains(value uint32) bool {
 	return t.hvs[value]
 }
 
+/*
 func EstimateEpsGcs(N_est int, n_est int, penalty_bits int, NumTransfers int) float64 {
 	//TODO change! -- this is base on the bloom filter approximation with k != 1
 	//for compressed filters, needs to change.
@@ -102,17 +103,9 @@ func EstimateEpsGcs(N_est int, n_est int, penalty_bits int, NumTransfers int) fl
 	// eps = s * 1.44 / (N/n -1) * p * ln (2)
 
 	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
-
-	/* this is a hack to prevent eps going to inf */
-	/*if n_est*2 > N_est {
-		n_est = N_est / 2
-	}*/
-
 	eps := (2.0 * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(N_est/n_est) - 1.0))
 	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
-	/*if eps > 1 {
-		eps = 1
-	}*/
+
 	return eps
 }
 
@@ -130,11 +123,6 @@ func EstimateEpsGcsAdjuster(N_est int, n_est int, penalty_bits int, NumTransfers
 
 	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
 
-	/* this is a hack to prevent eps going to inf */
-	/*if n_est*2 > N_est {
-		n_est = N_est / 2
-	}*/
-
 	eps := (2.0 * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(N_est/n_est) - 1.0))
 
 	m := float64(n_est) * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
@@ -142,14 +130,11 @@ func EstimateEpsGcsAdjuster(N_est int, n_est int, penalty_bits int, NumTransfers
 
 	penalty := (float64(N_est) - float64(n_est)) * float64(penalty_bits) * adjuster * eps
 	fmt.Println("Eps debug: eps", eps, "sketch", sketch, "penalty", penalty)
-	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
-	/*if eps > 1 {
-		eps = 1
-	}*/
+
 	return eps
 }
-
-func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, itemsPerNode int, numTransfers int) float64 {
+*/
+func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, itemsPerNode int, numTransfers int, adjuster float64) float64 {
 	//TODO change! -- this is base on the bloom filter approximation with k != 1
 	//for compressed filters, needs to change.
 
@@ -162,35 +147,24 @@ func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, itemsPerNode i
 	// ( s* x *n * (1.44 / ln (2))) / ((l -n) * p * x) = eps
 	// eps = s * 1.44 / (l/n -1) * p * ln (2)
 
-	//fmt.Printf("N %v n %v penalty %v, NumTransfers %v\n", N_est, n_est, penalty_bits, NumTransfers)
-
-	/* this is a hack to prevent eps going to inf */
-	/*if n_est*2 > N_est {
-		n_est = N_est / 2
-	}*/
-
-	fmt.Println("n_est", n_est, "penalty_bits", penalty_bits, "numNodes", numNodes, "itemspn", itemsPerNode)
+	//fmt.Println("n_est", n_est, "penalty_bits", penalty_bits, "numNodes", numNodes, "itemspn", itemsPerNode)
 	size_adj := 0.8
-	eps := (float64(numTransfers) * size_adj * 1.44) / (float64(penalty_bits) * math.Log(2) * (float64(itemsPerNode/n_est) - 1.0))
+	eps := (float64(numTransfers) * size_adj * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(itemsPerNode/n_est) - 1.0))
+	/*
+		effective_m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
+		sketch := (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
+		penalty := (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps * adjuster
+		fmt.Println("Eps debug: eps", eps, "sketch per transfer ", sketch, "bits ", sketch/8, "bytes\n penalty", penalty, "bits", penalty/8, "bytes sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
 
-	effective_m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
-	sketch := (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
-	penalty := (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps
-	fmt.Println("Eps debug: eps", eps, "sketch per transfer ", sketch, "bits ", sketch/8, "bytes\n penalty", penalty, "bits", penalty/8, "bytes sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
-
-	actual_m := MakePowerOf2(EstimateMGcs(n_est, eps))
-	eps_test := float64(n_est) / float64(actual_m)
-	effective_m = float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps_test)
-	sketch = (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
-	penalty = (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps_test
-	fmt.Println("ipn", itemsPerNode, "n_est", n_est, "eps_test", eps_test)
-	penalty_items := (float64(itemsPerNode) - float64(n_est)) * eps_test
-	fmt.Println("Eps debug: m ", actual_m, effective_m, "eps", eps, "sketch per transfer", sketch, "bits ", sketch/8, "bytes\npenalty", penalty, "bits", penalty/8, " bytes. Items sent as fp ", penalty_items, "/node. Sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
-
-	//fmt.Println("Eps", eps, "N_est", N_est, "n_est", n_est)
-	/*if eps > 1 {
-		eps = 1
-	}*/
+		actual_m := MakePowerOf2(EstimateMGcs(n_est, eps))
+		eps_test := float64(n_est) / float64(actual_m)
+		effective_m = float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps_test)
+		sketch = (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
+		penalty = (float64(itemsPerNode) - float64(n_est)) * float64(penalty_bits) * float64(numNodes) * eps_test * adjuster
+		fmt.Println("ipn", itemsPerNode, "n_est", n_est, "eps_test", eps_test)
+		penalty_items := (float64(itemsPerNode) - float64(n_est)) * eps_test
+		fmt.Println("Eps debug: m ", actual_m, effective_m, "eps", eps, "sketch per transfer", sketch, "bits ", sketch/8, "bytes\npenalty", penalty, "bits", penalty/8, " bytes. Items sent as fp ", penalty_items, "/node. Sum", sketch+penalty, "bits", (sketch+penalty)/8, "bytes")
+	*/
 	return eps
 }
 

@@ -87,9 +87,10 @@ var Naive2k = Protocol{"Naive (2k)", cmd.RunNaiveK2, false}
 var Klee3 = Protocol{"Klee3", cmd.RunKlee3, false}
 var Klee4 = Protocol{"Klee4", cmd.RunKlee4, false}
 var Bloom = Protocol{"bloom", cmd.RunApproximateBloomFilter, false}
+var BloomGcs = Protocol{"bloomGcs", cmd.RunApproximateBloomGcsFilter, false}
 
 // Extra-Round Exact
-var ErGcs = Protocol{"ER GCS", cmd.RunApproximateBloomGcsMergeFilter, true}
+var ErGcs = Protocol{"ER GCS", cmd.RunExtraRoundBloomGcsMergeFilter, true}
 var ErTput = Protocol{"ER TP", cmd.RunTputHashExtraRound, true}
 
 // Exact
@@ -133,6 +134,9 @@ func ExactProtocols() []Protocol {
 }
 
 func TestAll(t *testing.T) {
+
+	//protocols := []Protocol{GcsMerge}
+
 	printers := []Printer{&OverviewPrinter{protocols, ""},
 		&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
 		&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},

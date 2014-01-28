@@ -37,7 +37,7 @@ func (t *ApproximateBloomGcsFilterAdaptor) getUnionFilter(us UnionSketch, thresh
 	//fmt.Println("guf:", t.Gamma, maxCount, len(il), orig_len)
 
 	//eps := disttopk.EstimateEpsGcsAdjuster(t.N_est, maxCount, disttopk.RECORD_SIZE*8, 2, 1.0)
-	eps := disttopk.EstimateEpsGcsAlt(maxCount, disttopk.RECORD_SIZE*8, t.numpeer, listlensum/t.numpeer, 1)
+	eps := disttopk.EstimateEpsGcsAlt(maxCount, disttopk.RECORD_SIZE*8, t.numpeer, listlensum/t.numpeer, 1, 1.0)
 
 	m_est := disttopk.EstimateMGcs(maxCount, eps)
 

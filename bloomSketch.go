@@ -110,17 +110,17 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																					println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																											println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
-	CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint) (BloomFilter, float64)
+	CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint, listlen int) (BloomFilter, float64)
 	CreateBloomFilterToDeserialize() BloomFilter
 }
 
 type PlainFilterAdaptor struct{}
 
-func (p PlainFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint) (BloomFilter, float64) {
+func (p PlainFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint, listlen int) (BloomFilter, float64) {
 	//m := EstimateM(N_est, n, RECORD_SIZE)     // * (totalblooms - (k - 1))
 	eps := EstimateEps(N_est, n, RECORD_SIZE*8, numpeers+1) // * (totalblooms - (k - 1))
 	m := EstimateMSimple(n, eps)
@@ -134,7 +134,7 @@ func (p PlainFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
 
 type GcsFilterAdaptor struct{}
 
-func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint) (BloomFilter, float64) {
+func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint, listlen int) (BloomFilter, float64) {
 	adjuster := 1.0
 	if entry_max < scorek {
 		//score_k = x * entry_max
@@ -143,7 +143,8 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 		adjuster = 1.0 / x
 	}
 
-	eps := EstimateEpsGcsAdjuster(N_est, n, RECORD_SIZE*8, numpeers+1, adjuster)
+	//eps := EstimateEpsGcsAdjuster(N_est, n, RECORD_SIZE*8, numpeers+1, adjuster)
+	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, listlen, 2, adjuster)
 	//eps := 0.01
 	m_est := EstimateMGcs(n, eps)
 	m := MakePowerOf2(m_est)
@@ -262,7 +263,7 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 		}
 
 		//fmt.Println("range", range_per_entry, "num", items_in_entry, "range_left", range_left, "entries_left", entries_left)
-		filter, eps := b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers, uint(list[entry_start_index].Score), uint(scorek))
+		filter, eps := b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers, uint(list[entry_start_index].Score), uint(scorek), len(list))
 		if filter == nil { // the algorithm can decide that it is not worth sending a filter, will be more expensive than its worth
 			break
 		}

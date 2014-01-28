@@ -24,14 +24,16 @@ func getNEst(l []disttopk.ItemList) int {
 }
 
 func RunCountMinExplicitColumns(l []disttopk.ItemList, topk int, columns int) (disttopk.ItemList, disttopk.AlgoStats) {
-	runner := stream.NewRunner()
-	peers := make([]*tworound.Peer, len(l))
-	coord := tworound.NewCountMinCoord(topk)
 	numpeer := len(l)
 	N_est := getNEst(l)
+	pr := tworound.NewCountMinPR(topk, numpeer, N_est)
+
+	runner := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := pr.NewCoord()
 	runner.Add(coord)
 	for i, list := range l {
-		peers[i] = tworound.NewCountMinPeer(list, topk, numpeer, N_est)
+		peers[i] = pr.NewPeer(list)
 		peers[i].PeerSketchAdaptor.(*tworound.CountMinPeerSketchAdaptor).Columns = columns
 		coord.Add(peers[i])
 		runner.Add(peers[i])
