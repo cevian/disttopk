@@ -86,7 +86,7 @@ func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 	//n := len(values)
 
 	m := (1 << (uint(t.modulus_bits)))
-	//fmt.Printf("Get Filter. m %v (%v), thresh %v, mvthresh %v, #hash values %v, #hash values above thresh %v", m, t.modulus_bits, thresh, mapValueThresh, len(t.data), len(values))
+	fmt.Printf("Get Filter. m %v (%v), thresh %v, mvthresh %v, #hash values %v, #hash values above thresh %v", m, t.modulus_bits, thresh, mapValueThresh, len(t.data), len(values))
 	gcs := NewGcs(m)
 
 	for _, value := range values {
@@ -114,6 +114,8 @@ func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int, gamma float64) uin
 	overApprox := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
 
 	approxThresh := underApprox + int(float64(overApprox-underApprox)*gamma)
+
+	fmt.Println("UnderApprox", underApprox, "OverApprox", overApprox, "Gamma", gamma, "Result", approxThresh)
 
 	return uint(approxThresh)
 }
