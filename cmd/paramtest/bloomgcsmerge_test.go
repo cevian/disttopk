@@ -66,7 +66,7 @@ func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol
 	//n := Getn(l[0], k, Nnodes)
 	results := make(map[string]disttopk.AlgoStats)
 	for _, proto := range protos {
-		fmt.Println("---- Running:", proto.Name)
+		fmt.Println("---- Running:", proto.Name, " Seed:", seed, "N ", N, "ZipParam", zipParam)
 		proto_list, res := proto.Runner(l, k)
 		res.CalculatePerformance(ground_truth, proto_list, k)
 		if proto.isExact && res.Abs_err != 0.0 {
@@ -151,13 +151,15 @@ func TestDistributionsAll(t *testing.T) {
 	k := 10
 	nodes := 10
 	for _, perms := range []int{k, 5 * k, 10 * k, 100 * k} {
-		for _, listSize := range []int{ /*500000, 100000, */ 10000, 1000} {
+		for _, listSize := range []int{ /*200000,*/ 100000, 10000, 1000} {
 			for _, zipfParam := range []float64{2, 1, 0.7, 0.5, 0.3} {
-				results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, 99)
+			for _, seed := range []int64{1,2,3,4,5} {
+				results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, seed)
 				for _, p := range printers {
 					row := p.EnterRow(RowDescription{listSize, zipfParam, perms}, results)
 					fmt.Print("Res ", row, "\n")
 				}
+}
 			}
 			for _, p := range printers {
 				p.EnterNewN()
