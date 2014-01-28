@@ -105,6 +105,7 @@ var protocols []Protocol = []Protocol{
 	Klee3,
 	Klee4,
 	Bloom,
+	BloomGcs,
 	ErGcs,
 	ErTput,
 	Tput,
@@ -133,7 +134,7 @@ func ExactProtocols() []Protocol {
 	return ret
 }
 
-func TestAll(t *testing.T) {
+func TestDistributionsAll(t *testing.T) {
 
 	//protocols := []Protocol{GcsMerge}
 
@@ -361,7 +362,7 @@ func (t *ExportPrinter) EnterNewN() {
 }
 func (t *ExportPrinter) Start() {
 	t.s = "--------------Start Export----------\nExport\t" + t.RowDescriptionHeaders()
-	t.s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\n"
+	t.s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tSerial Items\tRandom Access\tRandom Items\n"
 }
 
 func (t *ExportPrinter) GetRowDescription(rd RowDescription) string {
@@ -373,7 +374,7 @@ func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.Algo
 	for _, proto := range t.protocols {
 		s += "Export\t" + t.GetRowDescription(rd)
 		stats := res[proto.Name]
-		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\n", proto.Name, proto.isExact, stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance)
+		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\t%d\t%d\t%d\n", proto.Name, proto.isExact, stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.Serial_items, stats.Random_access, stats.Random_items)
 	}
 	t.s += s
 	return ""
