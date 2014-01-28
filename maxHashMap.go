@@ -2,18 +2,19 @@ package disttopk
 
 import (
 	"fmt"
+	"math"
 	"sort"
 )
 
 type MaxHashMap struct {
-	data         map[uint32]int32  //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
-	data_under   map[uint32]uint32 //the unse-approximation
+	data         map[uint32]int64  //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
+	data_under   map[uint32]uint64 //the unse-approximation
 	cutoff       uint32
 	modulus_bits uint32
 }
 
 func NewMaxHashMap() *MaxHashMap {
-	return &MaxHashMap{make(map[uint32]int32), make(map[uint32]uint32), 0, 0}
+	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]uint64), 0, 0}
 }
 
 func (t *MaxHashMap) GetInfo() string {
@@ -26,6 +27,16 @@ func (t *MaxHashMap) GetModulusBits() uint {
 
 func (t *MaxHashMap) Cutoff() uint {
 	return uint(t.cutoff)
+}
+
+func (t *MaxHashMap) addData(hashValue uint, max uint, min uint, cutoff uint) {
+	if math.MaxInt64-t.data[uint32(hashValue)] < int64(max-cutoff) {
+		panic("Overflow")
+	}
+
+	t.data[uint32(hashValue)] += int64(max - cutoff)
+	t.data_under[uint32(hashValue)] += uint64(min)
+
 }
 
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
@@ -47,8 +58,7 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, 
 		count := 0
 		for int(hashValue) < mhm_modulus {
 			count += 1
-			t.data[uint32(hashValue)] += int32(max - cutoff)
-			t.data_under[uint32(hashValue)] += uint32(min)
+			t.addData(hashValue, max, min, cutoff)
 			hashValue += uint(rcv_modulus)
 		}
 
@@ -61,8 +71,7 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, 
 		hashValue = hashValue % uint(t.modulus_bits)
 	}
 
-	t.data[uint32(hashValue)] += int32(max - cutoff)
-	t.data_under[uint32(hashValue)] += uint32(min)
+	t.addData(hashValue, max, min, cutoff)
 }
 
 func (t *MaxHashMap) AddCutoff(c uint) {
@@ -75,7 +84,7 @@ func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 		return nil
 	}
 
-	mapValueThresh := int32(thresh) - int32(t.cutoff)
+	mapValueThresh := int64(thresh) - int64(t.cutoff)
 
 	values := make([]uint32, 0)
 	count := 0
@@ -101,15 +110,15 @@ func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
 }
 
 func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int, gamma float64) uint {
-	mapValuesSorted := make([]int, 0, len(t.data_under))
+	mapValuesSortedUnder := make([]int, 0, len(t.data_under))
 	for _, mapValue := range t.data_under {
-		mapValuesSorted = append(mapValuesSorted, int(mapValue))
+		mapValuesSortedUnder = append(mapValuesSortedUnder, int(mapValue))
 	}
-	sort.Ints(mapValuesSorted)
+	sort.Ints(mapValuesSortedUnder)
 
-	underApprox := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues]
+	underApprox := mapValuesSortedUnder[len(mapValuesSortedUnder)-maxNumberHashValues]
 
-	mapValuesSorted = make([]int, 0, len(t.data))
+	mapValuesSorted := make([]int, 0, len(t.data))
 	for _, mapValue := range t.data {
 		mapValuesSorted = append(mapValuesSorted, int(mapValue))
 	}
@@ -118,7 +127,7 @@ func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int, gamma float64) uin
 	overApprox := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues] + int(t.cutoff)
 
 	if overApprox < underApprox {
-		panic(fmt.Sprintln("UnderApprox", underApprox, "OverApprox", overApprox, "Gamma", gamma, "cutoff", t.cutoff))
+		panic(fmt.Sprintln("UnderApprox", underApprox, "OverApprox", overApprox, "Gamma", gamma, "cutoff", t.cutoff, mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues:], mapValuesSortedUnder[len(mapValuesSortedUnder)-maxNumberHashValues:]))
 	}
 	approxThresh := underApprox + int(float64(overApprox-underApprox)*gamma)
 
