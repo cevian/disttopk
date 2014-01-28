@@ -1,28 +1,27 @@
-package tworound
+package disttopk
 
-import "github.com/cevian/disttopk"
 import (
 	"math"
 )
 
 type IndexableFilter interface {
-	HashValueFilter() *disttopk.HashValueFilter
+	HashValueFilter() *HashValueFilter
 	Query([]byte) bool
 }
 
-func GetListIndexedHashTable(filter IndexableFilter, list disttopk.ItemList, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
+func GetListIndexedHashTable(filter IndexableFilter, list ItemList, sent_item_filter map[int]bool) ([]Item, *AlgoStats) {
 	hvf := filter.HashValueFilter()
 
 	//create hash table
 	ht_bits := uint8(math.Ceil(math.Log2(float64(list.Len()))))
-	ht := disttopk.NewHashTable(ht_bits)
+	ht := NewHashTable(ht_bits)
 	for _, v := range list {
 		ht.Insert(v.Id, v.Score)
 	}
 
-	hvs_sent := disttopk.NewHashValueSlice() //store hashes tested and sent here
+	hvs_sent := NewHashValueSlice() //store hashes tested and sent here
 
-	exactlist := make([]disttopk.Item, 0)
+	exactlist := make([]Item, 0)
 	items_tested := 0
 	random_access := 0
 
@@ -39,9 +38,9 @@ func GetListIndexedHashTable(filter IndexableFilter, list disttopk.ItemList, sen
 						id_check := sent_item_filter[int(id)]
 						if id_check == false { //not sent in previous round
 							items_tested += 1
-							if filter.Query(disttopk.IntKeyToByteKey(int(id))) {
+							if filter.Query(IntKeyToByteKey(int(id))) {
 
-								exactlist = append(exactlist, disttopk.Item{int(id), float64(score)})
+								exactlist = append(exactlist, Item{int(id), float64(score)})
 							}
 						}
 					}
@@ -52,20 +51,20 @@ func GetListIndexedHashTable(filter IndexableFilter, list disttopk.ItemList, sen
 		}
 	}
 	//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
-	return exactlist, &disttopk.AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested}
+	return exactlist, &AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested}
 
 }
 
 type GcsMergeIndexableFilter struct {
-	gcs *disttopk.Gcs
+	gcs *Gcs
 }
 
-func NewGcsMergeIndexableFilter(gcs *disttopk.Gcs) *GcsMergeIndexableFilter {
+func NewGcsMergeIndexableFilter(gcs *Gcs) *GcsMergeIndexableFilter {
 	return &GcsMergeIndexableFilter{gcs}
 }
 
-func (t *GcsMergeIndexableFilter) HashValueFilter() *disttopk.HashValueFilter {
-	hvf := disttopk.NewHashValueFilter()
+func (t *GcsMergeIndexableFilter) HashValueFilter() *HashValueFilter {
+	hvf := NewHashValueFilter()
 	m_bits := hvf.GetModulusBits(t.gcs.GetM())
 	hvs := t.gcs.HashValues()
 	hvf.InsertHashValueSlice(m_bits, hvs)
@@ -77,15 +76,15 @@ func (t *GcsMergeIndexableFilter) Query(in []byte) bool {
 }
 
 type BloomHistogramCollectionIndexableFilter struct {
-	bhc *disttopk.BloomHistogramCollection
+	bhc *BloomHistogramCollection
 }
 
-func NewBloomHistogramCollectionIndexableFilter(bhc *disttopk.BloomHistogramCollection) *BloomHistogramCollectionIndexableFilter {
+func NewBloomHistogramCollectionIndexableFilter(bhc *BloomHistogramCollection) *BloomHistogramCollectionIndexableFilter {
 	return &BloomHistogramCollectionIndexableFilter{bhc}
 }
 
-func (t *BloomHistogramCollectionIndexableFilter) HashValueFilter() *disttopk.HashValueFilter {
-	hvf := disttopk.NewHashValueFilter()
+func (t *BloomHistogramCollectionIndexableFilter) HashValueFilter() *HashValueFilter {
+	hvf := NewHashValueFilter()
 	t.bhc.AddToHashValueFilter(hvf)
 	return hvf
 }
@@ -95,15 +94,15 @@ func (t *BloomHistogramCollectionIndexableFilter) Query(in []byte) bool {
 }
 
 type BloomIndexableFilter struct {
-	bloom *disttopk.Bloom
+	bloom *Bloom
 }
 
-func NewBloomIndexableFilter(bloom *disttopk.Bloom) *BloomIndexableFilter {
+func NewBloomIndexableFilter(bloom *Bloom) *BloomIndexableFilter {
 	return &BloomIndexableFilter{bloom}
 }
 
-func (t *BloomIndexableFilter) HashValueFilter() *disttopk.HashValueFilter {
-	hvf := disttopk.NewHashValueFilter()
+func (t *BloomIndexableFilter) HashValueFilter() *HashValueFilter {
+	hvf := NewHashValueFilter()
 	m_bits := hvf.GetModulusBits(uint(t.bloom.Len()))
 	t.bloom.VisitSetHashValues(func(hv int) { hvf.Insert(m_bits, uint32(hv)) })
 	return hvf

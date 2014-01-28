@@ -140,8 +140,8 @@ func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list 
 	}
 
 	gcs := uf.(*disttopk.Gcs)
-	filter := NewGcsMergeIndexableFilter(gcs)
-	return GetListIndexedHashTable(filter, list, sent_item_filter)
+	filter := disttopk.NewGcsMergeIndexableFilter(gcs)
+	return disttopk.GetListIndexedHashTable(filter, list, sent_item_filter)
 }
 
 type BloomHistogramMergePeerSketchAdaptor struct {

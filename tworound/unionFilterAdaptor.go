@@ -98,8 +98,8 @@ func NewBloomHistogramGcsUnionSketchAdaptor() UnionSketchAdaptor {
 func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
 	bhc := uf.(*disttopk.BloomHistogramCollection)
 
-	filter := NewBloomHistogramCollectionIndexableFilter(bhc)
-	return GetListIndexedHashTable(filter, list, sent_item_filter)
+	filter := disttopk.NewBloomHistogramCollectionIndexableFilter(bhc)
+	return disttopk.GetListIndexedHashTable(filter, list, sent_item_filter)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////

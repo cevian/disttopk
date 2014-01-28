@@ -88,6 +88,6 @@ func (*ApproximateBloomGcsFilterAdaptor) deserialize(s Serialized) UnionFilter {
 
 func (t *ApproximateBloomGcsFilterAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
 	gcs := uf.(*disttopk.Gcs)
-	filter := NewGcsMergeIndexableFilter(gcs)
-	return GetListIndexedHashTable(filter, list, sent_item_filter)
+	filter := disttopk.NewGcsMergeIndexableFilter(gcs)
+	return disttopk.GetListIndexedHashTable(filter, list, sent_item_filter)
 }

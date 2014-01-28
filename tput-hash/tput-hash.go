@@ -36,8 +36,9 @@ type SecondRound struct {
 }
 
 type ThirdRound struct {
-	list            disttopk.ItemList
-	items_looked_at uint //only for serial access accounting
+	list disttopk.ItemList
+	//items_looked_at uint //only for serial access accounting
+	stats *disttopk.AlgoStats
 }
 
 func (src *Peer) Run() error {
@@ -123,17 +124,25 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	exactlist := make([]disttopk.Item, 0)
+	sent_items := make(map[int]bool)
+	for _, li := range src.list[:src.k] {
+		sent_items[int(li.Id)] = true
+	}
+
+	bif := disttopk.NewBloomIndexableFilter(bloom)
+	exactlist, stats := disttopk.GetListIndexedHashTable(bif, src.list, sent_items)
+
+	/*exactlist := make([]disttopk.Item, 0)
 	items_looked_at = 0
 	for _, li := range src.list[src.k:] {
 		items_looked_at += 1
 		if bloom.Query(disttopk.IntKeyToByteKey(li.Id)) {
 			exactlist = append(exactlist, disttopk.Item{li.Id, li.Score})
 		}
-	}
+	}*/
 
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, ThirdRound{disttopk.ItemList(exactlist), items_looked_at}}:
+	case src.forward <- disttopk.DemuxObject{src.id, ThirdRound{disttopk.ItemList(exactlist), stats}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -207,16 +216,20 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 1 tput-hash: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " cha size", items_at_peers, " bytes used", bytesRound)
 	bytes := bytesRound
 
+	//rounding items at peers so that cha and bloom will have size power of 2
+	//this is needed so that the hashtable at the peers can use indexing to reduce accesses
+	cha_size := uint(disttopk.MakePowerOf2(int(items_at_peers)))
+
 	bytesRound = 8 * nnodes
 	for _, ch := range src.backPointers {
 		select {
-		case ch <- FirstRoundResponse{uint32(localthresh), uint32(items_at_peers)}:
+		case ch <- FirstRoundResponse{uint32(localthresh), uint32(cha_size)}:
 		case <-src.StopNotifier:
 			return nil
 		}
 	}
 
-	cha := NewCountHashArray(uint(items_at_peers))
+	cha := NewCountHashArray(uint(cha_size))
 	hash_responses := make(map[int]int)
 	for _, list_item := range il {
 		cha.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
@@ -284,7 +297,7 @@ func (src *Coord) Run() error {
 		case dobj := <-src.input:
 			tr := dobj.Obj.(ThirdRound)
 			il := tr.list
-			access_stats.Serial_items += int(tr.items_looked_at)
+			access_stats.Merge(*tr.stats)
 			m = il.AddToMap(m)
 			round3items += len(il)
 			mresp = il.AddToCountMap(mresp)
