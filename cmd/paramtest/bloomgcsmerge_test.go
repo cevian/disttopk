@@ -70,7 +70,7 @@ func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol
 	//n := Getn(l[0], k, Nnodes)
 	results := make(map[string]disttopk.AlgoStats)
 	for _, proto := range protos {
-		fmt.Println("---- Running:", proto.Name, " Seed:", seed, "N ", N, "ZipParam", zipParam, "Nnodes", Nnodes, "k", k, "Permparam", permParam)
+		fmt.Println("---- Running:", proto.Name, " Seed:", seed, "N ", N, "ZipParam", zipParam, "Nnodes", Nnodes, "k", k, "Permparam", permParam, "Overlap", overlap)
 		proto_list, res := proto.Runner(l, k)
 		res.CalculatePerformance(ground_truth, proto_list, k)
 		if proto.isExact && res.Abs_err != 0.0 {
@@ -150,9 +150,9 @@ func TestDistributionsAll(t *testing.T) {
 	k := 10
 	nodes := 10
 	overlap := 1.0
-	for _, perms := range []int{k, 5 * k, 10 * k, 100 * k} {
-		for _, listSize := range []int{200000, 100000, 10000, 1000} {
-			for _, zipfParam := range []float64{2, 1, 0.7, 0.5, 0.3} {
+	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
+		for _, listSize := range []int{1000, 10000, 100000, 200000} {
+			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
 					results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, seed, overlap)
 					for _, p := range printers {
