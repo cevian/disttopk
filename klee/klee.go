@@ -10,17 +10,19 @@ import (
 const SERIALIZE_CLF = true
 
 func NewPeer(list disttopk.ItemList, k int, clrRound bool) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0, clrRound}
+	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0, clrRound, true, 0.10}
 }
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	forward  chan<- disttopk.DemuxObject
-	back     <-chan stream.Object
-	list     disttopk.ItemList
-	k        int
-	id       int
-	clrRound bool
+	forward              chan<- disttopk.DemuxObject
+	back                 <-chan stream.Object
+	list                 disttopk.ItemList
+	k                    int
+	id                   int
+	clrRound             bool
+	clrRoundTopkEstimate bool
+	c                    float64
 }
 
 type FirstRound struct {
@@ -30,12 +32,14 @@ type FirstRound struct {
 }
 
 type ClrRoundSpec struct {
-	thresh  uint32
-	cl_size uint32
+	thresh   uint32
+	cl_size  uint32
+	topk_ids []int
 }
 
 type ClrRoundReply struct {
 	payload interface{}
+	list    disttopk.ItemList
 	stats   *disttopk.AlgoStats
 }
 
@@ -67,7 +71,7 @@ func (src *Peer) Run() error {
 
 	localtop := src.list[:src.k]
 	bh := disttopk.NewBloomHistogramKlee()
-	bh.CreateFromList(src.list, 10)
+	bh.CreateFromList(src.list, src.c)
 	bhs, err := disttopk.SerializeObject(bh)
 	if err != nil {
 		panic(err)
@@ -84,30 +88,67 @@ func (src *Peer) Run() error {
 	if src.clrRound {
 		thresh := uint32(0)
 		cl_size := uint32(0)
+		var topk_ids []int
 		select {
 		case obj := <-src.back:
 			spec := obj.(ClrRoundSpec)
 			thresh = spec.thresh
 			cl_size = spec.cl_size
+			if src.clrRoundTopkEstimate {
+				topk_ids = spec.topk_ids
+			}
 		case <-src.StopNotifier:
 			return nil
 		}
 
-		clfRow := NewClfRow(int(cl_size))
 		thresh_index := getThreshIndex(src.list, thresh)
-		list_in_row := disttopk.NewItemList()
-		//fmt.Println("before row ass", src.k, len(src.list)-1)
+		candidate_list := disttopk.NewItemList()
 		if src.k < len(src.list)-1 && (thresh_index+1) > src.k {
-			list_in_row = src.list[src.k : thresh_index+1]
-			//fmt.Println("List in row sz", len(list_in_row), thresh, src.list[thresh_index+1].Score, thresh_index)
-			for _, item := range list_in_row {
+			candidate_list = src.list[src.k : thresh_index+1]
+		}
+		candidate_list_map := candidate_list.AddToMap(nil)
+
+		var estimatelist disttopk.ItemList
+		estimatelist_map := make(map[int]bool)
+		if src.clrRoundTopkEstimate {
+			estimatelist = disttopk.NewItemList()
+			if len(topk_ids) != src.k {
+				panic("snh")
+			}
+			for _, id := range topk_ids {
+				score, ok := candidate_list_map[id]
+				if ok {
+					item := disttopk.Item{id, score}
+					estimatelist_map[id] = true
+					estimatelist = append(estimatelist, item)
+				}
+			}
+		}
+		//fmt.Println("Estimate list debug", len(topk_ids), len(estimatelist), len(candidate_list_map), len(candidate_list), topk_ids, candidate_list_map)
+
+		clfRow := NewClfRow(int(cl_size))
+		for _, item := range candidate_list {
+			if !estimatelist_map[item.Id] {
 				histo_cell := bh.HistoCellIndex(uint32(item.Score))
 				//fmt.Println("Insert into row", histo_cell, item.Score)
 				clfRow.Add(disttopk.IntKeyToByteKey(item.Id), uint32(histo_cell))
 			}
 		}
 
-		clf_round_access := &disttopk.AlgoStats{Serial_items: len(list_in_row), Random_access: 0, Random_items: 0}
+		/*
+			list_in_row := disttopk.NewItemList()
+			//fmt.Println("before row ass", src.k, len(src.list)-1)
+			if src.k < len(src.list)-1 && (thresh_index+1) > src.k {
+				list_in_row = src.list[src.k : thresh_index+1]
+				//fmt.Println("List in row sz", len(list_in_row), thresh, src.list[thresh_index+1].Score, thresh_index)
+				for _, item := range list_in_row {
+					histo_cell := bh.HistoCellIndex(uint32(item.Score))
+					//fmt.Println("Insert into row", histo_cell, item.Score)
+					clfRow.Add(disttopk.IntKeyToByteKey(item.Id), uint32(histo_cell))
+				}
+			} */
+
+		clf_round_access := &disttopk.AlgoStats{Serial_items: len(candidate_list), Random_access: 0, Random_items: 0}
 
 		if SERIALIZE_CLF {
 			payload, err := disttopk.SerializeObject(clfRow)
@@ -115,14 +156,14 @@ func (src *Peer) Run() error {
 				panic(err)
 			}
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{disttopk.CompressBytes(payload), clf_round_access}}:
+			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{disttopk.CompressBytes(payload), estimatelist, clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
 
 		} else {
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{clfRow, clf_round_access}}:
+			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{clfRow, estimatelist, clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
@@ -142,14 +183,16 @@ func (src *Peer) Run() error {
 
 		secondlist := disttopk.NewItemList()
 
-		for _, item := range list_in_row {
-			idx := clfRow.GetIndex(disttopk.IntKeyToByteKey(item.Id))
-			if bitArray.Check(uint(idx)) {
-				secondlist = secondlist.Append(item)
+		for _, item := range candidate_list {
+			if !estimatelist_map[item.Id] {
+				idx := clfRow.GetIndex(disttopk.IntKeyToByteKey(item.Id))
+				if bitArray.Check(uint(idx)) {
+					secondlist = secondlist.Append(item)
+				}
 			}
 		}
 
-		final_list_round_access := &disttopk.AlgoStats{Serial_items: len(list_in_row), Random_access: 0, Random_items: 0}
+		final_list_round_access := &disttopk.AlgoStats{Serial_items: len(candidate_list), Random_access: 0, Random_items: 0}
 		//fmt.Println("Secondlist ", len(secondlist))
 
 		select {
@@ -168,7 +211,7 @@ func (src *Peer) Run() error {
 		}
 
 		thresh_index := getThreshIndex(src.list, uint32(thresh))
-		//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index)
+		//fmt.Println("Peer ", src.id, " got ", thresh, " index ", thresh_index)
 		//v.Score >= thresh included
 
 		var secondlist disttopk.ItemList
@@ -186,7 +229,7 @@ func (src *Peer) Run() error {
 }
 
 func NewCoord(k int, clrRound bool) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k, clrRound, disttopk.AlgoStats{}}
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k, clrRound, true, disttopk.AlgoStats{}}
 }
 
 type Coord struct {
@@ -194,10 +237,11 @@ type Coord struct {
 	input        chan disttopk.DemuxObject
 	backPointers []chan<- stream.Object
 	//lists        [][]disttopk.Item
-	FinalList []disttopk.Item
-	k         int
-	clrRound  bool
-	Stats     disttopk.AlgoStats
+	FinalList            []disttopk.Item
+	k                    int
+	clrRound             bool
+	clrRoundTopkEstimate bool
+	Stats                disttopk.AlgoStats
 }
 
 func (src *Coord) Add(p *Peer) {
@@ -298,16 +342,27 @@ func (src *Coord) Run() error {
 		size := uint32(load_factor * float64(max_size_candidate_list))
 		//fmt.Println("Coord: Thresh size", localthresh, size, load_factor, max_size_candidate_list)
 
+		var topk_ids []int
+		topk_ids_bytes := 0
+		if src.clrRoundTopkEstimate {
+			topk_ids = make([]int, src.k)
+			for k, item := range il_est[:src.k] {
+				topk_ids[k] = item.Id
+			}
+			topk_ids_bytes = disttopk.RECORD_INDEX_SIZE * src.k
+		}
+
 		for _, ch := range src.backPointers {
 			select {
-			case ch <- ClrRoundSpec{uint32(localthresh), size}:
+			case ch <- ClrRoundSpec{uint32(localthresh), size, topk_ids}:
 			case <-src.StopNotifier:
 				return nil
 			}
 		}
-		bytes_clround += nnodes * 8
+		bytes_clround += nnodes*8 + topk_ids_bytes
 
 		clf_map := make(map[int]*ClfRow)
+		estimate_items := 0
 		for cnt := 0; cnt < nnodes; cnt++ {
 			select {
 			case dobj := <-src.input:
@@ -315,9 +370,9 @@ func (src *Coord) Run() error {
 				clr_reply := dobj.Obj.(*ClrRoundReply)
 				access_stats.Merge(*clr_reply.stats)
 				if SERIALIZE_CLF {
-					uncompressed_payload := clr_reply.payload.([]byte)
-					bytes_clround += len(uncompressed_payload)
-					payload := disttopk.DecompressBytes(uncompressed_payload)
+					compressed_payload := clr_reply.payload.([]byte)
+					bytes_clround += len(compressed_payload)
+					payload := disttopk.DecompressBytes(compressed_payload)
 					clr = &ClfRow{}
 					if err := disttopk.DeserializeObject(clr, payload); err != nil {
 						panic(err)
@@ -327,6 +382,12 @@ func (src *Coord) Run() error {
 				}
 				id := dobj.Id
 				clf_map[id] = clr
+				if src.clrRoundTopkEstimate {
+					il := clr_reply.list
+					m = il.AddToMap(m)
+					bytes_clround += len(il) * disttopk.RECORD_SIZE
+					estimate_items += len(il)
+				}
 			case <-src.StopNotifier:
 				return nil
 
@@ -375,7 +436,7 @@ func (src *Coord) Run() error {
 			}
 		}
 		bytes_clround += len(compressedBitArray) * nnodes
-		fmt.Println("Round CLF klee: got bytes in. size filter", size, " round:", bytes_clround)
+		fmt.Println("Round CLF klee: got ", estimate_items, " estimate items. size filter", size, " round:", bytes_clround)
 		bytes += bytes_clround
 		//bytes_round += bytes_clround
 	} else {

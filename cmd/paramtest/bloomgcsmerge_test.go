@@ -210,6 +210,42 @@ func TestOverlap(t *testing.T) {
 
 }
 
+func TestKlee3vsKlee4(t *testing.T) {
+	printers := defaultPrinters
+
+	protocols := []Protocol{Klee4, Klee3}
+	for _, p := range printers {
+		p.Start()
+	}
+
+	nodes := 10
+	k := 10
+	for _, zipfParam := range []float64{0.7, 1.0} {
+		for _, listSize := range []int{10000, 100000} {
+			for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
+				for _, overlap := range []float64{1.0, 0.75, 0.5, 0.25, 0.1, 0} {
+					for _, seed := range []int64{1} {
+						results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, seed, overlap)
+						for _, p := range printers {
+							row := p.EnterRow(RowDescription{listSize, zipfParam, perms, overlap}, results)
+							fmt.Print("Res ", row, "\n")
+						}
+
+						fmt.Println("=====================================")
+					}
+				}
+			}
+		}
+	}
+	fmt.Println("***********************************")
+
+	for _, p := range printers {
+		fmt.Print(p.Summary())
+		fmt.Println("*******************************************************************************")
+	}
+
+}
+
 func TestSeedsAll(t *testing.T) {
 	printers := defaultPrinters
 
@@ -282,7 +318,7 @@ func (t *OverviewPrinter) Start() {
 }
 
 func (t *OverviewPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%4.1E\t%2.1f\t%d\t%f", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap)
+	return fmt.Sprintf("%4.1E\t%2.1f\t%d\t%2.2f", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap)
 }
 
 func (t *OverviewPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {

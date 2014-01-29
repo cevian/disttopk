@@ -114,7 +114,7 @@ func (c *BloomHistogramKlee) GetInfo() string {
 
 }
 
-func (b *BloomHistogramKlee) CreateFromList(list ItemList, c int) {
+func (b *BloomHistogramKlee) CreateFromList(list ItemList, c float64) {
 	max := uint32(list[0].Score)
 	min := uint32(list[len(list)-1].Score)
 	rang := max - min
@@ -122,6 +122,9 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c int) {
 	n := uint32(100) //I have no idea how the pick this. the paper says typically <100
 
 	incr := rang / n
+	if incr < 1 {
+		incr = 1
+	}
 
 	//fmt.Println("overall", max, min, incr)
 
@@ -130,7 +133,7 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c int) {
 		total_sum += uint32(item.Score)
 	}
 
-	cutoff_sum := uint32(float64(total_sum) / float64(c))
+	cutoff_sum := uint32(float64(total_sum) * c)
 
 	b.Data = make([]BloomHistogramKleeEntry, 0)
 	start_index := 0
@@ -155,6 +158,7 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c int) {
 		cum_sum += sum
 
 		num_items := (last_index - start_index) + 1
+		//fmt.Println("cum_sum", cum_sum, sum, start_index, last_index, start_max, incr, minscore, rang, num_items)
 		//fmt.Println("range", start_max, minscore, num_items, last_index, start_index)
 
 		var entry BloomHistogramKleeEntry
@@ -184,6 +188,7 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c int) {
 			before_cutoff = false
 		}
 	}
+	//fmt.Println("Cindex", b.c_index, "len", len(b.Data), cutoff_sum, total_sum, cum_sum)
 }
 
 func (b *BloomHistogramKlee) GetPartialAvg() uint32 {
