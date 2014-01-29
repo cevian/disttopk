@@ -12,6 +12,10 @@ import cmd "github.com/cevian/disttopk/cmd"
 
 var _ = math.Ceil
 
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+}
+
 func TestBloomGcsMergeParameter(t *testing.T) {
 	size_sum := 0
 	count := 0
@@ -56,8 +60,8 @@ type Protocol struct {
 	isExact bool
 }
 
-func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol, seed int64) map[string]disttopk.AlgoStats {
-	l := disttopk.GetFullOverlapOrderPermutedSimpleListSeed(Nnodes, uint32(N), zipParam, permParam, seed)
+func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol, seed int64, overlap float64) map[string]disttopk.AlgoStats {
+	l := disttopk.GetFullOverlapOrderPermutedSimpleListSeedOverlap(Nnodes, uint32(N), zipParam, permParam, seed, overlap)
 
 	naive_exact, _ := cmd.RunNaive(l, 0)
 	ground_truth := naive_exact
@@ -138,25 +142,21 @@ func TestDistributionsAll(t *testing.T) {
 
 	//protocols := []Protocol{GcsMerge}
 
-	printers := []Printer{&OverviewPrinter{protocols, ""},
-		&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
-		&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
-		&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
-		&ExportPrinter{&OverviewPrinter{protocols, ""}},
-	}
+	printers := defaultPrinters
 	for _, p := range printers {
 		p.Start()
 	}
 
 	k := 10
 	nodes := 10
+	overlap := 1.0
 	for _, perms := range []int{k, 5 * k, 10 * k, 100 * k} {
 		for _, listSize := range []int{200000, 100000, 10000, 1000} {
 			for _, zipfParam := range []float64{2, 1, 0.7, 0.5, 0.3} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
-					results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, seed)
+					results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, seed, overlap)
 					for _, p := range printers {
-						row := p.EnterRow(RowDescription{listSize, zipfParam, perms}, results)
+						row := p.EnterRow(RowDescription{listSize, zipfParam, perms, overlap}, results)
 						fmt.Print("Res ", row, "\n")
 					}
 				}
@@ -177,13 +177,42 @@ func TestDistributionsAll(t *testing.T) {
 
 }
 
-func TestSeedsAll(t *testing.T) {
-	printers := []Printer{&OverviewPrinter{protocols, ""},
-		&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
-		&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
-		&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
-		&ExportPrinter{&OverviewPrinter{protocols, ""}},
+func TestOverlap(t *testing.T) {
+	printers := defaultPrinters
+
+	for _, p := range printers {
+		p.Start()
 	}
+
+	nodes := 10
+	k := 10
+	listSize := 10000
+	zipfParam := 1.0
+	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
+		for _, overlap := range []float64{1.0, 0.75, 0.25, 0} {
+			for _, seed := range []int64{1, 2, 3, 4, 5} {
+				results := RunAll(listSize, nodes, k, zipfParam, perms, protocols, seed, overlap)
+				for _, p := range printers {
+					row := p.EnterRow(RowDescription{listSize, zipfParam, perms, overlap}, results)
+					fmt.Print("Res ", row, "\n")
+				}
+
+				fmt.Println("=====================================")
+			}
+		}
+	}
+	fmt.Println("***********************************")
+
+	for _, p := range printers {
+		fmt.Print(p.Summary())
+		fmt.Println("*******************************************************************************")
+	}
+
+}
+
+func TestSeedsAll(t *testing.T) {
+	printers := defaultPrinters
+
 	for _, p := range printers {
 		p.Start()
 	}
@@ -191,11 +220,11 @@ func TestSeedsAll(t *testing.T) {
 	listSize := 10000
 	zipfParam := 0.3
 	perms := 100
-
+	overlap := 1.0
 	for seed := 0; seed < 10; seed++ {
-		results := RunAll(listSize, 10, 10, zipfParam, perms, protocols, int64(seed))
+		results := RunAll(listSize, 10, 10, zipfParam, perms, protocols, int64(seed), overlap)
 		for _, p := range printers {
-			row := p.EnterRow(RowDescription{listSize, zipfParam, perms}, results)
+			row := p.EnterRow(RowDescription{listSize, zipfParam, perms, overlap}, results)
 			fmt.Print("Res ", row, "\n")
 		}
 
@@ -210,10 +239,18 @@ func TestSeedsAll(t *testing.T) {
 
 }
 
+var defaultPrinters = []Printer{&OverviewPrinter{protocols, ""},
+	&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
+	&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
+	&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
+	&ExportPrinter{&OverviewPrinter{protocols, ""}},
+}
+
 type RowDescription struct {
-	N     int
-	zip   float64
-	perms int
+	N       int
+	zip     float64
+	perms   int
+	overlap float64
 }
 
 type Printer interface {
@@ -233,7 +270,7 @@ func (t *OverviewPrinter) EnterNewN() {
 }
 
 func (t *OverviewPrinter) RowDescriptionHeaders() string {
-	return "N\tZip\tPerm"
+	return "N\tZip\tPerm\tOverlap"
 }
 
 func (t *OverviewPrinter) Start() {
@@ -245,7 +282,7 @@ func (t *OverviewPrinter) Start() {
 }
 
 func (t *OverviewPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%4.1E\t%2.1f\t%d", float64(rd.N), float64(rd.zip), rd.perms)
+	return fmt.Sprintf("%4.1E\t%2.1f\t%d\t%f", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap)
 }
 
 func (t *OverviewPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
@@ -368,7 +405,7 @@ func (t *ExportPrinter) Start() {
 }
 
 func (t *ExportPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%f\t%f\t%d", float64(rd.N), float64(rd.zip), rd.perms)
+	return fmt.Sprintf("%f\t%f\t%d\t%f", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap)
 }
 
 func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {

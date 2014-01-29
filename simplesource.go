@@ -101,24 +101,48 @@ func GetFullOverlapOrderPermutedSimpleList(nlists int, nitemsPerList uint32, par
 }
 
 func GetFullOverlapOrderPermutedSimpleListSeed(nlists int, nitemsPerList uint32, param float64, reorder int, seed int64) []ItemList {
+	return GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists, nitemsPerList, param, reorder, seed, 1.0)
+}
+
+func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList uint32, param float64, reorder int, seed int64, overlap float64) []ItemList {
 	rand.Seed(seed)
 	lists := GetFullOverlapSimpleList(nlists, nitemsPerList, param)
 
+	if reorder > 0 {
+		for k, list := range lists {
+			for pos, item := range list {
+				pos_to_reorder := rand.Intn(reorder)
+				new_pos := pos + pos_to_reorder
+				if new_pos < len(list)-1 {
+					//fmt.Println("reordering", list[pos], list[new_pos])
+					id := item.Id
+					item.Id = list[new_pos].Id
+					//item.Score += float64(pos_to_reorder % 10) //add a bit of randomness to the scores
+					list[new_pos].Id = id
+					list[pos] = item //this is needed
+					//fmt.Println("reordering after", list[pos], list[new_pos])
+				}
+			}
+			lists[k] = MakeSureItemsUnique(list)
+		}
+	}
+
 	for k, list := range lists {
-		for pos, item := range list {
-			pos_to_reorder := rand.Int() % reorder
-			new_pos := pos + pos_to_reorder
-			if new_pos < len(list)-1 {
-				//fmt.Println("reordering", list[pos], list[new_pos])
-				id := item.Id
-				item.Id = list[new_pos].Id
-				//item.Score += float64(pos_to_reorder % 10) //add a bit of randomness to the scores
-				list[new_pos].Id = id
-				list[pos] = item //this is needed
-				//fmt.Println("reordering after", list[pos], list[new_pos])
+		if k == 0 {
+			continue
+		}
+		newItems := int(float64(len(list)) * (1.0 - overlap))
+		replaced := make(map[int]bool)
+		for i := 0; i < newItems; {
+			pos := rand.Intn(len(list))
+			if !replaced[pos] {
+				i++
+				replaced[pos] = true
+				new_id := rand.Int()
+				list[pos].Id = new_id
 			}
 		}
-		lists[k] = MakeSureItemsUnique(list)
+		lists[k] = list
 	}
 
 	return lists
