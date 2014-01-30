@@ -78,10 +78,13 @@ func GetRowDescriptionPartition(rds []RowDescription, partition int, totalPartit
 		return nil
 	}
 
-	if inc*(partition+1) > len(rds) {
-		return rds[inc*partition : len(rds)]
+	start_index := inc * partition
+	end_index := inc * (partition + 1)
+	if end_index > len(rds) || partition == (totalPartitions-1) {
+		end_index = len(rds)
 	}
-	return rds[inc*partition : inc*(partition+1)]
+	fmt.Println("Covering partition from", start_index, "To", end_index, " Length: ", len(rds))
+	return rds[start_index:end_index]
 }
 
 type Suite interface {
