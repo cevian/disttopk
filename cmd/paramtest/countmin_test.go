@@ -1,4 +1,4 @@
-package paramtest
+package main
 
 import (
 	"fmt"
