@@ -8,7 +8,7 @@ import (
 )
 
 import "github.com/cevian/disttopk"
-import cmd "github.com/cevian/disttopk/cmd"
+import "github.com/cevian/disttopk/runner"
 
 var _ = math.Ceil
 
@@ -42,8 +42,8 @@ func RunBloomGcsMergeParamTest(N, Nnodes, k int, zipParam float64, permParam int
 
 	runtime.GC()
 	//n := Getn(l[0], k, Nnodes)
-	_, stats := cmd.RunBloomSketchGcsMerge(l, k)
-	_, stats_tput := cmd.RunTputHash(l, k)
+	_, stats := runner.RunBloomSketchGcsMerge(l, k)
+	_, stats_tput := runner.RunTputHash(l, k)
 	return int(stats.Bytes_transferred), int(stats_tput.Bytes_transferred)
 }
 func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
@@ -63,7 +63,7 @@ type Protocol struct {
 func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol, seed int64, overlap float64) map[string]disttopk.AlgoStats {
 	l := disttopk.GetFullOverlapOrderPermutedSimpleListSeedOverlap(Nnodes, uint32(N), zipParam, permParam, seed, overlap)
 
-	naive_exact, _ := cmd.RunNaive(l, 0)
+	naive_exact, _ := runner.RunNaive(l, 0)
 	ground_truth := naive_exact
 
 	runtime.GC()
@@ -84,26 +84,26 @@ func RunAll(N, Nnodes, k int, zipParam float64, permParam int, protos []Protocol
 	return results
 }
 
-var NaiveEx = Protocol{"Naive-exact", cmd.RunNaiveExact, true}
+var NaiveEx = Protocol{"Naive-exact", runner.RunNaiveExact, true}
 
 //approx
-var Naive2k = Protocol{"Naive (2k)", cmd.RunNaiveK2, false}
-var Klee3 = Protocol{"Klee3", cmd.RunKlee3, false}
-var Klee4 = Protocol{"Klee4", cmd.RunKlee4, false}
-var Bloom = Protocol{"bloom", cmd.RunApproximateBloomFilter, false}
-var BloomGcs = Protocol{"bloomGcs", cmd.RunApproximateBloomGcsFilter, false}
+var Naive2k = Protocol{"Naive (2k)", runner.RunNaiveK2, false}
+var Klee3 = Protocol{"Klee3", runner.RunKlee3, false}
+var Klee4 = Protocol{"Klee4", runner.RunKlee4, false}
+var Bloom = Protocol{"bloom", runner.RunApproximateBloomFilter, false}
+var BloomGcs = Protocol{"bloomGcs", runner.RunApproximateBloomGcsFilter, false}
 
 // Extra-Round Exact
-var ErGcs = Protocol{"ER GCS", cmd.RunExtraRoundBloomGcsMergeFilter, true}
-var ErTput = Protocol{"ER TP", cmd.RunTputHashExtraRound, true}
+var ErGcs = Protocol{"ER GCS", runner.RunExtraRoundBloomGcsMergeFilter, true}
+var ErTput = Protocol{"ER TP", runner.RunTputHashExtraRound, true}
 
 // Exact
-var Tput = Protocol{"Tput", cmd.RunTput, true}
-var TputHash = Protocol{"TputH", cmd.RunTputHash, true}
+var Tput = Protocol{"Tput", runner.RunTput, true}
+var TputHash = Protocol{"TputH", runner.RunTputHash, true}
 
-//var Gcs	= Protocol{"2R Gcs  ", cmd.RunBloomSketchGcs, true}
-var GcsMerge = Protocol{"2R GcsM", cmd.RunBloomSketchGcsMerge, true}
-var CountMin = Protocol{"Count Min", cmd.RunCountMin, true}
+//var Gcs	= Protocol{"2R Gcs  ", runner.RunBloomSketchGcs, true}
+var GcsMerge = Protocol{"2R GcsM", runner.RunBloomSketchGcsMerge, true}
+var CountMin = Protocol{"Count Min", runner.RunCountMin, true}
 
 var protocols []Protocol = []Protocol{
 	Klee3,
