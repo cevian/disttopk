@@ -13,6 +13,10 @@ var suite = flag.String("suite", "Distribution", "suite to run")
 var partition = flag.Int("partition", 0, "Partition to run")
 var totalPartitions = flag.Int("totalpartitions", 0, "Total number of partitions")
 
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+}
+
 func main() {
 	flag.Parse()
 	fmt.Printf("Running suite: %s partition: %d out of %d\n", *suite, *partition, *totalPartitions)
