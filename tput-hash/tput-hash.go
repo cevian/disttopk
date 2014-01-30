@@ -112,39 +112,39 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	var bloom *disttopk.Bloom
-	select {
-	case obj := <-src.back:
-		bloom_ser := disttopk.DecompressBytes(obj.([]byte))
-		bloom = &disttopk.Bloom{}
-		if err := disttopk.DeserializeObject(bloom, bloom_ser); err != nil {
-			panic(err)
-		}
-	case <-src.StopNotifier:
-		return nil
-	}
-
 	sent_items := make(map[int]bool)
 	for _, li := range src.list[:src.k] {
 		sent_items[int(li.Id)] = true
 	}
 
-	bif := disttopk.NewBloomIndexableFilter(bloom)
-	exactlist, stats := disttopk.GetListIndexedHashTable(bif, src.list, sent_items)
-
-	/*exactlist := make([]disttopk.Item, 0)
-	items_looked_at = 0
-	for _, li := range src.list[src.k:] {
-		items_looked_at += 1
-		if bloom.Query(disttopk.IntKeyToByteKey(li.Id)) {
-			exactlist = append(exactlist, disttopk.Item{li.Id, li.Score})
+	for {
+		var bloom *disttopk.Bloom
+		select {
+		case obj, ok := <-src.back:
+			if !ok {
+				return nil
+			}
+			bloom_ser := disttopk.DecompressBytes(obj.([]byte))
+			bloom = &disttopk.Bloom{}
+			if err := disttopk.DeserializeObject(bloom, bloom_ser); err != nil {
+				panic(err)
+			}
+		case <-src.StopNotifier:
+			return nil
 		}
-	}*/
 
-	select {
-	case src.forward <- disttopk.DemuxObject{src.id, ThirdRound{disttopk.ItemList(exactlist), stats}}:
-	case <-src.StopNotifier:
-		return nil
+		bif := disttopk.NewBloomIndexableFilter(bloom)
+		exactlist, stats := disttopk.GetListIndexedHashTable(bif, src.list, sent_items)
+
+		for _, item := range exactlist {
+			sent_items[item.Id] = true
+		}
+
+		select {
+		case src.forward <- disttopk.DemuxObject{src.id, ThirdRound{disttopk.ItemList(exactlist), stats}}:
+		case <-src.StopNotifier:
+			return nil
+		}
 	}
 	return nil
 }
@@ -276,18 +276,60 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 2 tput-hash: thresh ", secondthresh, ", cha bytes", bytes_cha, "(", cha.Len(), " size). bloom sets", bloom.CountSetBit(), "(out of ", bloom.Len(), ") bytes ", bytesRound)
 	bytes += bytesRound
 
+	round3items := 0
+	bytesRound, round3items, m, mresp = src.SendBloom(bloom, nnodes, access_stats, m, mresp)
+	il = disttopk.MakeItemList(m)
+	il.Sort()
+
+	score_k := uint(il[src.k-1].Score)
+
+	fmt.Println("Round 3 tput-hash: got ", round3items, " items, score_k", score_k, "  bytes ", bytesRound)
+	bytes += bytesRound
+
+	src.Stats.Rounds = 3
+	if score_k < secondthresh {
+		src.Stats.Rounds = 4
+		thirdthresh := score_k
+
+		//no need to update hash_responses as stuff sent before won't be sent again anyway
+		bloom := cha.GetBloomFilter(thirdthresh, hash_responses, uint(localthresh), uint(nnodes))
+		fmt.Println("Round 3 tput-hash extra-round: thresh ", thirdthresh, " bloom sets", bloom.CountSetBit(), "(out of ", bloom.Len(), ")")
+
+		round4items := 0
+		bytesRound, round4items, m, mresp = src.SendBloom(bloom, nnodes, access_stats, m, mresp)
+		il = disttopk.MakeItemList(m)
+		il.Sort()
+
+		fmt.Println("Round 4 tput-hash: got ", round4items, " items,  bytes ", bytesRound)
+		bytes += bytesRound
+	}
+
+	src.Stats.Bytes_transferred = uint64(bytes)
+	src.Stats.Merge(*access_stats)
+
+	//fmt.Println("Sorted Global List: ", il[:src.k])
+	if disttopk.OUTPUT_RESP {
+		for _, it := range il[:src.k] {
+			fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
+		}
+	}
+	src.FinalList = il
+	return nil
+}
+
+func (src *Coord) SendBloom(bloom *disttopk.Bloom, nnodes int, access_stats *disttopk.AlgoStats, m map[int]float64, mresp map[int]int) (int, int, map[int]float64, map[int]int) {
 	bloom_ser, err := disttopk.SerializeObject(bloom)
 	if err != nil {
 		panic(err)
 	}
 
 	bytes_compressed_sample := disttopk.CompressBytes(bloom_ser)
-	bytesRound = len(bytes_compressed_sample) * nnodes
+	bytesRound := len(bytes_compressed_sample) * nnodes
 	for _, ch := range src.backPointers {
 		select {
 		case ch <- disttopk.CompressBytes(bloom_ser):
 		case <-src.StopNotifier:
-			return nil
+			panic("should not happen")
 		}
 	}
 
@@ -302,32 +344,11 @@ func (src *Coord) Run() error {
 			round3items += len(il)
 			mresp = il.AddToCountMap(mresp)
 		case <-src.StopNotifier:
-			return nil
+			panic("should not happen")
 		}
 	}
 
 	bytesRound += round3items * disttopk.RECORD_SIZE
-	fmt.Println("Round 3 tput-hash: got ", round3items, " items,  bytes ", bytesRound)
-	bytes += bytesRound
-	src.Stats.Bytes_transferred = uint64(bytes)
-	src.Stats.Merge(*access_stats)
-	src.Stats.Rounds = 3
 
-	il = disttopk.MakeItemList(m)
-	il.Sort()
-
-	score_k := uint(il[src.k-1].Score)
-	if score_k < secondthresh {
-		src.Stats.Rounds = 4
-		panic(fmt.Sprintln("4th round needed but not implemented yet", score_k, secondthresh))
-	}
-
-	//fmt.Println("Sorted Global List: ", il[:src.k])
-	if disttopk.OUTPUT_RESP {
-		for _, it := range il[:src.k] {
-			fmt.Println("Resp: ", it.Id, it.Score, mresp[it.Id])
-		}
-	}
-	src.FinalList = il
-	return nil
+	return bytesRound, round3items, m, mresp
 }
