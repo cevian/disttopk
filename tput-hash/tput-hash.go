@@ -79,22 +79,11 @@ func (src *Peer) Run() error {
 
 	cha := NewCountHashArray(arraySize)
 
-	cha_topk := NewCountHashArray(arraySize)
-	for _, list_item := range src.list[:src.k] {
-		cha_topk.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
-	}
-
-	//fmt.Println("Peer ", src.id, " got ", thresh, " index ", index, "k", src.k, "list[index+1].score", src.list[index+1].Score)
-	//v.Score >= thresh included
-
 	items_looked_at := uint(0)
 	if last_index_to_send >= src.k {
 		for _, list_item := range src.list[src.k : last_index_to_send+1] {
 			items_looked_at += 1
-			index := cha.GetIndex(disttopk.IntKeyToByteKey(list_item.Id))
-			if cha_topk.Data.Get(int(index)) == 0 {
-				cha.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
-			}
+			cha.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
 		}
 	}
 
@@ -183,6 +172,7 @@ func (src *Coord) Run() error {
 
 	m := make(map[int]float64)
 	mresp := make(map[int]int)
+	peerm := make(map[int]map[int]float64)
 
 	access_stats := &disttopk.AlgoStats{}
 	nnodes := len(src.backPointers)
@@ -199,6 +189,7 @@ func (src *Coord) Run() error {
 			items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
+			peerm[dobj.Id] = il.AddToMap(nil)
 		case <-src.StopNotifier:
 			return nil
 
@@ -231,14 +222,6 @@ func (src *Coord) Run() error {
 
 	cha := NewCountHashArray(uint(cha_size))
 	hash_responses := make(map[int]int)
-	for _, list_item := range il {
-		cha.Add(disttopk.IntKeyToByteKey(list_item.Id), uint(list_item.Score))
-		index := int(cha.GetIndex(disttopk.IntKeyToByteKey(list_item.Id)))
-		responses := mresp[list_item.Id]
-		if responses > hash_responses[index] {
-			hash_responses[index] = responses
-		}
-	}
 
 	bytes_cha := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
@@ -252,6 +235,10 @@ func (src *Coord) Run() error {
 			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
 				panic(err)
 			}
+			for peerlocaltopid, peerlocaltopscore := range peerm[dobj.Id] {
+				cha_got.Add(disttopk.IntKeyToByteKey(peerlocaltopid), uint(peerlocaltopscore))
+			}
+
 			access_stats.Serial_items += int(sr.items_looked_at)
 
 			cha.Merge(cha_got)
