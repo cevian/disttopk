@@ -161,7 +161,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 }
 
 func (t *Test) GetProtocols() []Protocol {
-	return []Protocol{Klee3}
+	return []Protocol{ErGcs}
 }
 
 func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
