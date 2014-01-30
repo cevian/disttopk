@@ -176,6 +176,11 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c float64) {
 			//fmt.Printf("Putting in entry %+v\n", entry.(*BloomHistogramKleeEntryPartial))
 		}
 
+		if entry.GetFreq() == 0 {
+			fmt.Println("cum_sum", cum_sum, sum, start_index, last_index, start_max, incr, minscore, rang, num_items)
+			panic("snh")
+		}
+
 		b.Data = append(b.Data, entry)
 
 		start_index = last_index + 1
@@ -183,6 +188,8 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c float64) {
 		if before_cutoff {
 			b.c_index = uint32(len(b.Data) - 1)
 		}
+
+		//fmt.Println("Cuttoff_sum", cutoff_sum, "cum sum", cum_sum, "total_sum", total_sum, incr)
 
 		if cum_sum > cutoff_sum {
 			before_cutoff = false
@@ -194,10 +201,18 @@ func (b *BloomHistogramKlee) CreateFromList(list ItemList, c float64) {
 func (b *BloomHistogramKlee) GetPartialAvg() uint32 {
 	cum_freq := uint32(0)
 	cum_sum := uint32(0)
+	if int(b.c_index) == len(b.Data)-1 {
+		//this can happen if almost all the mass is in the last histo cell. That means the (0.1) * mass point can be there too
+		return 0
+	}
+
 	for _, entry := range b.Data[b.c_index+1:] {
 		partial := entry.(*BloomHistogramKleeEntryPartial)
 		cum_freq += partial.freq
 		cum_sum += (partial.freq * partial.avg)
+	}
+	if cum_freq == 0 {
+		fmt.Println("Error", cum_freq, cum_sum, len(b.Data), b.c_index)
 	}
 
 	return uint32(cum_sum / cum_freq)

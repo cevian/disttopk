@@ -22,6 +22,8 @@ func main() {
 		s = &Distribution{}
 	} else if *suite == "Overlap" {
 		s = &Overlap{&Distribution{}}
+	} else if *suite == "Test" {
+		s = &Test{}
 	} else {
 		panic(fmt.Sprint("Unknown suite", *suite))
 	}
@@ -137,6 +139,25 @@ func (t *Overlap) GetRowDescription() []RowDescription {
 		}
 	}
 	return rds
+}
+
+type Test struct {
+}
+
+func (t *Test) GetRowDescription() []RowDescription {
+	k := 10
+	nodes := 10
+	listSize := 10000
+	zipfParam := 0.2
+	perms := 50
+	overlap := 0.1
+	seed := int64(1)
+	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+	return []RowDescription{rd}
+}
+
+func (t *Test) GetProtocols() []Protocol {
+	return []Protocol{Klee3}
 }
 
 func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
