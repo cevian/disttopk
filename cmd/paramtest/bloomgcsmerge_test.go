@@ -187,7 +187,7 @@ func TestOverlap(t *testing.T) {
 	nodes := 10
 	k := 10
 	listSize := 10000
-	for _, zipfParam := range []float64{1.0, 0.7, 0.6, 0.3} {
+	for _, zipfParam := range []float64{1.0, 0.7, 0.5, 0.3} {
 		for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
 			for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
