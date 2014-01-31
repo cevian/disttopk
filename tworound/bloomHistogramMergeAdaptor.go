@@ -94,7 +94,7 @@ func (t *BloomHistogramMergeSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	bs := us.(*MaxHashMapUnionSketch)
 	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-	flt, v := bs.GetFilter(uint(thresh)), uint(thresh)
+	flt, v := bs.GetFilter(int64(thresh)), uint(thresh)
 	if flt != nil {
 		return flt, v
 	}
@@ -183,20 +183,36 @@ func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us Union
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*MaxHashMapUnionSketch)
 
-		approxthresh := bs.GetThreshApprox(t.topk, t.gamma)
-		cutoff := bs.Cutoff()
-		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma)
+		underApprox := bs.UnderApprox(t.topk)
+		overApprox := bs.OverApprox(t.topk)
+
+		approxthresh := underApprox + int64(float64(overApprox-underApprox)*t.gamma)
+
+		cutoff := int64(bs.Cutoff())
+		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox)
 		if cutoff >= approxthresh {
 			old := approxthresh
 			approxthresh = cutoff + 1
 			fmt.Println("The Approximation threshold is too high for cutoff, resetting to", approxthresh, " Was ", old, ", cutoff ", cutoff)
 		}
+
+		/* experimental optimization: we dont know if its useful, turn off for now */
+		/*
+			if cutoff > underApprox {
+				//this optimization tries to avoid the case that the cutoff is above the threshold in the 3rd round and thus everything needs to be sent.
+				//by sending more data now, we avoid the possibility of having to send everything in the last round because our k_score is below cutoff.
+				old := approxthresh
+				approxthresh = cutoff + 1
+				fmt.Println("The cutoff is above the underapprox. Setting approxthresh just above cutoff to be safe:", approxthresh, ". It was:", old)
+			}
+		*/
+
 		filter := bs.GetFilter(approxthresh)
 		if filter == nil {
 			panic("Should never get nil filter here")
 		}
 		t.numUnionFilterCalls = 1
-		return filter, approxthresh
+		return filter, uint(approxthresh)
 	} else {
 		return t.BloomHistogramMergeSketchAdaptor.getUnionFilter(us, thresh, il, listlensum)
 	}

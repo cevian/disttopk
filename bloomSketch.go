@@ -110,7 +110,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 	hvf.InsertHashValueSlice(m_bits, hvs)
 	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																											println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
+																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																				println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
@@ -147,6 +147,7 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, listlen, 2, adjuster)
 	//eps := 0.01
 	m_est := EstimateMGcs(n, eps)
+	//fmt.Println("Eps ", eps, "n", n, "m_est", m_est)
 	m := MakePowerOf2(m_est)
 	if m == 0 {
 		return nil, eps
@@ -214,6 +215,28 @@ func (b *BloomHistogram) CreateFromList(list ItemList) (serialAccess int) {
 	return b.CreateFromListWithScoreK(list, scorek)
 }
 
+func (b *BloomHistogram) itemsInEntry(list ItemList, scorek float64, entry_start_index int, range_in_entry int) (numItems int) {
+	bucket_items := b.topk
+	score_after_entry := int(list[entry_start_index].Score) - range_in_entry
+	index_after_entry := len(list)
+	for i, item := range list[entry_start_index:] {
+		if int(item.Score) <= score_after_entry {
+			index_after_entry = i + entry_start_index
+			break
+		}
+	}
+
+	items_in_entry := index_after_entry - entry_start_index
+
+	if MIN_ITEMS_IN_BUCKET {
+		if items_in_entry < bucket_items {
+			items_in_entry = bucket_items
+		}
+	}
+
+	return items_in_entry
+}
+
 func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64) (serialAccess int) {
 	//topk := 10
 	//n := 33
@@ -233,7 +256,6 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 		fmt.Println("first_idx_past_min ", first_index_past_minscore, "minscore", minscore, "score-k", scorek, " entries ", total_entries)
 	}
 	current_index := 0
-	bucket_items := b.topk
 	b.Data = make([]*BloomHistogramEntry, 0)
 	for current_index < first_index_past_minscore && len(b.Data) < total_entries {
 		entry_start_index := current_index
@@ -243,20 +265,8 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 		if range_per_entry < 1 {
 			range_per_entry = 1
 		}
-		score_after_entry := int(list[current_index].Score) - range_per_entry
-		index_after_entry := len(list)
-		for i, item := range list[current_index:] {
-			if int(item.Score) <= score_after_entry {
-				index_after_entry = i + current_index
-				break
-			}
-		}
-		items_in_entry := index_after_entry - entry_start_index
-		if MIN_ITEMS_IN_BUCKET {
-			if items_in_entry < bucket_items {
-				items_in_entry = bucket_items
-			}
-		}
+
+		items_in_entry := b.itemsInEntry(list, scorek, entry_start_index, range_per_entry)
 
 		if items_in_entry > first_index_past_minscore-entry_start_index || len(b.Data) == total_entries-1 {
 			items_in_entry = first_index_past_minscore - entry_start_index
@@ -264,8 +274,19 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 
 		//fmt.Println("range", range_per_entry, "num", items_in_entry, "range_left", range_left, "entries_left", entries_left)
 		filter, eps := b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers, uint(list[entry_start_index].Score), uint(scorek), len(list))
+
 		if filter == nil { // the algorithm can decide that it is not worth sending a filter, will be more expensive than its worth
-			break
+			for range_per_entry > 1 && filter == nil {
+				range_per_entry = range_per_entry / 2
+
+				items_in_entry = b.itemsInEntry(list, scorek, entry_start_index, range_per_entry)
+				//fmt.Println("range", range_per_entry, "num", items_in_entry, "range_left", range_left, "entries_left", entries_left)
+				filter, eps = b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers, uint(list[entry_start_index].Score), uint(scorek), len(list))
+			}
+
+			if filter == nil {
+				break
+			}
 		}
 
 		//m := EstimateM(2700000, corrected_items, RECORD_SIZE)     // * (totalblooms - (k - 1))
@@ -285,9 +306,9 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 			min := list[current_index-1].Score
 			fmt.Println("Interval", len(b.Data), "max", max, "min (tight)", min, "range", max-uint32(min), "#", current_index-entry_start_index, "k", entry.filter.NumberHashes() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
 		}
-		bucket_items = b.topk
 	}
 	if current_index < len(list) {
+		//fmt.Println("Minscore =", minscore, "fipm", first_index_past_minscore, "len", len(list), current_index)
 		b.cutoff = uint32(list[current_index].Score)
 		//fmt.Println("Cutoff", b.cutoff)
 		return current_index + 1

@@ -3,18 +3,19 @@ package disttopk
 import (
 	"fmt"
 	"math"
-	"sort"
 )
 
+import typesort "github.com/cevian/disttopk/sort"
+
 type MaxHashMap struct {
-	data         map[uint32]int64  //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
-	data_under   map[uint32]uint64 //the unse-approximation
+	data         map[uint32]int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
+	data_under   map[uint32]int64 //the unse-approximation
 	cutoff       uint32
 	modulus_bits uint32
 }
 
 func NewMaxHashMap() *MaxHashMap {
-	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]uint64), 0, 0}
+	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]int64), 0, 0}
 }
 
 func (t *MaxHashMap) GetInfo() string {
@@ -35,7 +36,7 @@ func (t *MaxHashMap) addData(hashValue uint, max uint, min uint, cutoff uint) {
 	}
 
 	t.data[uint32(hashValue)] += int64(max - cutoff)
-	t.data_under[uint32(hashValue)] += uint64(min)
+	t.data_under[uint32(hashValue)] += int64(min)
 
 }
 
@@ -75,40 +76,57 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, 
 }
 
 func (t *MaxHashMap) AddCutoff(c uint) {
+	if math.MaxUint32-t.cutoff < uint32(c) {
+		panic("Overflow")
+	}
 	t.cutoff += uint32(c)
 }
 
-func (t *MaxHashMap) GetFilter(thresh uint) *Gcs {
-	if uint32(thresh) <= t.cutoff {
+func (t *MaxHashMap) GetFilter(thresh int64) *Gcs {
+	if thresh <= int64(t.cutoff) {
 		fmt.Printf("WARNING: in MaxHashMap thresh(%v) <= cutoff(%v). Sending no filter, everything will be sent", thresh, t.cutoff)
 		return nil
 	}
 
-	mapValueThresh := int64(thresh) - int64(t.cutoff)
+	mapValueThresh := thresh - int64(t.cutoff)
 
-	values := make([]uint32, 0)
-	count := 0
+	m := (1 << (uint(t.modulus_bits)))
+	gcs := NewGcs(m)
+
 	for hashValue, mapValue := range t.data {
 		if mapValue >= mapValueThresh {
 			//fmt.Println("Diff", mapValue-mapValueThresh, mapValue, mapValueThresh, count)
-			values = append(values, hashValue)
-			count += 1
+			gcs.Data.Insert(hashValue)
 		}
 	}
 
-	//n := len(values)
-
-	m := (1 << (uint(t.modulus_bits)))
-	//fmt.Printf("Get Filter. m %v (%v), thresh %v, mvthresh %v, #hash values %v, #hash values above thresh %v", m, t.modulus_bits, thresh, mapValueThresh, len(t.data), len(values))
-	gcs := NewGcs(m)
-
-	for _, value := range values {
-		gcs.Data.Insert(value)
-	}
 	return gcs
 
 }
 
+func (t *MaxHashMap) UnderApprox(maxNumberHashValues int) int64 {
+	mapValuesSortedUnder := make([]int64, 0, len(t.data_under))
+	for _, mapValue := range t.data_under {
+		mapValuesSortedUnder = append(mapValuesSortedUnder, mapValue)
+	}
+	typesort.Int64s(mapValuesSortedUnder)
+
+	underApprox := mapValuesSortedUnder[len(mapValuesSortedUnder)-maxNumberHashValues]
+	return underApprox
+}
+
+func (t *MaxHashMap) OverApprox(maxNumberHashValues int) int64 {
+	mapValuesSorted := make([]int64, 0, len(t.data))
+	for _, mapValue := range t.data {
+		mapValuesSorted = append(mapValuesSorted, mapValue)
+	}
+	typesort.Int64s(mapValuesSorted)
+
+	overApprox := mapValuesSorted[len(mapValuesSorted)-maxNumberHashValues] + int64(t.cutoff)
+	return overApprox
+}
+
+/*
 func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int, gamma float64) uint {
 	mapValuesSortedUnder := make([]int, 0, len(t.data_under))
 	for _, mapValue := range t.data_under {
@@ -132,7 +150,7 @@ func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int, gamma float64) uin
 	approxThresh := underApprox + int(float64(overApprox-underApprox)*gamma)
 
 	return uint(approxThresh)
-}
+}*/
 
 /*
 func (t *MaxHashMap) GetThreshApprox(maxNumberHashValues int) uint {
