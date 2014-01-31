@@ -8,5 +8,4 @@ if [ ! -d $1 ]; then
       exit 0
 fi
 
-go build
-./paramtest -suite $1 -partition $2 -totalpartitions $3 2>&1 | tee -a $1/run.$1.$2.$3.$HOSTNAME.log | less
+./paramtest -suite $1 -partition $2 -totalpartitions $3 2>&1 >> $1/run.$1.$2.$3.$HOSTNAME.log 

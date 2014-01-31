@@ -6,7 +6,7 @@
 #
 # 1 node, 1 CPU per node (total 1 CPU), wall clock time of 30 hours
 #
-#PBS -l walltime=30:00:00,nodes=1:ppn=1
+#PBS -l walltime=01:00:00,nodes=1:ppn=1
 #
 # merge STDERR into STDOUT file
 #PBS -j oe
@@ -15,18 +15,6 @@
 # when it ends (abe)
 #PBS -m abe
 #PBS -M arye@CS.Princeton.EDU
-#
-
-if ($?PBS_JOBID) then
-	echo "Starting" $PBS_JOBID "at" `date` "on" `hostname`
-	echo ""
-else
-	echo "This script must be run as a PBS job"
-	exit 1
-endif
-
 cd $PBS_O_WORKDIR
 /usr/bin/time bash runPartition.bash Distribution $PBS_ARRAYID 10
 
-echo ""
-echo "Done at " `date`
