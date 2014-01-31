@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"math/rand"
 	"runtime"
 )
 import "github.com/cevian/disttopk/runner"
@@ -98,6 +99,18 @@ type Suite interface {
 	GetProtocols() []Protocol
 }
 
+func PermuteList(rds []RowDescription) []RowDescription {
+	rand.Seed(int64(1))
+
+	for i := 0; i < len(rds)/2; i++ {
+		new_pos := rand.Intn(len(rds) - 1)
+		old := rds[new_pos]
+		rds[new_pos] = rds[i]
+		rds[i] = old
+	}
+	return rds
+}
+
 type Distribution struct {
 }
 
@@ -105,18 +118,19 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 	rds := make([]RowDescription, 0)
 	k := 10
 	nodes := 10
-	overlap := 1.0
 	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
-		for _, listSize := range []int{1000, 10000, 100000, 200000} {
-			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
-				for _, seed := range []int64{1, 2, 3, 4, 5} {
-					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
-					rds = append(rds, rd)
+		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
+			for _, listSize := range []int{1000, 10000, 100000, 200000} {
+				for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+					for _, seed := range []int64{1, 2, 3, 4, 5} {
+						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+						rds = append(rds, rd)
+					}
 				}
 			}
 		}
 	}
-	return rds
+	return PermuteList(rds)
 }
 
 func (t *Distribution) GetProtocols() []Protocol {
@@ -151,17 +165,17 @@ type Test struct {
 func (t *Test) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
-	listSize := 10000
+	listSize := 100000
 	zipfParam := 0.4
 	perms := 10
-	overlap := 0.1
+	overlap := 1.0
 	seed := int64(1)
 	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 	return []RowDescription{rd}
 }
 
 func (t *Test) GetProtocols() []Protocol {
-	return []Protocol{ErGcs, GcsMerge}
+	return []Protocol{ErGcs, GcsMerge, TputHash}
 }
 
 func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
