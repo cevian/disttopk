@@ -52,7 +52,7 @@ func (t *OverviewPrinter) EnterNewN() {
 }
 
 func (t *OverviewPrinter) RowDescriptionHeaders() string {
-	return "N\tZip\tPerm\tOverlap"
+	return "N\tZip\tPerm\tOverlap\tSeed"
 }
 
 func (t *OverviewPrinter) Start() {
@@ -64,7 +64,7 @@ func (t *OverviewPrinter) Start() {
 }
 
 func (t *OverviewPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%4.1E\t%2.1f\t%d\t%2.2f", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap)
+	return fmt.Sprintf("%4.1E\t%2.1f\t%d\t%2.2f\t%d", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap, rd.seed)
 }
 
 func (t *OverviewPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
@@ -187,7 +187,7 @@ func (t *ExportPrinter) Start() {
 }
 
 func (t *ExportPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%f\t%f\t%d\t%f", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap)
+	return fmt.Sprintf("%f\t%f\t%d\t%f\t%d", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap, rd.seed)
 }
 
 func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
