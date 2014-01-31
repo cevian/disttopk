@@ -8,14 +8,15 @@ import (
 import typesort "github.com/cevian/disttopk/sort"
 
 type MaxHashMap struct {
-	data         map[uint32]int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
-	data_under   map[uint32]int64 //the unse-approximation
-	cutoff       uint32
-	modulus_bits uint32
+	data             map[uint32]int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
+	data_under       map[uint32]int64 //the unse-approximation
+	cutoff           uint32
+	modulus_bits     uint32
+	min_modulus_bits uint32
 }
 
 func NewMaxHashMap() *MaxHashMap {
-	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]int64), 0, 0}
+	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]int64), 0, 0, 0}
 }
 
 func (t *MaxHashMap) GetInfo() string {
@@ -45,17 +46,23 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, 
 		panic(fmt.Sprintf("Max < min", max, min))
 	}
 
+	if uint32(modulus_bits) < t.min_modulus_bits {
+		t.min_modulus_bits = uint32(modulus_bits)
+	}
+
 	//fmt.Println("Adding ", hashValue, modulus_bits, max, cutoff)
 	if t.modulus_bits == 0 {
 		t.modulus_bits = uint32(modulus_bits)
+		t.min_modulus_bits = t.modulus_bits
 	}
 	/*if max <= cutoff { //this can happen when merging in exact values from top-k
 		panic(fmt.Sprintf("Wrong input max < cutoff %v %v", max, cutoff))
 	}*/
 
+	mhm_modulus := (1 << t.modulus_bits)
+
 	if uint32(modulus_bits) < t.modulus_bits {
 		rcv_modulus := (1 << modulus_bits)
-		mhm_modulus := (1 << t.modulus_bits)
 		count := 0
 		for int(hashValue) < mhm_modulus {
 			count += 1
@@ -69,7 +76,7 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, 
 	}
 
 	if uint32(modulus_bits) > t.modulus_bits {
-		hashValue = hashValue % uint(t.modulus_bits)
+		hashValue = hashValue % uint(mhm_modulus)
 	}
 
 	t.addData(hashValue, max, min, cutoff)
@@ -104,9 +111,27 @@ func (t *MaxHashMap) GetFilter(thresh int64) *Gcs {
 
 }
 
+func (t *MaxHashMap) GetMinModulusBitsMap(m map[uint32]int64) map[uint32]int64 {
+	min_modulus := uint32(1 << t.min_modulus_bits)
+	res := make(map[uint32]int64)
+	for hv, count := range m {
+		//max and not addition is the right thing here.
+		//it prevent double counting thing that were a smaller modulus and then copied to several times in the larger modulus
+		//not sure this is conservative, things that should have been added, already were in the larger modulus
+		if res[hv%min_modulus] < count {
+			res[hv%min_modulus] = count
+		}
+	}
+	return res
+}
+
 func (t *MaxHashMap) UnderApprox(maxNumberHashValues int) int64 {
-	mapValuesSortedUnder := make([]int64, 0, len(t.data_under))
-	for _, mapValue := range t.data_under {
+	//we want maxNumberHashValues items to be represented
+	//that means we need to use the min modulus bits representation
+	//otherwise we may double count items as having two hash values
+	data := t.GetMinModulusBitsMap(t.data_under)
+	mapValuesSortedUnder := make([]int64, 0, len(data))
+	for _, mapValue := range data {
 		mapValuesSortedUnder = append(mapValuesSortedUnder, mapValue)
 	}
 	typesort.Int64s(mapValuesSortedUnder)
@@ -116,8 +141,9 @@ func (t *MaxHashMap) UnderApprox(maxNumberHashValues int) int64 {
 }
 
 func (t *MaxHashMap) OverApprox(maxNumberHashValues int) int64 {
-	mapValuesSorted := make([]int64, 0, len(t.data))
-	for _, mapValue := range t.data {
+	data := t.GetMinModulusBitsMap(t.data)
+	mapValuesSorted := make([]int64, 0, len(data))
+	for _, mapValue := range data {
 		mapValuesSorted = append(mapValuesSorted, mapValue)
 	}
 	typesort.Int64s(mapValuesSorted)
