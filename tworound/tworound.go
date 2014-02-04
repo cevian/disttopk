@@ -75,7 +75,7 @@ func NewApproximateBloomGcsFilterPR(topk int, numpeer int, N_est int) *ProtocolR
 }
 
 func NewExtraRoundBloomGcsMergePR(topk int, numpeer int, N_est int) *ProtocolRunner {
-	peer := NewProtocolRunner(NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBhErUnionSketchAdaptor(topk), topk, numpeer, N_est)
+	peer := NewProtocolRunner(NewBhErPeerSketchAdaptor(topk, numpeer, N_est), NewBhErUnionSketchAdaptor(topk, numpeer), topk, numpeer, N_est)
 	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
 	return peer
 }
@@ -375,7 +375,7 @@ func (src *Coord) Run() error {
 
 	bytesRound = round2items*disttopk.RECORD_SIZE + total_back_bytes
 	bytes += bytesRound
-	fmt.Print("Round 2 tr: got ", round2items, " items (", round2items/nnodes, "/node), bytes for records: ", round2items*disttopk.RECORD_SIZE, "bytes filter: ", total_back_bytes, ". BW Round: ", bytesRound, "BW total: ", bytes, "\n")
+	fmt.Print("Round 2 tr: got ", round2items, " items (", round2items/nnodes, "/node), bytes for records: ", round2items*disttopk.RECORD_SIZE, " bytes filter: ", total_back_bytes, ". BW Round: ", bytesRound, " BW total: ", bytes, "\n")
 	fmt.Printf("Round 2 tr: access %+v\n", round2Access)
 	src.Stats.Bytes_transferred = uint64(bytes)
 	src.Stats.Merge(*round1Access)
@@ -384,7 +384,7 @@ func (src *Coord) Run() error {
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
-	//fmt.Println("Sorted Global List: ", il[:src.k])
+	fmt.Println("Sorted Global List:  top-k score", il[src.k-1].Score, "Thresh", ufThresh)
 	if uint(il[src.k-1].Score) < ufThresh {
 		if src.Approximate {
 			fmt.Println("WARNING, result may be inexact")

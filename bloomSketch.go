@@ -213,7 +213,7 @@ func (b *BloomHistogram) CreateFromList(list ItemList) (serialAccess int) {
 	return b.CreateFromListWithScoreK(list, scorek)
 }
 
-func (b *BloomHistogram) itemsInEntry(list ItemList, scorek float64, entry_start_index int, range_in_entry int) (numItems int) {
+func (b *BloomHistogram) itemsInEntry(list ItemList, entry_start_index int, range_in_entry int) (numItems int) {
 	bucket_items := b.topk
 	score_after_entry := int(list[entry_start_index].Score) - range_in_entry
 	index_after_entry := len(list)
@@ -235,39 +235,62 @@ func (b *BloomHistogram) itemsInEntry(list ItemList, scorek float64, entry_start
 	return items_in_entry
 }
 
-func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64) (serialAccess int) {
-	//topk := 10
-	//n := 33
-	//scorek := list[b.topk-1].Score
-	minscore := uint32(scorek) / uint32(b.numpeers)
+func (b *BloomHistogram) MinScoreIndex(list ItemList, scorek float64) (minscore int, first_index_past_minscore int) {
+	minscore = int(scorek) / int(b.numpeers)
 
-	first_index_past_minscore := len(list)
+	first_index_past_minscore = len(list)
 	for i, item := range list {
-		if uint32(item.Score) < minscore {
+		if int(item.Score) < minscore {
 			first_index_past_minscore = i
 			break
 		}
 	}
+	return minscore, first_index_past_minscore
+}
 
-	total_entries := 10
+func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64) (serialAccess int) {
+	_, first_index_past_minscore := b.MinScoreIndex(list, scorek)
+
+	return b.CreateFromListDetailed(list, scorek, 10, first_index_past_minscore)
+}
+
+func (b *BloomHistogram) CreateFirstRoundFromList(list ItemList, scorek float64, topk int) (serialAccess int) {
+	minscore, first_index_past_minscore := b.MinScoreIndex(list, scorek)
+
+	numentries := 10
+	multiplier := 1 //TODO: change to 5
+	if first_index_past_minscore > topk*multiplier {
+		first_index_past_minscore = topk * multiplier
+		score_max := int(list[0].Score)
+		score_min := int(list[first_index_past_minscore-1].Score)
+		rangeadj := float64(score_max-score_min) / float64(score_max-minscore)
+		numentries := int(rangeadj * float64(numentries))
+		if numentries < 1 {
+			numentries = 1
+		}
+	}
+	return b.CreateFromListDetailed(list, scorek, numentries, first_index_past_minscore)
+}
+
+func (b *BloomHistogram) CreateFromListDetailed(list ItemList, scorek float64, total_entries int, maxIndex int) (serialAccess int) {
 	if PRINT_BUCKETS {
-		fmt.Println("first_idx_past_min ", first_index_past_minscore, "minscore", minscore, "score-k", scorek, " entries ", total_entries)
+		fmt.Println("max Index ", maxIndex, "maxIndex", maxIndex, "score-k", scorek, " entries ", total_entries)
 	}
 	current_index := 0
 	b.Data = make([]*BloomHistogramEntry, 0)
-	for current_index < first_index_past_minscore && len(b.Data) < total_entries {
+	for current_index < maxIndex && len(b.Data) < total_entries {
 		entry_start_index := current_index
-		range_left := (uint32(list[current_index].Score) - minscore) + 1
+		range_left := (uint32(list[current_index].Score) - uint32(list[maxIndex-1].Score)) + 1
 		entries_left := total_entries - len(b.Data)
 		range_per_entry := int(range_left) / entries_left
 		if range_per_entry < 1 {
 			range_per_entry = 1
 		}
 
-		items_in_entry := b.itemsInEntry(list, scorek, entry_start_index, range_per_entry)
+		items_in_entry := b.itemsInEntry(list, entry_start_index, range_per_entry)
 
-		if items_in_entry > first_index_past_minscore-entry_start_index || len(b.Data) == total_entries-1 {
-			items_in_entry = first_index_past_minscore - entry_start_index
+		if items_in_entry > maxIndex-entry_start_index || len(b.Data) == total_entries-1 {
+			items_in_entry = maxIndex - entry_start_index
 		}
 
 		//fmt.Println("range", range_per_entry, "num", items_in_entry, "range_left", range_left, "entries_left", entries_left)
@@ -277,7 +300,7 @@ func (b *BloomHistogram) CreateFromListWithScoreK(list ItemList, scorek float64)
 			for range_per_entry > 1 && filter == nil {
 				range_per_entry = range_per_entry / 2
 
-				items_in_entry = b.itemsInEntry(list, scorek, entry_start_index, range_per_entry)
+				items_in_entry = b.itemsInEntry(list, entry_start_index, range_per_entry)
 				//fmt.Println("range", range_per_entry, "num", items_in_entry, "range_left", range_left, "entries_left", entries_left)
 				filter, eps = b.CreateBloomEntryFilter(b.N_est, items_in_entry, b.numpeers, uint(list[entry_start_index].Score), uint(scorek), len(list))
 			}

@@ -165,10 +165,10 @@ type Test struct {
 func (t *Test) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
-	listSize := 100000
-	zipfParam := 0.4
-	perms := 10
-	overlap := 1.0
+	listSize := 100
+	zipfParam := 0.2
+	perms := 100
+	overlap := 0.7
 	seed := int64(1)
 	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 	return []RowDescription{rd}
