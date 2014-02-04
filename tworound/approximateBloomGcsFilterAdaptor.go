@@ -18,10 +18,10 @@ func NewApproximateBloomGcsFilterAdaptor(topk int, numpeer int, N_est int) Union
 	return &ApproximateBloomGcsFilterAdaptor{topk, numpeer, N_est, 0.0, 1.0, disttopk.NewItemList()}
 }
 
-func (t *ApproximateBloomGcsFilterAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList) UnionSketch {
+func (t *ApproximateBloomGcsFilterAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
 	return nil
 }
-func (t *ApproximateBloomGcsFilterAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
+func (t *ApproximateBloomGcsFilterAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList, peerId int) {
 }
 
 func (t *ApproximateBloomGcsFilterAdaptor) getFilteredItems() disttopk.ItemList {

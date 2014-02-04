@@ -8,8 +8,8 @@ import (
 )
 
 type UnionSketchAdaptor interface {
-	getUnionSketch(FirstRoundSketch, disttopk.ItemList) UnionSketch
-	mergeIntoUnionSketch(UnionSketch, FirstRoundSketch, disttopk.ItemList)
+	getUnionSketch(FirstRoundSketch, disttopk.ItemList, int) UnionSketch
+	mergeIntoUnionSketch(UnionSketch, FirstRoundSketch, disttopk.ItemList, int)
 	getUnionFilter(us UnionSketch, threshhold uint32, il disttopk.ItemList, listlensum int) (uf UnionFilter, threshold uint)
 	copyUnionFilter(UnionFilter) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	serialize(UnionFilter) Serialized        //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
@@ -27,14 +27,14 @@ func NewBloomHistogramUnionSketchAdaptor() UnionSketchAdaptor {
 	return &BloomHistogramUnionSketchAdaptor{}
 }
 
-func (t *BloomHistogramUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList) UnionSketch {
+func (t *BloomHistogramUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
 	bs := frs.(*disttopk.BloomHistogram)
 	bsc := disttopk.NewBloomSketchCollection()
 	bsc.Merge(bs)
 	return bsc
 }
 
-func (t *BloomHistogramUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
+func (t *BloomHistogramUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList, peerId int) {
 	bsc := us.(*disttopk.BloomHistogramCollection)
 	bs := frs.(*disttopk.BloomHistogram)
 	bsc.Merge(bs)
@@ -109,14 +109,14 @@ func NewCountMinUnionSketchAdaptor() UnionSketchAdaptor {
 	return &CountMinUnionSketchAdaptor{}
 }
 
-func (t *CountMinUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList) UnionSketch {
+func (t *CountMinUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
 	cm := frs.(*disttopk.CountMinSketch)
 	ucm := disttopk.NewCountMinSketch(cm.Hashes, cm.Columns)
 	ucm.Merge(cm)
 	return ucm
 }
 
-func (t *CountMinUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
+func (t *CountMinUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList, peerId int) {
 	ucm := us.(*disttopk.CountMinSketch)
 	cm := frs.(*disttopk.CountMinSketch)
 	ucm.Merge(cm)

@@ -75,7 +75,7 @@ func NewApproximateBloomGcsFilterPR(topk int, numpeer int, N_est int) *ProtocolR
 }
 
 func NewExtraRoundBloomGcsMergePR(topk int, numpeer int, N_est int) *ProtocolRunner {
-	peer := NewProtocolRunner(NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeGcsApproxUnionSketchAdaptor(topk), topk, numpeer, N_est)
+	peer := NewProtocolRunner(NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBhErUnionSketchAdaptor(topk), topk, numpeer, N_est)
 	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
 	return peer
 }
@@ -335,9 +335,9 @@ func (src *Coord) Run() error {
 			round1Access.Merge(*fr.stats)
 
 			if ucm == nil {
-				ucm = src.getUnionSketch(sketch, il)
+				ucm = src.getUnionSketch(sketch, il, dobj.Id)
 			} else {
-				src.mergeIntoUnionSketch(ucm, sketch, il)
+				src.mergeIntoUnionSketch(ucm, sketch, il, dobj.Id)
 				//ucm.Merge(sketch.(disttopk.Sketch))
 			}
 

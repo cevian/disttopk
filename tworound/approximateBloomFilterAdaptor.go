@@ -17,10 +17,10 @@ func NewApproximateBloomFilterAdaptor(topk int, numpeer int, N_est int) UnionSke
 	return &ApproximateBloomFilterAdaptor{topk, numpeer, N_est, 0.0, 1.0}
 }
 
-func (t *ApproximateBloomFilterAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList) UnionSketch {
+func (t *ApproximateBloomFilterAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
 	return nil
 }
-func (t *ApproximateBloomFilterAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList) {
+func (t *ApproximateBloomFilterAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList, peerId int) {
 }
 
 func (t *ApproximateBloomFilterAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {

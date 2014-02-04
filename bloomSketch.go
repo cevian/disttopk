@@ -108,9 +108,7 @@ func (c *BloomHistogramEntry) AddToHashValueFilter(hvf *HashValueFilter) {
 		old_len = h.Len()
 	}*/
 	hvf.InsertHashValueSlice(m_bits, hvs)
-	/*h = hvf.filters[m_bits]
 
-																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																																				println("In bloom entry len", hvs.Len(), old_len, h.Len(), h.Len()-old_len)*/
 }
 
 type FilterAdaptor interface {
