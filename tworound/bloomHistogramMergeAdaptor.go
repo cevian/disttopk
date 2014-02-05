@@ -163,7 +163,7 @@ func NewBloomHistogramMergePeerSketchAdaptor(topk int, numpeer int, N_est int) P
 }
 
 func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
+	s := NewBloomHistogramSketchGcs(t.topk, t.numpeer, t.N_est)
 	if MERGE_TOPK_AT_COORD {
 		return s, s.CreateFromListWithScoreK(list[len(localtop):], list[t.topk-1].Score)
 	} else {

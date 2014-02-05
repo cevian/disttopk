@@ -8,6 +8,12 @@ type PeerSketchAdaptor interface {
 	deserialize(Serialized) FirstRoundSketch
 }
 
+type PeerAdditionalSketchAdaptor interface {
+	getAdditionalSketch(uf UnionFilter, list disttopk.ItemList, prevSketch FirstRoundSketch) (sketch FirstRoundSketch, SerialAccess int)
+	serializeAdditionalSketch(c FirstRoundSketch) Serialized
+	deserializeAdditionalSketch(frs Serialized) FirstRoundSketch
+}
+
 type BloomHistogramPeerSketchAdaptor struct {
 	topk    int
 	numpeer int
@@ -19,17 +25,17 @@ func NewBloomHistogramPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSk
 }
 
 func (t *BloomHistogramPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := disttopk.NewBloomSketch(t.topk, t.numpeer, t.N_est)
+	s := NewBloomHistogramSketchPlain(t.topk, t.numpeer, t.N_est)
 	accesses := s.CreateFromList(list)
 	return s, accesses - len(localtop)
 }
 
 func (*BloomHistogramPeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
-	obj, ok := c.(*disttopk.BloomHistogram)
+	obj, ok := c.(*BloomHistogramSketch)
 	if !ok {
 		panic("Unexpected")
 	}
-	b, err := disttopk.SerializeObject(obj)
+	b, err := disttopk.SerializeObject(obj.BloomHistogram)
 	if err != nil {
 		panic(err)
 	}
@@ -57,6 +63,6 @@ func NewBloomHistogramGcsPeerSketchAdaptor(topk int, numpeer int, N_est int) Pee
 }
 
 func (t *BloomHistogramGcsPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
+	s := NewBloomHistogramSketchGcs(t.topk, t.numpeer, t.N_est)
 	return s, s.CreateFromList(list) - len(localtop)
 }

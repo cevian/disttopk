@@ -24,6 +24,15 @@ func (t *BhErUnionSketch) MergeFirstRound(bh *disttopk.BloomHistogram, il distto
 	t.ils[peerId] = il
 }
 
+func (t *BhErUnionSketch) MergeSecondRound(bh *disttopk.BloomHistogram, il disttopk.ItemList, peerId int) {
+	oldbh := t.bhs[peerId]
+	for _, entry := range bh.Data {
+		oldbh.Data = append(oldbh.Data, entry)
+	}
+	oldbh.SetCutoff(bh.Cutoff())
+	t.bhs[peerId] = oldbh
+}
+
 func (t *BhErUnionSketch) GetMaxHashMap() *MaxHashMapUnionSketch {
 	mhm := NewMaxHashMapUnionSketch()
 	for peer_id, bh := range t.bhs {
@@ -92,6 +101,12 @@ func (t *BhErUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstR
 	bhers.MergeFirstRound(bs, il, peerId)
 }
 
+func (t *BhErUnionSketchAdaptor) mergeAdditionalSketchIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList, peerId int) {
+	bhers := us.(*BhErUnionSketch)
+	bs := frs.(*disttopk.BloomHistogram)
+	bhers.MergeSecondRound(bs, il, peerId)
+}
+
 func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*BhErUnionSketch)
@@ -103,7 +118,19 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		approxthresh := underApprox + int64(float64(overApprox-underApprox)*t.gamma)
 
 		cutoff := int64(mhm.Cutoff())
-		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox, "Cutoff:", cutoff)
+
+		needed_cutoff_per_node := 0
+		topkapprox := int64(thresh)
+		if topkapprox == 0 {
+			//Note we are using the underapprox here not the threshold
+			topkapprox = underApprox
+		}
+		if int64(topkapprox) <= cutoff {
+			needed_cutoff := cutoff - int64(topkapprox)
+			needed_cutoff_per_node = int(math.Ceil(float64(needed_cutoff) / float64(t.numpeer)))
+		}
+
+		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox, "Cutoff:", cutoff, "Needed cutoff per node", needed_cutoff_per_node)
 		if cutoff >= approxthresh {
 			old := approxthresh
 			approxthresh = cutoff + 1
@@ -127,19 +154,13 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		}
 		t.numUnionFilterCalls = 1
 
-		needed_cutoff_per_node := 0
-		if int64(thresh) <= cutoff {
-			needed_cutoff := cutoff - int64(thresh)
-			needed_cutoff_per_node = int(math.Ceil(float64(needed_cutoff) / float64(t.numpeer)))
-		}
-
 		return &BhErGcsFilter{filter, needed_cutoff_per_node}, uint(approxthresh)
 	} else {
 		bs := us.(*BhErUnionSketch)
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 		gcs := bs.GetFilter(int64(thresh))
 		if gcs != nil {
-			return &BhErGcsFilter{gcs, int(thresh)}, uint(thresh)
+			return &BhErGcsFilter{gcs, 0}, uint(thresh)
 		}
 		return nil, uint(thresh)
 	}
@@ -205,11 +226,60 @@ func NewBhErPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAdapto
 }
 
 func (t *BhErPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := disttopk.NewBloomSketchGcs(t.topk, t.numpeer, t.N_est)
+	s := NewBloomHistogramSketchSplitGcs(t.topk, t.numpeer, t.N_est)
 	if MERGE_TOPK_AT_COORD {
-		return s, s.CreateFirstRoundFromList(list[len(localtop):], list[t.topk-1].Score, t.topk)
+		items := s.CreateFirstRoundFromList(list, len(localtop))
+		return s, items
 	} else {
-		return s, s.CreateFirstRoundFromList(list, list[t.topk-1].Score, t.topk)
+		return s, s.CreateFirstRoundFromList(list, 0)
 		//return s, s.CreateFromList(list) - len(localtop)
 	}
+}
+
+func (t *BhErPeerSketchAdaptor) getAdditionalSketch(uf UnionFilter, list disttopk.ItemList, prevSketch FirstRoundSketch) (sketch FirstRoundSketch, SerialAccess int) {
+	bhgcs := uf.(*BhErGcsFilter)
+	if bhgcs.ExtraRange == 0 {
+		return nil, 0
+	}
+	s := prevSketch.(*BloomHistogramSketchSplit)
+	items := s.CreateSecondRoundFromList(list, bhgcs.ExtraRange)
+	//fmt.Println("Get Additional Sketch", items, bhgcs.ExtraRange)
+	return s, items
+}
+
+func (*BhErPeerSketchAdaptor) serializeAdditionalSketch(c FirstRoundSketch) Serialized {
+	obj, ok := c.(*BloomHistogramSketchSplit)
+	if !ok {
+		panic("Unexpected")
+	}
+	b, err := disttopk.SerializeObject(obj.second)
+	if err != nil {
+		panic(err)
+	}
+	return b
+	//return c
+}
+
+func (t *BloomHistogramPeerSketchAdaptor) deserializeAdditionalSketch(frs Serialized) FirstRoundSketch {
+	bs := frs
+	obj := &disttopk.BloomHistogram{}
+	err := disttopk.DeserializeObject(obj, []byte(bs))
+	if err != nil {
+		panic(err)
+	}
+	return obj
+	//return frs.(FirstRoundSketch)
+}
+
+func (*BhErPeerSketchAdaptor) serialize(c FirstRoundSketch) Serialized {
+	obj, ok := c.(*BloomHistogramSketchSplit)
+	if !ok {
+		panic("Unexpected")
+	}
+	b, err := disttopk.SerializeObject(obj.first)
+	if err != nil {
+		panic(err)
+	}
+	return b
+	//return c
 }

@@ -17,6 +17,10 @@ type UnionSketchAdaptor interface {
 	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats)
 }
 
+type UnionAdditonalSketchAdaptor interface {
+	mergeAdditionalSketchIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList, peerId int)
+}
+
 type UnionSketchFilterItemsReporter interface {
 	getFilteredItems() disttopk.ItemList
 }
@@ -43,7 +47,7 @@ func (t *BloomHistogramUnionSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, 
 func (t *BloomHistogramUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	bs := us.(*disttopk.BloomHistogramCollection)
 	fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-	bs.SetThresh(thresh)
+	bs.SetThresh(disttopk.BloomHistogramScore(thresh))
 	return bs, uint(thresh)
 }
 
