@@ -111,6 +111,20 @@ func (t *MaxHashMap) GetFilter(thresh int64) *Gcs {
 
 }
 
+func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64) int {
+
+	mapValueThresh := thresh - cutoff
+
+	count := 0
+	for _, mapValue := range t.data {
+		if mapValue >= mapValueThresh {
+			count += 1
+		}
+
+	}
+	return count
+}
+
 func (t *MaxHashMap) GetMinModulusBitsMap(m map[uint32]int64) map[uint32]int64 {
 	min_modulus := uint32(1 << t.min_modulus_bits)
 	res := make(map[uint32]int64)

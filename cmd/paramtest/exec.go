@@ -163,11 +163,20 @@ type Test struct {
 }
 
 func (t *Test) GetRowDescription() []RowDescription {
+	/*
+		bad performance for split bh send, ergcs
+		k := 10
+		nodes := 10
+		listSize := 10000
+		zipfParam := 0.4
+		perms := 100
+		overlap := 0.2
+		seed := int64(1)*/
 	k := 10
 	nodes := 10
 	listSize := 10000
 	zipfParam := 0.4
-	perms := 100
+	perms := 10
 	overlap := 0.2
 	seed := int64(1)
 	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}

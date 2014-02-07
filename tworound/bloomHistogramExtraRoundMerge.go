@@ -85,7 +85,7 @@ type BhErUnionSketchAdaptor struct {
 }
 
 func NewBhErUnionSketchAdaptor(topk int, numpeer int) UnionSketchAdaptor {
-	return &BhErUnionSketchAdaptor{topk, numpeer, 0.5, 0}
+	return &BhErUnionSketchAdaptor{topk, numpeer, 0.9, 0}
 }
 
 func (t *BhErUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
@@ -119,18 +119,42 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 
 		cutoff := int64(mhm.Cutoff())
 
-		needed_cutoff_per_node := 0
 		topkapprox := int64(thresh)
+		mincutoff := cutoff
 		if topkapprox == 0 {
 			//Note we are using the underapprox here not the threshold
 			topkapprox = underApprox
 		}
 		if int64(topkapprox) <= cutoff {
-			needed_cutoff := cutoff - int64(topkapprox)
-			needed_cutoff_per_node = int(math.Ceil(float64(needed_cutoff) / float64(t.numpeer)))
+			mincutoff = int64(topkapprox)
+			//needed_cutoff_per_node = int(math.Ceil(float64(needed_cutoff) / float64(t.numpeer)))
+			//needed_cutoff_per_node = 100
+		}
+		//fmt.Println("First mincutoff is ", mincutoff, cutoff, topkapprox)
+		if mincutoff > 0 {
+			testcut := mincutoff - 1
+			first := mhm.GetCountHashesWithCutoff(topkapprox, cutoff)
+			best := float64(0)
+			for testcut > 0 {
+				c := mhm.GetCountHashesWithCutoff(topkapprox, testcut)
+				ratio := float64(first-c) / float64(cutoff-testcut)
+				if ratio > best {
+					best = ratio
+					mincutoff = testcut
+				}
+				//fmt.Println("Cutoff is ", testcut, "num", c, ratio)
+				testcut--
+			}
+		}
+		//fmt.Println("Second mincutoff is ", mincutoff, cutoff)
+
+		needed_cutoff_per_node := 0
+		if mincutoff < cutoff {
+			needed_cutoff_per_node = int(math.Ceil(float64(cutoff-mincutoff) / float64(t.numpeer)))
 		}
 
 		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox, "Cutoff:", cutoff, "Needed cutoff per node", needed_cutoff_per_node)
+
 		if cutoff >= approxthresh {
 			old := approxthresh
 			approxthresh = cutoff + 1
@@ -219,14 +243,15 @@ func (t *BhErUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.I
 
 type BhErPeerSketchAdaptor struct {
 	*BloomHistogramPeerSketchAdaptor
+	Multiplier int
 }
 
-func NewBhErPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAdaptor {
-	return &BhErPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}}
+func NewBhErPeerSketchAdaptor(topk int, numpeer int, N_est int, multiplier int) PeerSketchAdaptor {
+	return &BhErPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}, multiplier}
 }
 
 func (t *BhErPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := NewBloomHistogramSketchSplitGcs(t.topk, t.numpeer, t.N_est)
+	s := NewBloomHistogramSketchSplitGcs(t.topk, t.numpeer, t.N_est, t.Multiplier)
 	if MERGE_TOPK_AT_COORD {
 		items := s.CreateFirstRoundFromList(list, len(localtop))
 		return s, items
