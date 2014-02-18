@@ -125,6 +125,19 @@ func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64) int {
 	return count
 }
 
+func (t *MaxHashMap) GetMaxCutoff(thresh int64) int64 {
+	max := int64(0)
+	for _, mapValue := range t.data {
+		if mapValue > max {
+			max = mapValue
+		}
+	}
+	//thresh - x = max
+	//x = thresh-max
+
+	return (max - 1) + int64(t.cutoff)
+}
+
 func (t *MaxHashMap) GetMinModulusBitsMap(m map[uint32]int64) map[uint32]int64 {
 	min_modulus := uint32(1 << t.min_modulus_bits)
 	res := make(map[uint32]int64)

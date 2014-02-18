@@ -20,6 +20,7 @@ var BloomGcs = Protocol{"bloomGcs", runner.RunApproximateBloomGcsFilter, false}
 
 // Extra-Round Exact
 var ErGcs = Protocol{"ER GCS", runner.RunExtraRoundBloomGcsMergeFilter, true}
+var ErGms = Protocol{"ER GMS", runner.RunExtraRoundBloomGcsMergeSplit, true}
 var ErTput = Protocol{"ER TP", runner.RunTputHashExtraRound, true}
 
 // Exact
@@ -36,6 +37,7 @@ var protocols []Protocol = []Protocol{
 	Bloom,
 	BloomGcs,
 	ErGcs,
+	ErGms,
 	ErTput,
 	Tput,
 	TputHash,

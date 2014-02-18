@@ -177,14 +177,14 @@ func (t *Test) GetRowDescription() []RowDescription {
 	listSize := 10000
 	zipfParam := 0.4
 	perms := 10
-	overlap := 0.2
+	overlap := 1.0
 	seed := int64(1)
 	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 	return []RowDescription{rd}
 }
 
 func (t *Test) GetProtocols() []Protocol {
-	return []Protocol{ErGcs, GcsMerge, TputHash}
+	return []Protocol{ErGcs, ErGms, GcsMerge, TputHash}
 }
 
 func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
@@ -205,6 +205,7 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.Name, res.Abs_err))
 		}
 		results[proto.Name] = res
+		fmt.Println("Result:", proto.Name, "Bytes", res.Bytes_transferred)
 		runtime.GC()
 	}
 

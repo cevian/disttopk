@@ -203,3 +203,9 @@ func RunExtraRoundBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk
 	N_est := getNEst(l)
 	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergePR(topk, numpeer, N_est), l)
 }
+
+func RunExtraRoundBloomGcsMergeSplit(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	numpeer := len(l)
+	N_est := getNEst(l)
+	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, N_est), l)
+}

@@ -81,11 +81,12 @@ type BhErUnionSketchAdaptor struct {
 	topk                int
 	numpeer             int
 	gamma               float64
+	useCutoffHeuristic  bool
 	numUnionFilterCalls int
 }
 
-func NewBhErUnionSketchAdaptor(topk int, numpeer int) UnionSketchAdaptor {
-	return &BhErUnionSketchAdaptor{topk, numpeer, 0.9, 0}
+func NewBhErUnionSketchAdaptor(topk int, numpeer int, gamma float64, ch bool) UnionSketchAdaptor {
+	return &BhErUnionSketchAdaptor{topk, numpeer, gamma, ch, 0}
 }
 
 func (t *BhErUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
@@ -107,6 +108,33 @@ func (t *BhErUnionSketchAdaptor) mergeAdditionalSketchIntoUnionSketch(us UnionSk
 	bhers.MergeSecondRound(bs, il, peerId)
 }
 
+func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapprox int64) int64 {
+	mhm := bs.GetMaxHashMap()
+	cutoff := int64(mhm.Cutoff())
+
+	bestcutoff := cutoff
+	if cutoff > 0 {
+		referencecut := mhm.GetMaxCutoff(topkapprox)
+		if referencecut <= cutoff {
+			panic(fmt.Sprintln("Error", referencecut, cutoff))
+		}
+		reference := mhm.GetCountHashesWithCutoff(topkapprox, referencecut)
+		testcut := cutoff
+		best := float64(0)
+		for testcut > 0 {
+			c := mhm.GetCountHashesWithCutoff(topkapprox, testcut)
+			ratio := float64(reference-c) / float64(referencecut-testcut)
+			if ratio > best {
+				best = ratio
+				bestcutoff = testcut
+			}
+			//fmt.Println("Cutoff is ", testcut, "num", c, ratio)
+			testcut--
+		}
+	}
+	return bestcutoff
+}
+
 func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*BhErUnionSketch)
@@ -119,41 +147,57 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 
 		cutoff := int64(mhm.Cutoff())
 
-		topkapprox := int64(thresh)
-		mincutoff := cutoff
-		if topkapprox == 0 {
+		underLow := int64(thresh)
+		if underLow == 0 {
 			//Note we are using the underapprox here not the threshold
-			topkapprox = underApprox
+			underLow = underApprox - 1
 		}
-		if int64(topkapprox) <= cutoff {
-			mincutoff = int64(topkapprox)
-			//needed_cutoff_per_node = int(math.Ceil(float64(needed_cutoff) / float64(t.numpeer)))
-			//needed_cutoff_per_node = 100
-		}
-		//fmt.Println("First mincutoff is ", mincutoff, cutoff, topkapprox)
-		if mincutoff > 0 {
-			testcut := mincutoff - 1
-			first := mhm.GetCountHashesWithCutoff(topkapprox, cutoff)
-			best := float64(0)
-			for testcut > 0 {
-				c := mhm.GetCountHashesWithCutoff(topkapprox, testcut)
-				ratio := float64(first-c) / float64(cutoff-testcut)
-				if ratio > best {
-					best = ratio
-					mincutoff = testcut
-				}
-				//fmt.Println("Cutoff is ", testcut, "num", c, ratio)
-				testcut--
-			}
-		}
-		//fmt.Println("Second mincutoff is ", mincutoff, cutoff)
 
+		mincutoff := cutoff
 		needed_cutoff_per_node := 0
-		if mincutoff < cutoff {
+		if t.useCutoffHeuristic {
+			heur := t.GetCutoffHeuristic(bs, underLow)
+			if heur < cutoff {
+				mincutoff = heur
+				needed_cutoff_per_node = int(math.Ceil(float64(cutoff-mincutoff) / float64(t.numpeer)))
+			}
+
+		}
+
+		if underLow < mincutoff {
+			mincutoff = underLow
 			needed_cutoff_per_node = int(math.Ceil(float64(cutoff-mincutoff) / float64(t.numpeer)))
 		}
+		/*
+			if int64(topkapprox) <= cutoff {
+				mincutoff = int64(topkapprox)
+				//needed_cutoff_per_node = int(math.Ceil(float64(needed_cutoff) / float64(t.numpeer)))
+				//needed_cutoff_per_node = 100
+			}
+			//fmt.Println("First mincutoff is ", mincutoff, cutoff, topkapprox)
+			if mincutoff > 0 {
+				testcut := mincutoff - 1
+				first := mhm.GetCountHashesWithCutoff(topkapprox, cutoff)
+				best := float64(0)
+				for testcut > 0 {
+					c := mhm.GetCountHashesWithCutoff(topkapprox, testcut)
+					ratio := float64(first-c) / float64(cutoff-testcut)
+					if ratio > best {
+						best = ratio
+						mincutoff = testcut
+					}
+					//fmt.Println("Cutoff is ", testcut, "num", c, ratio)
+					testcut--
+				}
+			}
+			//fmt.Println("Second mincutoff is ", mincutoff, cutoff)
 
-		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox, "Cutoff:", cutoff, "Needed cutoff per node", needed_cutoff_per_node)
+			needed_cutoff_per_node := 0
+			if mincutoff < cutoff {
+				needed_cutoff_per_node = int(math.Ceil(float64(cutoff-mincutoff) / float64(t.numpeer)))
+			}
+		*/
+		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox, "Cutoff:", cutoff, "Needed cutoff per node", needed_cutoff_per_node, "mincutoff", mincutoff)
 
 		if cutoff >= approxthresh {
 			old := approxthresh
@@ -181,7 +225,9 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		return &BhErGcsFilter{filter, needed_cutoff_per_node}, uint(approxthresh)
 	} else {
 		bs := us.(*BhErUnionSketch)
+		mhm := bs.GetMaxHashMap()
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
+		fmt.Println("Getting round 3 filter for: thresh=", thresh, " Cutoff", mhm.Cutoff())
 		gcs := bs.GetFilter(int64(thresh))
 		if gcs != nil {
 			return &BhErGcsFilter{gcs, 0}, uint(thresh)
