@@ -98,11 +98,11 @@ func (t *BloomHistogramMergeSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	bs := us.(*MaxHashMapUnionSketch)
 	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-	flt, v := bs.GetFilter(int64(thresh)), uint(thresh)
+	flt, v := bs.GetFilter(int64(thresh)) 
 	if flt != nil {
-		return flt, v
+		return flt, uint(v)
 	}
-	return nil, v
+	return nil, uint(v)
 }
 
 func (t *BloomHistogramMergeSketchAdaptor) copyUnionFilter(uf UnionFilter) UnionFilter {
@@ -211,7 +211,7 @@ func (t *BloomHistogramMergeGcsApproxUnionSketchAdaptor) getUnionFilter(us Union
 			}
 		*/
 
-		filter := bs.GetFilter(approxthresh)
+		filter, approxthresh := bs.GetFilter(approxthresh)
 		if filter == nil {
 			panic("Should never get nil filter here")
 		}

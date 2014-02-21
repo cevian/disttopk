@@ -41,7 +41,7 @@ func (t *BhErUnionSketch) GetMaxHashMap() *MaxHashMapUnionSketch {
 	return mhm
 }
 
-func (t *BhErUnionSketch) GetFilter(thresh int64) *disttopk.Gcs {
+func (t *BhErUnionSketch) GetFilter(thresh int64) (*disttopk.Gcs, int64) {
 	mhm := t.GetMaxHashMap()
 	return mhm.GetFilter(thresh)
 }
@@ -216,7 +216,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 			}
 		*/
 
-		filter := bs.GetFilter(approxthresh)
+		filter, approxthresh := bs.GetFilter(approxthresh)
 		if filter == nil {
 			panic("Should never get nil filter here")
 		}
@@ -228,7 +228,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		mhm := bs.GetMaxHashMap()
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 		fmt.Println("Getting round 3 filter for: thresh=", thresh, " Cutoff", mhm.Cutoff())
-		gcs := bs.GetFilter(int64(thresh))
+		gcs, thresh := bs.GetFilter(int64(thresh))
 		if gcs != nil {
 			return &BhErGcsFilter{gcs, 0}, uint(thresh)
 		}

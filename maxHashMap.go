@@ -89,10 +89,10 @@ func (t *MaxHashMap) AddCutoff(c uint) {
 	t.cutoff += uint32(c)
 }
 
-func (t *MaxHashMap) GetFilter(thresh int64) *Gcs {
+func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
 	if thresh <= int64(t.cutoff) {
 		fmt.Printf("WARNING: in MaxHashMap thresh(%v) <= cutoff(%v). Sending no filter, everything will be sent", thresh, t.cutoff)
-		return nil
+		return nil, 0
 	}
 
 	mapValueThresh := thresh - int64(t.cutoff)
@@ -100,14 +100,21 @@ func (t *MaxHashMap) GetFilter(thresh int64) *Gcs {
 	m := (1 << (uint(t.modulus_bits)))
 	gcs := NewGcs(m)
 
+	maxNotIncluded := int64(0)
 	for hashValue, mapValue := range t.data {
 		if mapValue >= mapValueThresh {
 			//fmt.Println("Diff", mapValue-mapValueThresh, mapValue, mapValueThresh, count)
 			gcs.Data.Insert(hashValue)
+		} else {
+			value := mapValue + int64(t.cutoff)
+			if value > maxNotIncluded {
+				maxNotIncluded = value
+			}
 		}
 	}
+	//fmt.Println("Better thresh", maxNotIncluded+1)
 
-	return gcs
+	return gcs, maxNotIncluded+1
 
 }
 
