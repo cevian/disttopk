@@ -408,6 +408,7 @@ func (src *Coord) Run() error {
 		} else {
 			src.Stats.Rounds = 3
 			round3Thresh := il[src.k-1].Score
+			round2UfThresh := ufThresh
 			err, round3Access, round3items, m, ufThresh, round3_back_bytes, add_sketch_bytes := src.RunSendFilterThreshold(ucm, uint32(round3Thresh), il, m, listlensum)
 			if add_sketch_bytes > 0 {
 				panic("snh")
@@ -415,8 +416,11 @@ func (src *Coord) Run() error {
 			if err != nil {
 				return err
 			}
-			if ufThresh < uint(round3Thresh) {
-				panic("Should never happen")
+			if round2UfThresh <= uint(round3Thresh) {
+				panic(fmt.Sprintln("Should never happen", round2UfThresh, round3Thresh))
+			}
+			if ufThresh > uint(round3Thresh) {
+				panic(fmt.Sprintln("Should never happen", ufThresh, round3Thresh))
 			}
 
 			bytesRound = round3items*disttopk.RECORD_SIZE + round3_back_bytes

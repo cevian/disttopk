@@ -44,6 +44,64 @@ func getRecall(exact ItemList, approx ItemList, k int) float64 {
 	return float64(found) / float64(k)
 }
 
+func getMatches(exact ItemList, approx ItemList, k int) (ItemList, ItemList) {
+	em := exact[:k].AddToMap(nil)
+
+	exactMatch := NewItemList()
+	approxMatch := NewItemList()
+
+	for i := 0; i < k; i++ {
+		item := approx[i]
+		exactScore, ok := em[item.Id]
+		exactItem := Item{item.Id, exactScore}
+		if ok {
+			exactMatch = exactMatch.Append(exactItem)
+			approxMatch = approxMatch.Append(item)
+		}
+	}
+
+	if len(exactMatch) > k || len(exactMatch) != len(approxMatch) {
+		panic(fmt.Sprintln("snh", len(exactMatch), len(approxMatch), k))
+	}
+	return exactMatch, approxMatch
+}
+
+func getScoreError(exact ItemList, approx ItemList, k int) float64 {
+	exactMatch, approxMatch := getMatches(exact, approx, k)
+	err := 0.0
+	for k, eitem := range exactMatch {
+		aitem := approxMatch[k]
+		e := 0.0
+		if aitem.Score > eitem.Score {
+			e = aitem.Score - eitem.Score
+		} else {
+			e = eitem.Score - aitem.Score
+		}
+		err += e
+	}
+	return err / float64(k)
+}
+
+func getScoreErrorRel(exact ItemList, approx ItemList, k int) float64 {
+	exactMatch, approxMatch := getMatches(exact, approx, k)
+	err := 0.0
+	for k, eitem := range exactMatch {
+		aitem := approxMatch[k]
+		e := 0.0
+		if aitem.Score > eitem.Score {
+			e = aitem.Score - eitem.Score
+		} else {
+			e = eitem.Score - aitem.Score
+		}
+		err += ( e / eitem.Score)
+	}
+	return err / float64(k)
+
+
+}
+
+
+/* this is closest to the klee paper but is a bad metric 
 func getScoreError(exact ItemList, approx ItemList, k int) float64 {
 	err := 0.0
 	for i := 0; i < k; i++ {
@@ -75,6 +133,7 @@ func getScoreErrorRel(exact ItemList, approx ItemList, k int) float64 {
 	}
 	return err / float64(k)
 }
+*/
 func itemList2item(ilist ItemList) []int {
 	keys := make([]int, len(ilist))
 	for i, item := range ilist {
