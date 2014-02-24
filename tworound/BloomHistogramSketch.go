@@ -114,7 +114,11 @@ func CreateFromListMinscore(b *disttopk.BloomHistogram, list disttopk.ItemList, 
 			panic("snh")
 		}
 		b.Data = append(b.Data, entry)
-		current_score = disttopk.BloomHistogramScore(list[next_index].Score)
+		if next_index < len(list) {
+			current_score = disttopk.BloomHistogramScore(list[next_index].Score)
+		} else {
+			current_score = 0
+		}
 		current_index = next_index
 		if current_score >= mineqentryscore {
 			break
