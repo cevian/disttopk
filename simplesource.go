@@ -132,13 +132,20 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 			continue
 		}
 		newItems := int(float64(len(list)) * (1.0 - overlap))
+		m := list.AddToMap(nil)
 		replaced := make(map[int]bool)
 		for i := 0; i < newItems; {
 			pos := rand.Intn(len(list))
 			if !replaced[pos] {
 				i++
 				replaced[pos] = true
-				new_id := rand.Int()
+				ok := true
+				new_id := 0
+				for ok {
+					new_id = rand.Int()
+					_, ok = m[new_id]
+				}
+				m[new_id]  = list[pos].Score
 				list[pos].Id = new_id
 			}
 		}
