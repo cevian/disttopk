@@ -112,7 +112,10 @@ func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
 			}
 		}
 	}
-	//fmt.Println("Better thresh", maxNotIncluded+1)
+	if maxNotIncluded == 0 {
+		maxNotIncluded = thresh - 1
+	}
+	//fmt.Println("Better thresh", thresh,  maxNotIncluded+1, t.cutoff, mapValueThresh, len(t.data))
 
 	return gcs, maxNotIncluded+1
 
