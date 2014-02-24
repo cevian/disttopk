@@ -16,19 +16,21 @@ var Naive2k = Protocol{"Naive (2k)", runner.RunNaiveK2, false}
 var Klee3 = Protocol{"Klee3", runner.RunKlee3, false}
 var Klee4 = Protocol{"Klee4", runner.RunKlee4, false}
 var Bloom = Protocol{"bloom", runner.RunApproximateBloomFilter, false}
-var BloomGcs = Protocol{"bloomGcs", runner.RunApproximateBloomGcsFilter, false}
+var BloomGcs = Protocol{"SBR-A", runner.RunApproximateBloomGcsFilter, false}
 
 // Extra-Round Exact
 var ErGcs = Protocol{"ER GCS", runner.RunExtraRoundBloomGcsMergeFilter, true}
-var ErGms = Protocol{"ER GMS", runner.RunExtraRoundBloomGcsMergeSplit, true}
-var ErTput = Protocol{"ER TP", runner.RunTputHashExtraRound, true}
+var ErGms = Protocol{"SBR-ER", runner.RunExtraRoundBloomGcsMergeSplitUnderNest, true}
+var ErGmsOverNest = Protocol{"SBR-ER OverNest", runner.RunExtraRoundBloomGcsMergeSplitOverNest, true}
+var ErGmsIdealNest = Protocol{"SBR-ER IdealNest", runner.RunExtraRoundBloomGcsMergeSplitIdealNest, true}
+var ErTput = Protocol{"TPUT-ER", runner.RunTputHashExtraRound, true}
 
 // Exact
-var Tput = Protocol{"Tput", runner.RunTput, true}
-var TputHash = Protocol{"TputH", runner.RunTputHash, true}
+var Tput = Protocol{"TPUT", runner.RunTput, true}
+var TputHash = Protocol{"TPUT-H", runner.RunTputHash, true}
 
 //var Gcs	= Protocol{"2R Gcs  ", runner.RunBloomSketchGcs, true}
-var GcsMerge = Protocol{"2R GcsM", runner.RunBloomSketchGcsMerge, true}
+var GcsMerge = Protocol{"SBR-2R", runner.RunBloomSketchGcsMerge, true}
 var CountMin = Protocol{"Count Min", runner.RunCountMin, true}
 
 var protocols []Protocol = []Protocol{

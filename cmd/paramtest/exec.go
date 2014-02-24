@@ -29,18 +29,20 @@ func main() {
 		s = &Overlap{&Distribution{}}
 	} else if *suite == "Test" {
 		s = &Test{}
+	} else if *suite == "OneListSize" {
+		s = &OneListSize{}
 	} else {
 		panic(fmt.Sprint("Unknown suite", *suite))
 	}
 
 	rds := GetRowDescriptionPartition(s.GetRowDescription(), *partition, *totalPartitions)
 
-	printers := defaultPrinters
+	protos := s.GetProtocols()
+	printers := GetDefaultPrinters(protos)
 	for _, p := range printers {
 		p.Start()
 	}
 
-	protos := s.GetProtocols()
 	for _, rd := range rds {
 		stat := Run(rd, protos)
 		for _, p := range printers {
@@ -137,6 +139,31 @@ func (t *Distribution) GetProtocols() []Protocol {
 	return protocols
 }
 
+type OneListSize struct {
+}
+
+func (t *OneListSize) GetRowDescription() []RowDescription {
+	rds := make([]RowDescription, 0)
+	k := 10
+	nodes := 10
+	listSize := 10000
+	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
+		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
+				for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+					for _, seed := range []int64{1, 2, 3, 4, 5} {
+						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+						rds = append(rds, rd)
+					}
+				}
+		}
+	}
+	return PermuteList(rds)
+}
+
+func (t *OneListSize) GetProtocols() []Protocol {
+	return []Protocol{ErGms, ErGmsIdealNest, ErGmsOverNest}
+}
+
 type Overlap struct {
 	*Distribution
 }
@@ -174,10 +201,10 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 10000
-	zipfParam := 0.4
-	perms := 100
-	overlap := 0.2
+	listSize := 1000
+	zipfParam := 0.2
+	perms := 10
+	overlap := 0.0
 	seed := int64(1)
 	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 	return []RowDescription{rd}
@@ -192,6 +219,12 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 
 	naive_exact, _ := runner.RunNaive(l, 0)
 	ground_truth := naive_exact
+
+	if ground_truth[rd.k-1] == ground_truth[rd.k] {
+		fmt.Println("WARNING_ERROR: no difference between the kth and k+1st element")
+		return make(map[string]disttopk.AlgoStats)
+
+	}
 
 	runtime.GC()
 	//n := Getn(l[0], k, Nnodes)

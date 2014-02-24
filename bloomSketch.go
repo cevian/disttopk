@@ -129,7 +129,9 @@ func (p PlainFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
 	return &Bloom{}
 }
 
-type GcsFilterAdaptor struct{}
+type GcsFilterAdaptor struct{
+	NestimateParameter float64
+}
 
 func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint, listlen int) (BloomFilter, float64) {
 	adjuster := 1.0
@@ -140,8 +142,16 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 		adjuster = 1.0 / x
 	}
 
+	estimateN := N_est
+	if p.NestimateParameter >= 0 {
+		estimateN = listlen + int(p.NestimateParameter*float64(listlen)*float64(numpeers-1))
+	}
+	if p.NestimateParameter == -2.0 {
+		panic("wtf")
+	}
+
 	//eps := EstimateEpsGcsAdjuster(N_est, n, RECORD_SIZE*8, numpeers+1, adjuster)
-	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, listlen, 2, adjuster)
+	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, estimateN, 2, adjuster)
 	//eps := 0.01
 	m_est := EstimateMGcs(n, eps)
 	//fmt.Println("Eps ", eps, "n", n, "m_est", m_est)
@@ -689,7 +699,7 @@ func getFilterAdaptorById(id uint8) FilterAdaptor {
 	case 1:
 		return PlainFilterAdaptor{}
 	case 2:
-		return GcsFilterAdaptor{}
+		return GcsFilterAdaptor{NestimateParameter: -2.0}
 	default:
 		panic("Unknown filter type")
 	}

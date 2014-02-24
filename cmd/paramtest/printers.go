@@ -14,11 +14,21 @@ func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
 	}
 }
 
-var defaultPrinters = []Printer{&OverviewPrinter{protocols, ""},
+/*var defaultPrinters = []Printer{&OverviewPrinter{protocols, ""},
 	&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
 	&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
 	&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
 	&ExportPrinter{&OverviewPrinter{protocols, ""}},
+}*/
+
+func GetDefaultPrinters(protos []Protocol) []Printer{
+   return []Printer{&OverviewPrinter{protos, ""},
+	&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
+	&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
+	&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
+	&ExportPrinter{&OverviewPrinter{protos, ""}},
+}
+	
 }
 
 type RowDescription struct {

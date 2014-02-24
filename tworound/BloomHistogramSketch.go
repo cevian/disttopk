@@ -19,8 +19,8 @@ func NewBloomHistogramSketch(bh *disttopk.BloomHistogram, topk int, numpeers int
 	return &BloomHistogramSketch{bh, topk, numpeers, N_est}
 }
 
-func NewBloomHistogramSketchGcs(topk int, numpeers int, N_est int) *BloomHistogramSketch {
-	bh := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{})
+func NewBloomHistogramSketchGcs(topk int, numpeers int, N_est int, NestimateParameter float64) *BloomHistogramSketch {
+	bh := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{NestimateParameter})
 	return NewBloomHistogramSketch(bh, topk, numpeers, N_est)
 }
 
@@ -90,7 +90,7 @@ func CreateFromListMinscore(b *disttopk.BloomHistogram, list disttopk.ItemList, 
 	current_index := start_index
 	b.Data = make([]*disttopk.BloomHistogramEntry, 0)
 
-	for current_score >= mineqscore {
+	for current_score >= mineqscore && current_score != 0 {
 		range_left := (current_score - mineqscore)
 		entries_left := total_entries - len(b.Data)
 		range_per_entry := disttopk.BloomHistogramScore(int(range_left) / entries_left)
@@ -286,9 +286,9 @@ func (b *BloomHistogramSketchSplit) CreateSecondRoundFromList(list disttopk.Item
 	return items
 }
 
-func NewBloomHistogramSketchSplitGcs(topk int, numpeers int, N_est int, Multiplier int) *BloomHistogramSketchSplit {
-	first := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{})
-	second := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{})
+func NewBloomHistogramSketchSplitGcs(topk int, numpeers int, N_est int, Multiplier int, NestimateParameter float64) *BloomHistogramSketchSplit {
+	first := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{NestimateParameter})
+	second := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{NestimateParameter})
 	return NewBloomHistogramSketchSplit(first, second, topk, numpeers, N_est, Multiplier)
 }
 

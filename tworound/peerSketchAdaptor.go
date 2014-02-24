@@ -18,10 +18,11 @@ type BloomHistogramPeerSketchAdaptor struct {
 	topk    int
 	numpeer int
 	N_est   int
+	NestimateParameter float64
 }
 
-func NewBloomHistogramPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAdaptor {
-	return &BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}
+func NewBloomHistogramPeerSketchAdaptor(topk int, numpeer int, N_est int, NestimateParameter float64) PeerSketchAdaptor {
+	return &BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est, NestimateParameter}
 }
 
 func (t *BloomHistogramPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
@@ -58,11 +59,11 @@ type BloomHistogramGcsPeerSketchAdaptor struct {
 	*BloomHistogramPeerSketchAdaptor
 }
 
-func NewBloomHistogramGcsPeerSketchAdaptor(topk int, numpeer int, N_est int) PeerSketchAdaptor {
-	return &BloomHistogramGcsPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est}}
+func NewBloomHistogramGcsPeerSketchAdaptor(topk int, numpeer int, N_est int, NestimateParameter float64) PeerSketchAdaptor {
+	return &BloomHistogramGcsPeerSketchAdaptor{ NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est, NestimateParameter).(*BloomHistogramPeerSketchAdaptor)}
 }
 
 func (t *BloomHistogramGcsPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := NewBloomHistogramSketchGcs(t.topk, t.numpeer, t.N_est)
+	s := NewBloomHistogramSketchGcs(t.topk, t.numpeer, t.N_est, t.NestimateParameter)
 	return s, s.CreateFromList(list) - len(localtop)
 }

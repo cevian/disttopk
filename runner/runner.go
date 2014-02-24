@@ -163,19 +163,19 @@ func RunProtocolRunner(pr *tworound.ProtocolRunner, l []disttopk.ItemList) (dist
 func RunBloomSketch(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	N_est := getNEst(l)
-	return RunProtocolRunner(tworound.NewBloomPR(topk, numpeer, N_est), l)
+	return RunProtocolRunner(tworound.NewBloomPR(topk, numpeer, N_est, 0.0), l)
 }
 
 func RunBloomSketchGcs(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	N_est := getNEst(l)
-	return RunProtocolRunner(tworound.NewBloomGcsPR(topk, numpeer, N_est), l)
+	return RunProtocolRunner(tworound.NewBloomGcsPR(topk, numpeer, N_est, 0.0), l)
 }
 
 func RunBloomSketchGcsMerge(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	N_est := getNEst(l)
-	return RunProtocolRunner(tworound.NewBloomGcsMergePR(topk, numpeer, N_est), l)
+	return RunProtocolRunner(tworound.NewBloomGcsMergePR(topk, numpeer, N_est, 0.0), l)
 }
 
 func RunCountMin(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
@@ -201,11 +201,23 @@ func RunApproximateBloomGcsFilter(l []disttopk.ItemList, topk int) (disttopk.Ite
 func RunExtraRoundBloomGcsMergeFilter(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	N_est := getNEst(l)
-	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergePR(topk, numpeer, N_est), l)
+	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergePR(topk, numpeer, N_est, 0.0), l)
 }
 
-func RunExtraRoundBloomGcsMergeSplit(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+func RunExtraRoundBloomGcsMergeSplitUnderNest(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	N_est := getNEst(l)
-	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, N_est), l)
+	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, N_est, 0.0), l)
+}
+
+func RunExtraRoundBloomGcsMergeSplitIdealNest(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	numpeer := len(l)
+	N_est := getNEst(l)
+	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, N_est, -1.0), l)
+}
+
+func RunExtraRoundBloomGcsMergeSplitOverNest(l []disttopk.ItemList, topk int) (disttopk.ItemList, disttopk.AlgoStats) {
+	numpeer := len(l)
+	N_est := getNEst(l)
+	return RunProtocolRunner(tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, N_est, 1.0), l)
 }

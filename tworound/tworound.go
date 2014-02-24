@@ -44,15 +44,15 @@ func NewExtraRoundBloomGcsMergePeer(list disttopk.ItemList, topk int, numpeer in
 	return peer
 }*/
 
-func NewBloomPR(topk int, numpeer int, N_est int) *ProtocolRunner {
-	return NewProtocolRunner(NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramUnionSketchAdaptor(), topk, numpeer, N_est)
+func NewBloomPR(topk int, numpeer int, N_est int, NestimateParameter float64) *ProtocolRunner {
+	return NewProtocolRunner(NewBloomHistogramPeerSketchAdaptor(topk, numpeer, N_est, NestimateParameter), NewBloomHistogramUnionSketchAdaptor(), topk, numpeer, N_est)
 }
 
-func NewBloomGcsPR(topk int, numpeer int, N_est int) *ProtocolRunner {
-	return NewProtocolRunner(NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramGcsUnionSketchAdaptor(), topk, numpeer, N_est)
+func NewBloomGcsPR(topk int, numpeer int, N_est int, NestimateParameter float64) *ProtocolRunner {
+	return NewProtocolRunner(NewBloomHistogramGcsPeerSketchAdaptor(topk, numpeer, N_est, NestimateParameter), NewBloomHistogramGcsUnionSketchAdaptor(), topk, numpeer, N_est)
 }
-func NewBloomGcsMergePR(topk int, numpeer int, N_est int) *ProtocolRunner {
-	return NewProtocolRunner(NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est), NewBloomHistogramMergeSketchAdaptor(), topk, numpeer, N_est)
+func NewBloomGcsMergePR(topk int, numpeer int, N_est int, NestimateParameter float64) *ProtocolRunner {
+	return NewProtocolRunner(NewBloomHistogramMergePeerSketchAdaptor(topk, numpeer, N_est, NestimateParameter), NewBloomHistogramMergeSketchAdaptor(), topk, numpeer, N_est)
 }
 
 func NewCountMinPR(topk int, numpeer int, N_est int) *ProtocolRunner {
@@ -74,14 +74,14 @@ func NewApproximateBloomGcsFilterPR(topk int, numpeer int, N_est int) *ProtocolR
 	return peer
 }
 
-func NewExtraRoundBloomGcsMergePR(topk int, numpeer int, N_est int) *ProtocolRunner {
-	peer := NewProtocolRunner(NewBhErPeerSketchAdaptor(topk, numpeer, N_est, 0), NewBhErUnionSketchAdaptor(topk, numpeer, 0.5, false), topk, numpeer, N_est)
+func NewExtraRoundBloomGcsMergePR(topk int, numpeer int, N_est int, NestimateParameter float64) *ProtocolRunner {
+	peer := NewProtocolRunner(NewBhErPeerSketchAdaptor(topk, numpeer, N_est, 0, NestimateParameter), NewBhErUnionSketchAdaptor(topk, numpeer, 0.5, false), topk, numpeer, N_est)
 	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
 	return peer
 }
 
-func NewExtraRoundBloomGcsMergeSplitPR(topk int, numpeer int, N_est int) *ProtocolRunner {
-	peer := NewProtocolRunner(NewBhErPeerSketchAdaptor(topk, numpeer, N_est, 5), NewBhErUnionSketchAdaptor(topk, numpeer, 0.9, true), topk, numpeer, N_est)
+func NewExtraRoundBloomGcsMergeSplitPR(topk int, numpeer int, N_est int, NestimateParameter float64) *ProtocolRunner {
+	peer := NewProtocolRunner(NewBhErPeerSketchAdaptor(topk, numpeer, N_est, 5, NestimateParameter), NewBhErUnionSketchAdaptor(topk, numpeer, 0.9, true), topk, numpeer, N_est)
 	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
 	return peer
 }
