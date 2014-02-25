@@ -29,7 +29,9 @@ func main() {
 	var s Suite
 	if *suite == "Distribution" {
 		s = &Distribution{}
-	} else if *suite == "DistributionExact" {
+	} else if *suite == "DistributionLarge" {
+		s = &DistributionLarge{Distribution{}}
+	}  else if *suite == "DistributionExact" {
 		s = &DistributionExact{Distribution{}}
 	} else if *suite == "DistributionApproximate" {
 		s = &DistributionApproximate{Distribution{}}
@@ -132,7 +134,7 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
-					for _, listSize := range []int{1000, 10000, 100000, 200000} {
+					for _, listSize := range []int{1000, 10000, 100000} {
 						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 						rds = append(rds, rd)
 					}
@@ -163,6 +165,33 @@ type DistributionApproximate struct {
 func (t *DistributionApproximate) GetProtocols() []Protocol {
 	return ApproximateProtocols()
 }
+
+type DistributionLarge struct {
+	Distribution
+}
+
+func (t *DistributionLarge) GetRowDescription() []RowDescription {
+	rds := make([]RowDescription, 0)
+	k := 10
+	nodes := 10
+	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
+		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
+			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+				for _, seed := range []int64{1, 2, 3, 4, 5} {
+					for _, listSize := range []int{200000} {
+						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+						rds = append(rds, rd)
+					}
+				}
+			}
+		}
+	}
+	//return PermuteList(rds)
+	return rds
+}
+
+
+
 
 
 
