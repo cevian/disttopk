@@ -282,6 +282,7 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 	//n := Getn(l[0], k, Nnodes)
 	results := make(map[string]disttopk.AlgoStats)
 	for _, proto := range protos {
+		runtime.GC()
 		fmt.Println("---- Running:", proto.Name, rd.String())
 		proto_list, res := proto.Runner(l, rd.k)
 		res.CalculatePerformance(ground_truth, proto_list, rd.k)
@@ -291,6 +292,9 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 		}
 		results[proto.Name] = res
 		fmt.Println("Result:", proto.Name, "Bytes", res.Bytes_transferred)
+		mem := &runtime.MemStats{}
+		runtime.ReadMemStats(mem)
+		fmt.Printf("Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
 		if *memprofile != "" {
 			f, err := os.Create(fmt.Sprintf("%s.%s", *memprofile, proto.Name))
@@ -301,7 +305,6 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 			f.Close()
 
 		}
-		runtime.GC()
 	}
 
 	return results
