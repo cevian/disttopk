@@ -29,7 +29,11 @@ func main() {
 	var s Suite
 	if *suite == "Distribution" {
 		s = &Distribution{}
-	} else if *suite == "Overlap" {
+	} else if *suite == "DistributionExact" {
+		s = &DistributionExact{Distribution{}}
+	} else if *suite == "DistributionApproximate" {
+		s = &DistributionApproximate{Distribution{}}
+	}  else if *suite == "Overlap" {
 		s = &Overlap{&Distribution{}}
 	} else if *suite == "Test" {
 		s = &Test{}
@@ -143,6 +147,24 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 func (t *Distribution) GetProtocols() []Protocol {
 	return protocols
 }
+
+type DistributionExact struct {
+	Distribution
+}
+
+func (t *DistributionExact) GetProtocols() []Protocol {
+	return ExactProtocols()
+}
+
+type DistributionApproximate struct {
+	Distribution
+}
+
+func (t *DistributionApproximate) GetProtocols() []Protocol {
+	return ApproximateProtocols()
+}
+
+
 
 type OneListSize struct {
 }
