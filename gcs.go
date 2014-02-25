@@ -134,7 +134,7 @@ func EstimateEpsGcsAdjuster(N_est int, n_est int, penalty_bits int, NumTransfers
 	return eps
 }
 */
-func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, itemsPerNode int, numTransfers int, adjuster float64) float64 {
+func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, items int, numTransfers int, adjuster float64) float64 {
 	//TODO change! -- this is base on the bloom filter approximation with k != 1
 	//for compressed filters, needs to change.
 
@@ -148,8 +148,17 @@ func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, itemsPerNode i
 	// eps = s * 1.44 / (l/n -1) * p * ln (2)
 
 	//fmt.Println("n_est", n_est, "penalty_bits", penalty_bits, "numNodes", numNodes, "itemspn", itemsPerNode)
+	//size_adj := 0.8
+	//eps := (float64(numTransfers) * size_adj * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(items/n_est) - 1.0))
+
+	//total (t) = s*n*m + (U-x) * eps * p * A
+	// m = x *  1.44 * log_2(1/eps) = x * 1.44 * 1/ln(2) * ln (1/eps)
+	// dt/deps  =  s * n *x * 1.44 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (U-x) * p * A
+	// 0 =   -1  * s * n * x * 1.44 / ln (2) * 1 / eps + (U-x) * p * A
+	// ( s* n *x * (1.44 / ln (2))) / ((U -x) * p* A) = eps
+	// eps = s * n * 1.44 / (U/n -1) * p * ln (2)
 	size_adj := 0.8
-	eps := (float64(numTransfers) * size_adj * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(itemsPerNode/n_est) - 1.0))
+	eps := (float64(numTransfers) *float64(numNodes)* size_adj * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(items/n_est) - 1.0))
 	/*
 		effective_m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
 		sketch := (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
