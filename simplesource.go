@@ -139,6 +139,7 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 			if !replaced[pos] {
 				i++
 				replaced[pos] = true
+				//new_id := rand.Int()
 				ok := true
 				new_id := 0
 				for ok {

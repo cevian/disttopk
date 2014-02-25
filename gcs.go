@@ -56,7 +56,7 @@ func NewHashValueSlice() *HashValueSlice {
 }
 
 func NewHashValueSliceLen(n int) *HashValueSlice {
-	return &HashValueSlice{make(map[uint32]bool)}
+	return &HashValueSlice{make(map[uint32]bool, n)}
 }
 
 func (p *HashValueSlice) Len() int { return len(p.hvs) }
