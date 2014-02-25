@@ -3,9 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
+	"os"
 	"runtime"
+	"runtime/pprof"
 )
 import "github.com/cevian/disttopk/runner"
 import "github.com/cevian/disttopk"
@@ -13,6 +16,7 @@ import "github.com/cevian/disttopk"
 var suite = flag.String("suite", "Distribution", "suite to run")
 var partition = flag.Int("partition", 0, "Partition to run")
 var totalPartitions = flag.Int("totalpartitions", 0, "Total number of partitions")
+var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -122,9 +126,9 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 	nodes := 10
 	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
 		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
-			for _, listSize := range []int{1000, 10000, 100000, 200000} {
-				for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
-					for _, seed := range []int64{1, 2, 3, 4, 5} {
+			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+				for _, seed := range []int64{1, 2, 3, 4, 5} {
+					for _, listSize := range []int{1000, 10000, 100000, 200000} {
 						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 						rds = append(rds, rd)
 					}
@@ -132,7 +136,8 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 			}
 		}
 	}
-	return PermuteList(rds)
+	//return PermuteList(rds)
+	return rds
 }
 
 func (t *Distribution) GetProtocols() []Protocol {
@@ -149,12 +154,12 @@ func (t *OneListSize) GetRowDescription() []RowDescription {
 	listSize := 10000
 	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
 		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
-				for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
-					for _, seed := range []int64{1, 2} {
-						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
-						rds = append(rds, rd)
-					}
+			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+				for _, seed := range []int64{1, 2} {
+					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+					rds = append(rds, rd)
 				}
+			}
 		}
 	}
 	return PermuteList(rds)
@@ -174,12 +179,12 @@ func (t *Nestimate) GetRowDescription() []RowDescription {
 	listSize := 10000
 	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
 		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
-				for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
-					for _, seed := range []int64{1, 2,3,4,5} {
-						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
-						rds = append(rds, rd)
-					}
+			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+				for _, seed := range []int64{1, 2, 3, 4, 5} {
+					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+					rds = append(rds, rd)
 				}
+			}
 		}
 	}
 	return PermuteList(rds)
@@ -188,7 +193,6 @@ func (t *Nestimate) GetRowDescription() []RowDescription {
 func (t *Nestimate) GetProtocols() []Protocol {
 	return []Protocol{ErGms, ErGmsIdealNest, ErGmsUnderNest}
 }
-
 
 type Overlap struct {
 	*Distribution
@@ -227,7 +231,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 1000
+	listSize := 10000
 	zipfParam := 0.2
 	perms := 10
 	overlap := 0.0
@@ -265,6 +269,16 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 		}
 		results[proto.Name] = res
 		fmt.Println("Result:", proto.Name, "Bytes", res.Bytes_transferred)
+
+		if *memprofile != "" {
+			f, err := os.Create(fmt.Sprintf("%s.%s", *memprofile, proto.Name))
+			if err != nil {
+				log.Fatal(err)
+			}
+			pprof.WriteHeapProfile(f)
+			f.Close()
+
+		}
 		runtime.GC()
 	}
 

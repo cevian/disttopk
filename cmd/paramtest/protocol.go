@@ -36,7 +36,7 @@ var CountMin = Protocol{"Count Min", runner.RunCountMin, true}
 var protocols []Protocol = []Protocol{
 	Klee3,
 	Klee4,
-	Bloom,
+//	Bloom,
 	BloomGcs,
 	ErGcs,
 	ErGms,
