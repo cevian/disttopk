@@ -150,7 +150,7 @@ func (t *OneListSize) GetRowDescription() []RowDescription {
 	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
 		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
 				for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
-					for _, seed := range []int64{1, 2, 3, 4, 5} {
+					for _, seed := range []int64{1, 2} {
 						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 						rds = append(rds, rd)
 					}
@@ -161,8 +161,34 @@ func (t *OneListSize) GetRowDescription() []RowDescription {
 }
 
 func (t *OneListSize) GetProtocols() []Protocol {
-	return []Protocol{ErGms, ErGmsIdealNest, ErGmsOverNest}
+	return []Protocol{ErGms, ErGmsIdealNest, ErGmsUnderNest}
 }
+
+type Nestimate struct {
+}
+
+func (t *Nestimate) GetRowDescription() []RowDescription {
+	rds := make([]RowDescription, 0)
+	k := 10
+	nodes := 10
+	listSize := 10000
+	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
+		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
+				for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+					for _, seed := range []int64{1, 2,3,4,5} {
+						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+						rds = append(rds, rd)
+					}
+				}
+		}
+	}
+	return PermuteList(rds)
+}
+
+func (t *Nestimate) GetProtocols() []Protocol {
+	return []Protocol{ErGms, ErGmsIdealNest, ErGmsUnderNest}
+}
+
 
 type Overlap struct {
 	*Distribution

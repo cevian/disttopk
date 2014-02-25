@@ -20,8 +20,8 @@ var BloomGcs = Protocol{"SBR-A", runner.RunApproximateBloomGcsFilter, false}
 
 // Extra-Round Exact
 var ErGcs = Protocol{"ER GCS", runner.RunExtraRoundBloomGcsMergeFilter, true}
-var ErGms = Protocol{"SBR-ER", runner.RunExtraRoundBloomGcsMergeSplitUnderNest, true}
-var ErGmsOverNest = Protocol{"SBR-ER OverNest", runner.RunExtraRoundBloomGcsMergeSplitOverNest, true}
+var ErGms = Protocol{"SBR-ER", runner.RunExtraRoundBloomGcsMergeSplitOverNest, true}
+var ErGmsUnderNest = Protocol{"SBR-ER UnderNest", runner.RunExtraRoundBloomGcsMergeSplitUnderNest, true}
 var ErGmsIdealNest = Protocol{"SBR-ER IdealNest", runner.RunExtraRoundBloomGcsMergeSplitIdealNest, true}
 var ErTput = Protocol{"TPUT-ER", runner.RunTputHashExtraRound, true}
 
@@ -40,6 +40,7 @@ var protocols []Protocol = []Protocol{
 	BloomGcs,
 	ErGcs,
 	ErGms,
+	ErGmsIdealNest,
 	ErTput,
 	Tput,
 	TputHash,
