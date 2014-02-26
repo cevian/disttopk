@@ -85,14 +85,15 @@ func GetRowDescriptionPartition(rds []RowDescription, partition int, totalPartit
 	//[0,1][2,3][4,5][6,7,8] *better
 	//[0,1,2][3,4,5][6,7,8][nil]
 	// so need to round:
+	// actually take 750 case, the last node can have a ton more work which is a big problem. always round up
 	whole, part := math.Modf(incr)
 	inc := int(whole)
-	if part > 0.5 {
+	if part > 0.0 {
 		inc++
-	}
+	}/*
 	if inc == 0 {
 		inc = 1
-	}
+	}*/
 
 	if inc*partition > len(rds)-1 {
 		return nil
