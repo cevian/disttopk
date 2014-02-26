@@ -291,6 +291,10 @@ type UnionFilter interface {
 	GetInfo() string
 }
 
+type UnionFilterEmpty interface {
+	isEmpty() bool
+}
+
 type Coord struct {
 	*stream.HardStopChannelCloser
 	*ProtocolRunner
@@ -410,6 +414,13 @@ func (src *Coord) Run() error {
 			round3Thresh := il[src.k-1].Score
 			round2UfThresh := ufThresh
 			err, round3Access, round3items, m, ufThresh, round3_back_bytes, add_sketch_bytes := src.RunSendFilterThreshold(ucm, uint32(round3Thresh), il, m, listlensum)
+
+			if round3Access == nil {
+			   //round 3 aborted 
+			   src.Stats.Rounds = 2
+			   goto end
+			}
+
 			if add_sketch_bytes > 0 {
 				panic("snh")
 			}
@@ -435,6 +446,7 @@ func (src *Coord) Run() error {
 		}
 	}
 
+end:
 	if disttopk.OUTPUT_RESP {
 		for _, it := range il[:src.k] {
 			fmt.Println("Resp: ", it.Id, it.Score)
@@ -454,6 +466,14 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 	} else {
 		fmt.Println("Uf is Nil. ALL remaining items will be sent in second round")
 	}
+	ufe, ok :=  uf.(UnionFilterEmpty)
+	if ok {
+		if ufe.isEmpty() {
+			fmt.Println("Uf is empty, exiting round 3");
+			return nil, nil, 0, nil, 0, 0, 0
+		}
+	}
+
 
 	for _, ch := range src.backPointers {
 		//uf := src.getUnionFilter(ucm, uint32(localthresh))

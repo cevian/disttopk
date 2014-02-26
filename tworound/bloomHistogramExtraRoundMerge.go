@@ -51,6 +51,11 @@ type BhErGcsFilter struct {
 	ExtraRange int
 }
 
+func (t *BhErGcsFilter) isEmpty() bool {
+	return t.Data.Len()==0
+}
+
+
 func (t *BhErGcsFilter) Serialize(w io.Writer) error {
 	if err := t.Gcs.Serialize(w); err != nil {
 		return err
@@ -83,10 +88,11 @@ type BhErUnionSketchAdaptor struct {
 	gamma               float64
 	useCutoffHeuristic  bool
 	numUnionFilterCalls int
+	firstRoundFilter *disttopk.Gcs
 }
 
 func NewBhErUnionSketchAdaptor(topk int, numpeer int, gamma float64, ch bool) UnionSketchAdaptor {
-	return &BhErUnionSketchAdaptor{topk, numpeer, gamma, ch, 0}
+	return &BhErUnionSketchAdaptor{topk, numpeer, gamma, ch, 0, nil}
 }
 
 func (t *BhErUnionSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
@@ -128,7 +134,7 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 				best = ratio
 				bestcutoff = testcut
 			}
-			fmt.Println("Heuristic Cutoff is ", testcut, "num", c, ratio, reference, referencecut, referencecut-testcut)
+			//fmt.Println("Heuristic Cutoff is ", testcut, "num", c, ratio, reference, referencecut, referencecut-testcut)
 			testcut--
 		}
 	}
@@ -220,6 +226,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		if filter == nil {
 			panic("Should never get nil filter here")
 		}
+		t.firstRoundFilter = filter
 		t.numUnionFilterCalls = 1
 
 		return &BhErGcsFilter{filter, needed_cutoff_per_node}, uint(approxthresh)
@@ -229,6 +236,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 		fmt.Println("Getting round 3 filter for: thresh=", thresh, " Cutoff", mhm.Cutoff())
 		gcs, thresh := bs.GetFilter(int64(thresh))
+		gcs.SubtractGcs(t.firstRoundFilter)
 		if gcs != nil {
 			return &BhErGcsFilter{gcs, 0}, uint(thresh)
 		}

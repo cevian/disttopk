@@ -79,6 +79,11 @@ func (t *HashValueSlice) Insert(v uint32) {
 	t.hvs[v] = true
 }
 
+func (t *HashValueSlice) Remove(v uint32) {
+	delete(t.hvs, v)
+}
+
+
 func (t *HashValueSlice) InsertAll(n *HashValueSlice) {
 	for k, _ := range n.hvs {
 		t.Insert(k)
@@ -247,6 +252,13 @@ func (b *Gcs) HashValues() *HashValueSlice {
 
 func (b *Gcs) GetM() uint {
 	return uint(b.Columns)
+}
+
+func (t *Gcs) SubtractGcs(other *Gcs) {
+	if t.Columns != other.Columns{
+		panic("SNH")
+	}
+	other.Data.Eval(func (hv uint32) {t.Data.Remove(hv)})
 }
 
 func (s *Gcs) NumberHashes() int {

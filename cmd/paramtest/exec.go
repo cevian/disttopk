@@ -292,7 +292,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 	listSize := 10000
 	zipfParam := 0.8
 	perms := 0
-	overlap := 1.0
+	overlap := 0.75
 	seed := int64(1)
 	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 	return []RowDescription{rd}
@@ -332,7 +332,7 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.Name, res.Abs_err))
 		}
 		results[proto.Name] = res
-		fmt.Println("Result:", proto.Name, "Bytes", res.Bytes_transferred)
+		fmt.Println("Result:", proto.Name, "Bytes", res.Bytes_transferred, "Rounds", res.Rounds)
 		runtime.ReadMemStats(mem)
 		fmt.Printf("Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
