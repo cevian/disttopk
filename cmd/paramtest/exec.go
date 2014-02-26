@@ -290,9 +290,9 @@ func (t *Test) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
 	listSize := 10000
-	zipfParam := 0.2
-	perms := 10
-	overlap := 0.0
+	zipfParam := 0.8
+	perms := 0
+	overlap := 1.0
 	seed := int64(1)
 	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 	return []RowDescription{rd}
@@ -300,7 +300,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 
 func (t *Test) GetProtocols() []Protocol {
 	//return []Protocol{ErGcs, ErGms, GcsMerge, TputHash, Klee3, Klee4, BloomGcs}
-	return []Protocol{Klee3}
+	return []Protocol{ErGms}
 }
 
 func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {

@@ -121,13 +121,16 @@ func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
 
 }
 
-func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64) int {
+func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filterThresh int64) int {
 
 	mapValueThresh := thresh - cutoff
 
+	//this is the value the filter will use to send stuff already
+	mapValueFilter := filterThresh-int64(t.cutoff)
+
 	count := 0
 	for _, mapValue := range t.data {
-		if mapValue >= mapValueThresh {
+		if mapValue >= mapValueThresh && mapValue < mapValueFilter{
 			count += 1
 		}
 

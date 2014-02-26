@@ -108,7 +108,7 @@ func (t *BhErUnionSketchAdaptor) mergeAdditionalSketchIntoUnionSketch(us UnionSk
 	bhers.MergeSecondRound(bs, il, peerId)
 }
 
-func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapprox int64) int64 {
+func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapprox int64, threshforfilter int64) int64 {
 	mhm := bs.GetMaxHashMap()
 	cutoff := int64(mhm.Cutoff())
 
@@ -118,17 +118,17 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 		if referencecut <= cutoff {
 			panic(fmt.Sprintln("Error", referencecut, cutoff))
 		}
-		reference := mhm.GetCountHashesWithCutoff(topkapprox, referencecut)
+		reference := mhm.GetCountHashesWithCutoff(topkapprox, referencecut, threshforfilter)
 		testcut := cutoff
 		best := float64(0)
 		for testcut > 0 {
-			c := mhm.GetCountHashesWithCutoff(topkapprox, testcut)
+			c := mhm.GetCountHashesWithCutoff(topkapprox, testcut, threshforfilter)
 			ratio := float64(reference-c) / float64(referencecut-testcut)
 			if ratio > best {
 				best = ratio
 				bestcutoff = testcut
 			}
-			//fmt.Println("Cutoff is ", testcut, "num", c, ratio)
+			fmt.Println("Heuristic Cutoff is ", testcut, "num", c, ratio, reference, referencecut, referencecut-testcut)
 			testcut--
 		}
 	}
@@ -156,7 +156,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		mincutoff := cutoff
 		needed_cutoff_per_node := 0
 		if t.useCutoffHeuristic {
-			heur := t.GetCutoffHeuristic(bs, underLow)
+			heur := t.GetCutoffHeuristic(bs, underLow, approxthresh)
 			if heur < cutoff {
 				mincutoff = heur
 				needed_cutoff_per_node = int(math.Ceil(float64(cutoff-mincutoff) / float64(t.numpeer)))
