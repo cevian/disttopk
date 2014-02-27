@@ -1,6 +1,7 @@
 package main
 
 import "github.com/cevian/disttopk"
+import "github.com/cevian/disttopk/runner"
 
 import (
 	"fmt"
@@ -21,12 +22,12 @@ func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
 	&ExportPrinter{&OverviewPrinter{protocols, ""}},
 }*/
 
-func GetDefaultPrinters(protos []Protocol) []Printer{
-   return []Printer{&OverviewPrinter{protos, ""},
-	&ApproxPrinter{&OverviewPrinter{ApproximateProtocols(), ""}},
-	&ExactPrinter{&OverviewPrinter{ExactProtocols(), ""}},
-	&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
-	&ExportPrinter{&OverviewPrinter{protos, ""}},
+func GetDefaultPrinters(protos []runner.Runner) []Printer{
+   return []Printer{&OverviewPrinter{GetRunners(), ""},
+	&ApproxPrinter{&OverviewPrinter{ApproximateRunners(), ""}},
+	&ExactPrinter{&OverviewPrinter{ExactRunners(), ""}},
+//	&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
+	&ExportPrinter{&OverviewPrinter{GetRunners(), ""}},
 }
 	
 }
@@ -53,7 +54,7 @@ type Printer interface {
 }
 
 type OverviewPrinter struct {
-	protocols []Protocol
+	protocols []runner.Runner
 	s         string
 }
 
@@ -68,7 +69,7 @@ func (t *OverviewPrinter) RowDescriptionHeaders() string {
 func (t *OverviewPrinter) Start() {
 	t.s = t.RowDescriptionHeaders()
 	for _, proto := range t.protocols {
-		t.s += "\t" + proto.Name
+		t.s += "\t" + proto.GetName()
 	}
 	t.s += "\n"
 }
@@ -80,7 +81,7 @@ func (t *OverviewPrinter) GetRowDescription(rd RowDescription) string {
 func (t *OverviewPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
 	s := t.GetRowDescription(rd)
 	for _, proto := range t.protocols {
-		stats := res[proto.Name]
+		stats := res[proto.GetName()]
 		s += fmt.Sprintf("\t%4.1E", float64(stats.Bytes_transferred))
 	}
 	t.s += s + "\n"
@@ -97,7 +98,7 @@ type ApproxPrinter struct {
 func (t *ApproxPrinter) Start() {
 	t.s = t.RowDescriptionHeaders()
 	for _, proto := range t.protocols {
-		t.s += "\t" + proto.Name + "\tRelE.\tRecall"
+		t.s += "\t" + proto.GetName() + "\tRelE.\tRecall"
 	}
 	t.s += "\tBest BW\tBest Err\n"
 }
@@ -105,7 +106,7 @@ func (t *ApproxPrinter) Start() {
 func (t *ApproxPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
 	s := t.GetRowDescription(rd)
 	for _, proto := range t.protocols {
-		stats := res[proto.Name]
+		stats := res[proto.GetName()]
 		s += fmt.Sprintf("\t%4.1E\t%4.1E\t%2.1f", float64(stats.Bytes_transferred), float64(stats.Rel_err), float64(stats.Recall))
 	}
 	s += "\t" + t.BestProtoBytes(res) + "\t" + t.BestProtoErr(res)
@@ -117,10 +118,10 @@ func (t *OverviewPrinter) BestProtoBytes(res map[string]disttopk.AlgoStats) stri
 	bestValue := uint64(0)
 	bestName := ""
 	for _, proto := range t.protocols {
-		stats := res[proto.Name]
+		stats := res[proto.GetName()]
 		if bestValue == 0.0 || stats.Bytes_transferred < bestValue {
 			bestValue = stats.Bytes_transferred
-			bestName = proto.Name
+			bestName = proto.GetName()
 		}
 	}
 	return bestName
@@ -132,10 +133,10 @@ func (t *OverviewPrinter) BestProtoErr(res map[string]disttopk.AlgoStats) string
 	first := true
 	for _, proto := range t.protocols {
 
-		stats := res[proto.Name]
+		stats := res[proto.GetName()]
 		if first || stats.Abs_err < bestValue {
 			bestValue = stats.Abs_err
-			bestName = proto.Name
+			bestName = proto.GetName()
 			first = false
 		}
 	}
@@ -149,7 +150,7 @@ type ExactPrinter struct {
 func (t *ExactPrinter) Start() {
 	t.s = t.RowDescriptionHeaders()
 	for _, proto := range t.protocols {
-		t.s += "\t" + proto.Name
+		t.s += "\t" + proto.GetName()
 	}
 
 	t.s += "\tBest\n"
@@ -158,14 +159,14 @@ func (t *ExactPrinter) Start() {
 func (t *ExactPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
 	s := t.GetRowDescription(rd)
 	for _, proto := range t.protocols {
-		stats := res[proto.Name]
+		stats := res[proto.GetName()]
 		s += fmt.Sprintf("\t%4.1E", float64(stats.Bytes_transferred))
 	}
 	s += "\t" + t.BestProtoBytes(res)
 	t.s += s + "\n"
 	return s
 }
-
+/*
 type GcsTputPrinter struct {
 	*OverviewPrinter
 }
@@ -177,14 +178,14 @@ func (t *GcsTputPrinter) Start() {
 
 func (t *GcsTputPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
 	s := t.GetRowDescription(rd)
-	size_tputHash := res[TputHash.Name].Bytes_transferred
+	size_tputHash := res[runner.GetTputHashRunner().Name].Bytes_transferred
 	size_gcs := res[GcsMerge.Name].Bytes_transferred
 	improvement := (float64(size_tputHash) - float64(size_gcs)) / float64(size_tputHash)
 	s += fmt.Sprintf("\t%4.1E\t%4.1E\t%3.2f", float64(size_gcs), float64(size_tputHash), improvement*100)
 	t.s += s + "\n"
 	return s
 }
-
+*/
 type ExportPrinter struct {
 	*OverviewPrinter
 }
@@ -204,8 +205,8 @@ func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.Algo
 	s := ""
 	for _, proto := range t.protocols {
 		s += "Export\t" + t.GetRowDescription(rd)
-		stats := res[proto.Name]
-		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\t%d\t%d\t%d\n", proto.Name, proto.isExact, stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.Serial_items, stats.Random_access, stats.Random_items)
+		stats := res[proto.GetName()]
+		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\t%d\t%d\t%d\n", proto.GetName(), proto.IsExact(), stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.Serial_items, stats.Random_access, stats.Random_items)
 	}
 	t.s += s
 	return ""

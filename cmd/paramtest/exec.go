@@ -110,7 +110,7 @@ func GetRowDescriptionPartition(rds []RowDescription, partition int, totalPartit
 
 type Suite interface {
 	GetRowDescription() []RowDescription
-	GetProtocols() []Protocol
+	GetProtocols() []runner.Runner
 }
 
 func PermuteList(rds []RowDescription) []RowDescription {
@@ -154,24 +154,24 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 	return rds
 }
 
-func (t *Distribution) GetProtocols() []Protocol {
-	return protocols
+func (t *Distribution) GetProtocols() []runner.Runner {
+	return GetRunners()
 }
 
 type DistributionExact struct {
 	Distribution
 }
 
-func (t *DistributionExact) GetProtocols() []Protocol {
-	return ExactProtocols()
+func (t *DistributionExact) GetProtocols() []runner.Runner {
+	return ExactRunners()
 }
 
 type DistributionApproximate struct {
 	Distribution
 }
 
-func (t *DistributionApproximate) GetProtocols() []Protocol {
-	return ApproximateProtocols()
+func (t *DistributionApproximate) GetProtocols() []runner.Runner {
+	return ApproximateRunners()
 }
 
 type DistributionLarge struct {
@@ -224,8 +224,8 @@ func (t *OneListSize) GetRowDescription() []RowDescription {
 	return PermuteList(rds)
 }
 
-func (t *OneListSize) GetProtocols() []Protocol {
-	return []Protocol{ErGms, ErGmsIdealNest, ErGmsUnderNest}
+func (t *OneListSize) GetProtocols() []runner.Runner {
+	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErUnderNestRunner()}
 }
 
 type Nestimate struct {
@@ -249,8 +249,8 @@ func (t *Nestimate) GetRowDescription() []RowDescription {
 	return PermuteList(rds)
 }
 
-func (t *Nestimate) GetProtocols() []Protocol {
-	return []Protocol{ErGms, ErGmsIdealNest, ErGmsUnderNest}
+func (t *Nestimate) GetProtocols() []runner.Runner {
+	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErUnderNestRunner()}
 }
 
 type Overlap struct {
@@ -299,14 +299,15 @@ func (t *Test) GetRowDescription() []RowDescription {
 	return []RowDescription{rd}
 }
 
-func (t *Test) GetProtocols() []Protocol {
+func (t *Test) GetProtocols() []runner.Runner {
 	//return []Protocol{ErGcs, ErGms, GcsMerge, TputHash, Klee3, Klee4, BloomGcs}
-	return []Protocol{ErGms}
+	return []runner.Runner{runner.NewSbrErRunner()}
 }
 
-func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
+func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStats {
 	l := disttopk.GetFullOverlapOrderPermutedSimpleListSeedOverlap(rd.nodes, uint32(rd.N), rd.zip, rd.perms, rd.seed, rd.overlap)
 
+	NestIdeal := getNEst(l)
 	naive_exact, _ := runner.RunNaive(l, 0)
 	ground_truth := naive_exact
 
@@ -325,20 +326,20 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 		runtime.ReadMemStats(mem)
 		fmt.Printf("Start Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
-		fmt.Println("---- Running:", proto.Name, rd.String())
-		proto_list, res := proto.Runner(l, rd.k)
+		fmt.Println("---- Running:", proto.GetName(), rd.String())
+		proto_list, res := proto.Run(l, rd.k, ground_truth, NestIdeal)
 		res.CalculatePerformance(ground_truth, proto_list, rd.k)
-		if proto.isExact && res.Abs_err != 0.0 {
+		if proto.IsExact() && res.Abs_err != 0.0 {
 			PrintDiff(ground_truth, proto_list, rd.k)
-			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.Name, res.Abs_err))
+			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.GetName(), res.Abs_err))
 		}
-		results[proto.Name] = res
-		fmt.Println("Result:", proto.Name, "Bytes", res.Bytes_transferred, "Rounds", res.Rounds)
+		results[proto.GetName()] = res
+		fmt.Println("Result:", proto.GetName(), "Bytes", res.Bytes_transferred, "Rounds", res.Rounds)
 		runtime.ReadMemStats(mem)
 		fmt.Printf("Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
 		if *memprofile != "" {
-			f, err := os.Create(fmt.Sprintf("%s.%s", *memprofile, proto.Name))
+			f, err := os.Create(fmt.Sprintf("%s.%s", *memprofile, proto.GetName()))
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -349,4 +350,14 @@ func Run(rd RowDescription, protos []Protocol) map[string]disttopk.AlgoStats {
 	}
 
 	return results
+}
+
+func getNEst(l []disttopk.ItemList) int {
+	ids := make(map[int]bool)
+	for _, list := range l {
+		for _, item := range list {
+			ids[item.Id] = true
+		}
+	}
+	return len(ids)
 }
