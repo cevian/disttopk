@@ -5,6 +5,7 @@ import (
 	//"github.com/cevian/disttopk/cm"
 	//"github.com/cevian/disttopk/cmfilter"
 	"github.com/cevian/disttopk/klee"
+	"github.com/cevian/disttopk/magic"
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
 	"github.com/cevian/disttopk/tput-hash"
@@ -138,6 +139,41 @@ func RunKlee(l []disttopk.ItemList, k int, clRound bool) (disttopk.ItemList, dis
 	runner.Add(coord)
 	for i, list := range l {
 		peers[i] = klee.NewPeer(list, k, clRound)
+		coord.Add(peers[i])
+		runner.Add(peers[i])
+	}
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	return coord.FinalList, coord.Stats
+}
+
+type MagicRunner struct {
+}
+
+func NewMagicRunner() *MagicRunner{
+	return &MagicRunner{}
+}
+
+func (t *MagicRunner) Run(l []disttopk.ItemList, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunMagic(l, topk, GroundTruth)
+}
+
+func (t *MagicRunner) GetName() string {
+	return "Magic"
+} 
+
+func (t *MagicRunner) IsExact() bool {
+	return true
+} 
+
+
+func RunMagic(l []disttopk.ItemList, k int, groundTruth disttopk.ItemList) (disttopk.ItemList, disttopk.AlgoStats) {
+	runner := stream.NewRunner()
+	peers := make([]*magic.Peer, len(l))
+	coord := magic.NewCoord(k)
+	runner.Add(coord)
+	for i, list := range l {
+		peers[i] = magic.NewPeer(list, k, groundTruth)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}

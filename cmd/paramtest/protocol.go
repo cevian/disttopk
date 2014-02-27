@@ -1,23 +1,23 @@
 package main
 
 import "github.com/cevian/disttopk/runner"
+
 //import "github.com/cevian/disttopk"
 
-
 func GetRunners() []runner.Runner {
-   return []runner.Runner{
-	runner.NewKlee3Runner(),
-	runner.NewKlee4Runner(),
-	runner.NewSbrARunner(),
-	runner.NewSbr2RRunner(),
-	runner.NewSbrErNoSplitRunner(),
-	runner.NewSbrErRunner(),
-	runner.NewSbrErIdealNestRunner(),
-	runner.NewTputRunner(),
-	runner.NewTputHRunner(),
-	runner.NewTputERRunner(),
-}
-
+	return []runner.Runner{
+		runner.NewMagicRunner(),
+		runner.NewKlee3Runner(),
+		runner.NewKlee4Runner(),
+		runner.NewSbrARunner(),
+		runner.NewSbr2RRunner(),
+		runner.NewSbrErNoSplitRunner(),
+		runner.NewSbrErRunner(),
+		runner.NewSbrErIdealNestRunner(),
+		runner.NewTputRunner(),
+		runner.NewTputHRunner(),
+		runner.NewTputERRunner(),
+	}
 
 }
 
@@ -40,5 +40,3 @@ func ExactRunners() []runner.Runner {
 	}
 	return ret
 }
-
-
