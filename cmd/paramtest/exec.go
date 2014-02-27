@@ -18,6 +18,7 @@ var partition = flag.Int("partition", 0, "Partition to run")
 var totalPartitions = flag.Int("totalpartitions", 0, "Total number of partitions")
 var listsize = flag.Int("listsize", 0, "listsize (0 means all)")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -290,7 +291,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 10000
+	listSize := 100000
 	zipfParam := 0.8
 	perms := 0
 	overlap := 0.75
@@ -301,12 +302,22 @@ func (t *Test) GetRowDescription() []RowDescription {
 
 func (t *Test) GetProtocols() []runner.Runner {
 	//return []Protocol{ErGcs, ErGms, GcsMerge, TputHash, Klee3, Klee4, BloomGcs}
-	//return []runner.Runner{runner.NewSbrErRunner()}
-	return GetRunners()
+	return []runner.Runner{runner.NewSbrErRunner()}
+	//return GetRunners()
 }
 
 func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStats {
 	l := disttopk.GetFullOverlapOrderPermutedSimpleListSeedOverlap(rd.nodes, uint32(rd.N), rd.zip, rd.perms, rd.seed, rd.overlap)
+
+    if *cpuprofile != "" {
+        f, err := os.Create(*cpuprofile)
+        if err != nil {
+            log.Fatal(err)
+        }
+        pprof.StartCPUProfile(f)
+        defer pprof.StopCPUProfile()
+    }
+	
 
 	NestIdeal := getNEst(l)
 	naive_exact, _ := runner.RunNaive(l, 0)
