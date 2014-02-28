@@ -61,7 +61,7 @@ func getThreshIndex(list disttopk.ItemList, thresh uint32) int {
 
 func (src *Peer) Run() error {
 	//defer close(src.forward)
-	src.list.Sort()
+	//src.list.Sort()
 	//fmt.Println("Sort", src.list[:10])
 
 	if src.k > len(src.list) {

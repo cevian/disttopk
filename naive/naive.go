@@ -27,7 +27,7 @@ func (src *NaivePeer) Run() error {
 	rcv = nil
 	sent := false
 
-	src.list.Sort()
+	//src.list.Sort()
 	list := src.list
 	if src.cutoff > 0 && src.cutoff < len(src.list) {
 		list = src.list[:src.cutoff]

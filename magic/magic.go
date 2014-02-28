@@ -29,7 +29,7 @@ func (src *Peer) Run() error {
 	//	sent := false
 
 	sent := make(map[int]bool)
-	src.list.Sort()
+	//src.list.Sort()
 	list := src.list
 	if src.k > 0 && src.k < len(src.list) {
 		list = src.list[:src.k]

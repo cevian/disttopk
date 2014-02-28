@@ -43,7 +43,7 @@ type ThirdRound struct {
 
 func (src *Peer) Run() error {
 	//defer close(src.forward)
-	src.list.Sort()
+	//src.list.Sort()
 	//fmt.Println("Sort", src.list[:10])
 
 	if src.k > len(src.list) {

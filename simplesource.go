@@ -150,6 +150,7 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 				list[pos].Id = new_id
 			}
 		}
+		list.Sort()
 		lists[k] = list
 	}
 
