@@ -45,6 +45,12 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
+	select {
+	case <-src.back:
+	case <-src.StopNotifier:
+		return nil
+	}
+
 	//you cannot modify groundtruth at all. these run in parallel
 	//src.groundTruth.Sort() <- race condition
 	m := src.list.AddToMap(nil)
@@ -117,6 +123,17 @@ func (src *Coord) Run() error {
 		}
 	}
 
+	fmt.Println("Got round 1 items:", items)
+
+	for _, ch := range src.backPointers {
+		select {
+		case ch <- true:
+		case <-src.StopNotifier:
+			return nil
+		}
+	}
+
+	items2 := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
@@ -124,11 +141,13 @@ func (src *Coord) Run() error {
 			list.AddToMap(m)
 			src.Stats.Random_items += len(list)
 			items += len(list)
+			items2 += len(list)
 
 		case <-src.StopNotifier:
 			return nil
 		}
 	}
+	fmt.Println("Got round 1 items:", items2)
 
 	src.Stats.Bytes_transferred = uint64(items * disttopk.RECORD_SIZE)
 
