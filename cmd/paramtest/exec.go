@@ -14,7 +14,7 @@ import "github.com/cevian/disttopk/runner"
 import "github.com/cevian/disttopk"
 
 var suite = flag.String("suite", "Distribution", "suite to run")
-var partition = flag.Int("partition", 0, "Partition to run")
+var partition = flag.Int("partition", 0, "Partition to run 0...(totalpartitions-1)")
 var totalPartitions = flag.Int("totalpartitions", 0, "Total number of partitions")
 var listsize = flag.Int("listsize", 0, "listsize (0 means all)")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
@@ -291,8 +291,8 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 100000
-	zipfParam := 0.8
+	listSize := 1000
+	zipfParam := 0.4
 	perms := 0
 	overlap := 0.75
 	seed := int64(1)

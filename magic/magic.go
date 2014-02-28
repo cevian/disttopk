@@ -31,6 +31,7 @@ func (src *Peer) Run() error {
 	sent := make(map[int]bool)
 	//src.list.Sort()
 	list := src.list
+	//fmt.Println("list", list)
 	if src.k > 0 && src.k < len(src.list) {
 		list = src.list[:src.k]
 	}
@@ -44,12 +45,21 @@ func (src *Peer) Run() error {
 		return nil
 	}
 
-	src.groundTruth.Sort()
+	//you cannot modify groundtruth at all. these run in parallel
+	//src.groundTruth.Sort() <- race condition
+	m := src.list.AddToMap(nil)
 	list = disttopk.NewItemList()
 	for i := 0; i < src.k && i < len(src.groundTruth); i++ {
-		item := src.groundTruth[i]
-		if !sent[item.Id] {
-			list.Append(item)
+		id := src.groundTruth[i].Id
+		score, ok := m[id]
+		if !sent[id] {
+			if ok {
+				item := disttopk.Item{id, score}
+				list = list.Append(item)
+				if len(list) == 0 {
+					panic("snh")
+				}
+			}
 		}
 	}
 
