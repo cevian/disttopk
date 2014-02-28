@@ -111,17 +111,18 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 	if reorder > 0 {
 		for k, list := range lists {
 			for pos, item := range list {
-				pos_to_reorder := rand.Intn(reorder)
-				new_pos := pos + pos_to_reorder
-				if new_pos < len(list)-1 {
-					//fmt.Println("reordering", list[pos], list[new_pos])
-					id := item.Id
-					item.Id = list[new_pos].Id
-					//item.Score += float64(pos_to_reorder % 10) //add a bit of randomness to the scores
-					list[new_pos].Id = id
-					list[pos] = item //this is needed
-					//fmt.Println("reordering after", list[pos], list[new_pos])
+				new_pos := len(list)
+				for new_pos > len(list)-1 {
+					pos_to_reorder := rand.Intn(reorder)
+					new_pos = pos + pos_to_reorder
 				}
+				//fmt.Println("reordering", list[pos], list[new_pos])
+				id := item.Id
+				item.Id = list[new_pos].Id
+				//item.Score += float64(pos_to_reorder % 10) //add a bit of randomness to the scores
+				list[new_pos].Id = id
+				list[pos] = item //this is needed
+				//fmt.Println("reordering after", list[pos], list[new_pos])
 			}
 			lists[k] = MakeSureItemsUnique(list)
 		}
