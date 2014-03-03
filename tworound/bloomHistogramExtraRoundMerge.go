@@ -236,8 +236,8 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 		fmt.Println("Getting round 3 filter for: thresh=", thresh, " Cutoff", mhm.Cutoff())
 		gcs, thresh := bs.GetFilter(int64(thresh))
-		gcs.SubtractGcs(t.firstRoundFilter)
 		if gcs != nil {
+			gcs.SubtractGcs(t.firstRoundFilter)
 			return &BhErGcsFilter{gcs, 0}, uint(thresh)
 		}
 		return nil, uint(thresh)

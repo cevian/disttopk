@@ -255,6 +255,9 @@ func (b *Gcs) GetM() uint {
 }
 
 func (t *Gcs) SubtractGcs(other *Gcs) {
+	if other == nil {
+		panic("Other is nil")
+	}
 	if t.Columns != other.Columns{
 		panic("SNH")
 	}
