@@ -55,6 +55,7 @@ func (src *Peer) Run() error {
 	//src.groundTruth.Sort() <- race condition
 	m := src.list.AddToMap(nil)
 	list = disttopk.NewItemList()
+	sent_first_round := 0
 	for i := 0; i < src.k && i < len(src.groundTruth); i++ {
 		id := src.groundTruth[i].Id
 		score, ok := m[id]
@@ -66,8 +67,12 @@ func (src *Peer) Run() error {
 					panic("snh")
 				}
 			}
+		} else {
+			sent_first_round++
 		}
 	}
+
+	//fmt.Println("Sent first round", sent_first_round, "Sending second round", len(list), float64((len(list)+sent_first_round))/float64(src.k))
 
 	select {
 	case src.forward <- disttopk.DemuxObject{src.id, list}:

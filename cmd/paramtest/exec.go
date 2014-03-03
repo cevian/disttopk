@@ -33,11 +33,11 @@ func main() {
 		s = &Distribution{}
 	} else if *suite == "DistributionLarge" {
 		s = &DistributionLarge{Distribution{}}
-	}  else if *suite == "DistributionExact" {
+	} else if *suite == "DistributionExact" {
 		s = &DistributionExact{Distribution{}}
 	} else if *suite == "DistributionApproximate" {
 		s = &DistributionApproximate{Distribution{}}
-	}  else if *suite == "Overlap" {
+	} else if *suite == "Overlap" {
 		s = &Overlap{&Distribution{}}
 	} else if *suite == "Test" {
 		s = &Test{}
@@ -91,10 +91,10 @@ func GetRowDescriptionPartition(rds []RowDescription, partition int, totalPartit
 	inc := int(whole)
 	if part > 0.0 {
 		inc++
-	}/*
-	if inc == 0 {
-		inc = 1
-	}*/
+	} /*
+		if inc == 0 {
+			inc = 1
+		}*/
 
 	if inc*partition > len(rds)-1 {
 		return nil
@@ -134,13 +134,13 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
 
-	Lsizes := []int{1000, 10000, 100000, 200000} 
+	Lsizes := []int{1000, 10000, 100000, 200000}
 	if *listsize != 0 {
 		Lsizes = []int{*listsize}
 	}
 
-	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
-		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
+	for _, perms := range []int{0, k, int(float64(1.5) * float64(k)), 2 * k, 4 * k, 10 * k, 100 * k} {
+		for _, overlap := range []float64{1.0, 0.75, 0.50, 0.25, 0.1, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
 					for _, Lsize := range Lsizes {
@@ -151,8 +151,8 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 			}
 		}
 	}
-	//return PermuteList(rds)
-	return rds
+	return PermuteList(rds)
+	//return rds
 }
 
 func (t *Distribution) GetProtocols() []runner.Runner {
@@ -198,11 +198,6 @@ func (t *DistributionLarge) GetRowDescription() []RowDescription {
 	//return PermuteList(rds)
 	return rds
 }
-
-
-
-
-
 
 type OneListSize struct {
 }
@@ -292,33 +287,37 @@ func (t *Test) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
 	listSize := 1000
-	zipfParam := 0.8
-	perms := 100
-	overlap := 0.75
-	seed := int64(1)
-	rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
-	return []RowDescription{rd}
+	zipfParam := 0.4
+	overlap := 0.50
+
+	rds := make([]RowDescription, 0)
+	for _, perms := range []int{0, k, int(float64(1.5) * float64(k)), 2 * k, 4 * k, 10 * k, 100 * k} {
+		for _, seed := range []int64{1, 2, 3, 4, 5} {
+			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+			rds = append(rds, rd)
+		}
+	}
+	return rds
 }
 
 func (t *Test) GetProtocols() []runner.Runner {
 	//return []Protocol{ErGcs, ErGms, GcsMerge, TputHash, Klee3, Klee4, BloomGcs}
 	//return []runner.Runner{runner.NewSbrErRunner()}
-	return []runner.Runner{ runner.NewMagicRunner() }
+	return []runner.Runner{runner.NewMagicRunner()}
 	//return GetRunners()
 }
 
 func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStats {
 	l := disttopk.GetFullOverlapOrderPermutedSimpleListSeedOverlap(rd.nodes, uint32(rd.N), rd.zip, rd.perms, rd.seed, rd.overlap)
 
-    if *cpuprofile != "" {
-        f, err := os.Create(*cpuprofile)
-        if err != nil {
-            log.Fatal(err)
-        }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
-    }
-	
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	NestIdeal := getNEst(l)
 	naive_exact, _ := runner.RunNaive(l, 0)

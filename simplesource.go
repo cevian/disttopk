@@ -108,33 +108,13 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 	rand.Seed(seed)
 	lists := GetFullOverlapSimpleList(nlists, nitemsPerList, param)
 
-	if reorder > 0 {
-		for k, list := range lists {
-			for pos, item := range list {
-				new_pos := len(list)
-				for new_pos > len(list)-1 {
-					pos_to_reorder := rand.Intn(reorder)
-					new_pos = pos + pos_to_reorder
-				}
-				//fmt.Println("reordering", list[pos], list[new_pos])
-				id := item.Id
-				item.Id = list[new_pos].Id
-				//item.Score += float64(pos_to_reorder % 10) //add a bit of randomness to the scores
-				list[new_pos].Id = id
-				list[pos] = item //this is needed
-				//fmt.Println("reordering after", list[pos], list[new_pos])
-			}
-			lists[k] = MakeSureItemsUnique(list)
-		}
-	}
-
 	for k, list := range lists {
-		if k == 0 {
+		/*if k == 0 { this is wrong makes the overlap with one list greater than with the rest
 			continue
-		}
+		}*/
 		newItems := int(float64(len(list)) * (1.0 - overlap))
 		m := list.AddToMap(nil)
-		replaced := make(map[int]bool)
+		replaced := make(map[int]bool, len(list))
 		for i := 0; i < newItems; {
 			pos := rand.Intn(len(list))
 			if !replaced[pos] {
@@ -153,12 +133,47 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 		}
 		lists[k] = list
 	}
+	
+	if reorder > 0 {
+		for k, list := range lists {
+			for pos, _ := range list {
+				to_reorder := reorder
+				if pos+to_reorder > len(list)-1 {
+					to_reorder = (len(list)-1)-pos
+				}
+				if to_reorder == 0 {
+					continue;
+				}
+				pos_to_reorder := rand.Intn(to_reorder)
+				new_pos := pos + pos_to_reorder
+				list[pos].Id, list[new_pos].Id = list[new_pos].Id, list[pos].Id
+				//fmt.Println("reordering after", list[pos], list[new_pos])
+			}
+			lists[k] = list
+		}
+	}
+
+
 
 	for k, list := range lists {
 		list = MakeSureItemsUnique(list)
 		list.Sort()
 		lists[k] = list
+		//fmt.Println(list[:10])
 	}
+
+	/*first := lists[1]
+	m := first.AddToMap(nil)
+	for _, list := range lists {
+		count := 0
+		for _, item := range list {
+			_, ok := m[item.Id]
+			if ok {
+				count++
+			}
+		}
+		fmt.Println("Overlap,", float64(count)/float64(len(list)))
+	} */
 
 	return lists
 }
