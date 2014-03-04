@@ -287,12 +287,12 @@ func (t *Test) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
 	listSize := 10000
-	zipfParam := 0.2
-	overlap := 0.99
+	zipfParam := 0.6
+	overlap := 0.5
 
 	rds := make([]RowDescription, 0)
-	for _, perms := range []int{100}  {
-		for _, seed := range []int64{4} {
+	for _, perms := range []int{100, 1000}  {
+		for _, seed := range []int64{1} {
 			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 			rds = append(rds, rd)
 		}
@@ -302,8 +302,8 @@ func (t *Test) GetRowDescription() []RowDescription {
 
 func (t *Test) GetProtocols() []runner.Runner {
 	//return []Protocol{ErGcs, ErGms, GcsMerge, TputHash, Klee3, Klee4, BloomGcs}
-	return []runner.Runner{runner.NewSbrErRunner()}
-	//return []runner.Runner{runner.NewMagicRunner()}
+	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbr2RRunner() }
+	return []runner.Runner{runner.NewMagicRunner()}
 	//return GetRunners()
 }
 

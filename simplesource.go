@@ -108,6 +108,9 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 	rand.Seed(seed)
 	lists := GetFullOverlapSimpleList(nlists, nitemsPerList, param)
 
+	//reference_list := ItemList(make([]Item, len(lists[0])))
+	//copy(reference_list, lists[0])
+
 	m := make(map[int]float64)
 	for k, list := range lists {
 		/*if k == 0 { this is wrong makes the overlap with one list greater than with the rest
@@ -134,16 +137,16 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 		}
 		lists[k] = list
 	}
-	
+
 	if reorder > 0 {
 		for k, list := range lists {
 			for pos, _ := range list {
 				to_reorder := reorder
 				if pos+to_reorder > len(list)-1 {
-					to_reorder = (len(list)-1)-pos
+					to_reorder = (len(list) - 1) - pos
 				}
 				if to_reorder == 0 {
-					continue;
+					continue
 				}
 				pos_to_reorder := rand.Intn(to_reorder)
 				new_pos := pos + pos_to_reorder
@@ -154,14 +157,27 @@ func GetFullOverlapOrderPermutedSimpleListSeedOverlap(nlists int, nitemsPerList 
 		}
 	}
 
-
-
 	for k, list := range lists {
 		list = MakeSureItemsUnique(list)
 		list.Sort()
 		lists[k] = list
 		//fmt.Println(list[:10])
 	}
+
+	/*
+		true_list := GetTrueList(lists)
+		true_list.Sort()
+		m = reference_list.AddToMap(nil)
+		count := 0
+		for _, item := range true_list[0:10] {
+				_, ok := m[item.Id]
+				if ok {
+					count++
+					//fmt.Println("Overlapping is", item.Id)
+				}
+		}
+		fmt.Println("Overlap of top-k with reference,", float64(count)/10.0)
+	*/
 
 	/*first := lists[1]
 	m := first.AddToMap(nil)

@@ -62,6 +62,7 @@ func (src *Peer) Run() error {
 		if !sent[id] {
 			if ok {
 				item := disttopk.Item{id, score}
+				//fmt.Println("Sending,",i, item.Id)
 				list = list.Append(item)
 				if len(list) == 0 {
 					panic("snh")
