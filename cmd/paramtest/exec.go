@@ -184,7 +184,7 @@ func (t *DistributionLarge) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
 	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
-		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
+		for _, overlap := range []float64{1.0, 0.99, 0.75, 0.25, 0.01, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
 					for _, listSize := range []int{200000} {
