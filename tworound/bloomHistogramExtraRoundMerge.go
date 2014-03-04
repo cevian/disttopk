@@ -52,9 +52,8 @@ type BhErGcsFilter struct {
 }
 
 func (t *BhErGcsFilter) isEmpty() bool {
-	return t.Data.Len()==0
+	return t.Data.Len() == 0
 }
-
 
 func (t *BhErGcsFilter) Serialize(w io.Writer) error {
 	if err := t.Gcs.Serialize(w); err != nil {
@@ -88,7 +87,7 @@ type BhErUnionSketchAdaptor struct {
 	gamma               float64
 	useCutoffHeuristic  bool
 	numUnionFilterCalls int
-	firstRoundFilter *disttopk.Gcs
+	firstRoundFilter    *disttopk.Gcs
 }
 
 func NewBhErUnionSketchAdaptor(topk int, numpeer int, gamma float64, ch bool) UnionSketchAdaptor {
@@ -148,6 +147,9 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 
 		underApprox := mhm.UnderApprox(t.topk)
 		overApprox := mhm.OverApprox(t.topk)
+		if overApprox < underApprox {
+			panic(fmt.Sprintln("should not happen", overApprox, underApprox))
+		}
 
 		approxthresh := underApprox + int64(float64(overApprox-underApprox)*t.gamma)
 
@@ -203,7 +205,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 				needed_cutoff_per_node = int(math.Ceil(float64(cutoff-mincutoff) / float64(t.numpeer)))
 			}
 		*/
-		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox, "Cutoff:", cutoff, "Needed cutoff per node", needed_cutoff_per_node, "mincutoff", mincutoff)
+		fmt.Println("Approximating thresh at: ", approxthresh, " Original: ", thresh, "Gamma:", t.gamma, "Under:", underApprox, "Over:", overApprox, "Cutoff:", cutoff, "Needed cutoff per node", needed_cutoff_per_node, "mincutoff", mincutoff)
 
 		if cutoff >= approxthresh {
 			old := approxthresh

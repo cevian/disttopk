@@ -11,12 +11,13 @@ type MaxHashMap struct {
 	data             map[uint32]int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
 	data_under       map[uint32]int64 //the unse-approximation
 	cutoff           uint32
+	cutoff_map       map[uint32]bool
 	modulus_bits     uint32
 	min_modulus_bits uint32
 }
 
 func NewMaxHashMap() *MaxHashMap {
-	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]int64), 0, 0, 0}
+	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]int64), 0, make(map[uint32]bool), 0, 0}
 }
 
 func (t *MaxHashMap) GetInfo() string {
@@ -36,9 +37,18 @@ func (t *MaxHashMap) addData(hashValue uint, max uint, min uint, cutoff uint) {
 		panic("Overflow")
 	}
 
-	t.data[uint32(hashValue)] += int64(max - cutoff)
-	t.data_under[uint32(hashValue)] += int64(min)
+	if max < min {
+		panic("snh")
+	}
 
+	if !t.cutoff_map[uint32(hashValue)] {
+		t.data[uint32(hashValue)] += int64(max - cutoff)
+		t.cutoff_map[uint32(hashValue)] = true
+	} else {
+		t.data[uint32(hashValue)] += int64(max)
+
+	}
+	t.data_under[uint32(hashValue)] += int64(min)
 }
 
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
@@ -87,6 +97,7 @@ func (t *MaxHashMap) AddCutoff(c uint) {
 		panic("Overflow")
 	}
 	t.cutoff += uint32(c)
+	t.cutoff_map = make(map[uint32]bool)
 }
 
 func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
@@ -117,7 +128,7 @@ func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
 	}
 	//fmt.Println("Better thresh", thresh,  maxNotIncluded+1, t.cutoff, mapValueThresh, len(t.data))
 
-	return gcs, maxNotIncluded+1
+	return gcs, maxNotIncluded + 1
 
 }
 
@@ -126,11 +137,11 @@ func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filter
 	mapValueThresh := thresh - cutoff
 
 	//this is the value the filter will use to send stuff already
-	mapValueFilter := filterThresh-int64(t.cutoff)
+	mapValueFilter := filterThresh - int64(t.cutoff)
 
 	count := 0
 	for _, mapValue := range t.data {
-		if mapValue >= mapValueThresh && mapValue < mapValueFilter{
+		if mapValue >= mapValueThresh && mapValue < mapValueFilter {
 			count += 1
 		}
 

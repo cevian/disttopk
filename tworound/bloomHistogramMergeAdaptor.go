@@ -23,6 +23,10 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 	//b.Pop() //todo: change
 	count := 0
 	test := make(map[uint32]bool)
+	cutoff := uint(b.Cutoff())
+
+	//fmt.Println("Cutoff", b.Cutoff())
+	//cutoff = uint(0)
 	for _, entry := range b.Data {
 		g := entry.GetFilter().(*disttopk.Gcs)
 		//fmt.Println("On Merge, merging len filter", g.Data.Len(), k, g.Columns)
@@ -39,7 +43,7 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 			count += 1
 			//fmt.Println("Hv ", hv, count)
 			test[hv] = true
-			t.Add(uint(hv), uint(m_bits), uint(max), uint(min), uint(b.Cutoff()))
+			t.Add(uint(hv), uint(m_bits), uint(max), uint(min), cutoff)
 		})
 	}
 	if MERGE_TOPK_AT_COORD {
@@ -48,12 +52,12 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 		hash := disttopk.NewCountMinHash(1, m)
 		for _, item := range il {
 			hv := hash.GetIndexNoOffset(disttopk.IntKeyToByteKey(item.Id), 0)
-			t.Add(uint(hv), uint(m_bits), uint(item.Score), uint(item.Score), uint(b.Cutoff()))
+			t.Add(uint(hv), uint(m_bits), uint(item.Score), uint(item.Score), cutoff)
 
 		}
 	}
+	t.AddCutoff(cutoff)
 	//fmt.Println("Cutoff after", b.Cutoff(), count, len(test))
-	t.AddCutoff(uint(b.Cutoff()))
 }
 
 func NewMaxHashMapUnionSketch() *MaxHashMapUnionSketch {
@@ -98,7 +102,7 @@ func (t *BloomHistogramMergeSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	bs := us.(*MaxHashMapUnionSketch)
 	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-	flt, v := bs.GetFilter(int64(thresh)) 
+	flt, v := bs.GetFilter(int64(thresh))
 	if flt != nil {
 		return flt, uint(v)
 	}
