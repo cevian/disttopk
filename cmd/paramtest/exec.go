@@ -139,7 +139,7 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 		Lsizes = []int{*listsize}
 	}
 
-	for _, perms := range []int{0, k, int(float64(1.5) * float64(k)), 2 * k, 4 * k, 10 * k, 100 * k} {
+	for _, perms := range []int{0, k, 5 * k, 10 * k, 50 * k,  100 * k} {
 		for _, overlap := range []float64{1.0, 0.99, 0.75, 0.50, 0.25, 0.01, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
