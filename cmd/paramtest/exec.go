@@ -259,7 +259,7 @@ func (t *Overlap) GetRowDescription() []RowDescription {
 	nodes := 10
 	listSize := 10000
 	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
-		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
+		for _, overlap := range []float64{1.0, 0.99, 0.75, 0.25, 0.01, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
 					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
@@ -287,12 +287,12 @@ func (t *Test) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
 	listSize := 1000
-	zipfParam := 0.4
+	zipfParam := 0.6
 	overlap := 0.50
 
 	rds := make([]RowDescription, 0)
-	for _, perms := range []int{0, k, int(float64(1.5) * float64(k)), 2 * k, 4 * k, 10 * k, 100 * k} {
-		for _, seed := range []int64{1, 2, 3, 4, 5} {
+	for _, perms := range []int{0}  {
+		for _, seed := range []int64{1} {
 			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
 			rds = append(rds, rd)
 		}
