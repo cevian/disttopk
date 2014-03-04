@@ -130,7 +130,7 @@ func NewSbrErOverNestRunner() *TwoRoundRunner {
 
 func NewSbrErIdealNestRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList,numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
-		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, 1.0)	
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, -1.0)	
 	}
 
 	return NewTwoRoundRunner(gen, "SBR-ER IdealNest", true)
