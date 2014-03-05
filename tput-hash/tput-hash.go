@@ -241,6 +241,7 @@ func (src *Coord) Run() error {
 			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
 				panic(err)
 			}
+		
 			for peerlocaltopid, peerlocaltopscore := range peerm[dobj.Id] {
 				cha_got.Add(disttopk.IntKeyToByteKey(peerlocaltopid), uint(peerlocaltopscore))
 			}
@@ -263,7 +264,22 @@ func (src *Coord) Run() error {
 	}
 
 	if secondthresh < uint(thresh) {
-		panic(fmt.Sprintln("Something went wrong", thresh, secondthresh))
+		collision_detector := make(map[uint]bool, src.k)
+		collision := false
+		for _, item := range il[:src.k]{
+			index := cha.GetIndex(disttopk.IntKeyToByteKey(item.Id))
+			if collision_detector[index]{
+				collision = true 
+				break
+			}
+			collision_detector[index]= true
+			//fmt.Println("Item", item.Id, "score", item.Score, "cha score", cha.Query(disttopk.IntKeyToByteKey(item.Id)), "Index", cha.GetIndex(disttopk.IntKeyToByteKey(item.Id)), "collision", collision, collision_detector)
+		}
+		if collision {
+			secondthresh = uint(thresh)
+		} else {
+			panic(fmt.Sprintln("Something went wrong", thresh, secondthresh))
+		}
 	}
 
 	bloom := cha.GetBloomFilter(secondthresh, hash_responses, uint(localthresh), uint(nnodes))

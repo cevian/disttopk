@@ -23,7 +23,7 @@ func (t *CountHashArray) Len() int {
 	return t.Data.Len()
 }
 
-func (t *CountHashArray) Add(key []byte, count uint) {
+func (t *CountHashArray) Add(key []byte, count uint) (int) {
 	index := int(t.GetIndexNoOffset(key, uint32(0)))
 	current := t.Data.Get(index)
 
@@ -31,6 +31,7 @@ func (t *CountHashArray) Add(key []byte, count uint) {
 		//fmt.Println("Setting", index, )
 		t.Data.Set(index, count)
 	}
+	return index
 }
 
 func (t *CountHashArray) GetIndex(key []byte) uint {
