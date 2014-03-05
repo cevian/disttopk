@@ -38,7 +38,7 @@ type SecondRound struct {
 type ThirdRound struct {
 	list disttopk.ItemList
 	//items_looked_at uint //only for serial access accounting
-	stats *disttopk.AlgoStats
+	stats *disttopk.AlgoStatsRound
 }
 
 func (src *Peer) Run() error {
@@ -124,6 +124,7 @@ func (src *Peer) Run() error {
 
 		bif := disttopk.NewBloomIndexableFilter(bloom)
 		exactlist, stats := disttopk.GetListIndexedHashTable(bif, src.list, sent_items)
+		stats.Transferred_items = len(exactlist)
 
 		for _, item := range exactlist {
 			sent_items[item.Id] = true
@@ -179,13 +180,15 @@ func (src *Coord) Run() error {
 	thresh := 0.0
 	items := 0
 	items_at_peers := 0
+	round_1_stats := disttopk.NewAlgoStatsRoundUnion()
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
 			fr := dobj.Obj.(FirstRound)
 			il := fr.list
 			items_at_peers += int(fr.count)
-			access_stats.Serial_items += len(il)
+			round_stat_peer := disttopk.AlgoStatsRound{Bytes_sketch:4, Serial_items: len(il), Transferred_items: len(il)}
+			round_1_stats.AddPeerStats(round_stat_peer)
 			items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -195,6 +198,7 @@ func (src *Coord) Run() error {
 
 		}
 	}
+	access_stats.AddRound(*round_1_stats)
 
 	il := disttopk.MakeItemList(m)
 	il.Sort()
@@ -203,7 +207,7 @@ func (src *Coord) Run() error {
 	}
 	thresh = il[src.k-1].Score
 	localthresh := uint32((thresh / float64(nnodes)) * src.alpha)
-	bytesRound := items*disttopk.RECORD_SIZE + 4
+	bytesRound := items*disttopk.RECORD_SIZE + (4*nnodes)
 	fmt.Println("Round 1 tput-hash: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " cha size", items_at_peers, " bytes used", bytesRound)
 	bytes := bytesRound
 
@@ -212,7 +216,9 @@ func (src *Coord) Run() error {
 	cha_size := uint(disttopk.MakePowerOf2(int(items_at_peers)))
 
 	bytesRound = 8 * nnodes
+	round_2_stats := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
+		round_2_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: 8})
 		select {
 		case ch <- FirstRoundResponse{uint32(localthresh), uint32(cha_size)}:
 		case <-src.StopNotifier:
@@ -238,8 +244,9 @@ func (src *Coord) Run() error {
 			for peerlocaltopid, peerlocaltopscore := range peerm[dobj.Id] {
 				cha_got.Add(disttopk.IntKeyToByteKey(peerlocaltopid), uint(peerlocaltopscore))
 			}
-
-			access_stats.Serial_items += int(sr.items_looked_at)
+			
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items:int(sr.items_looked_at), Bytes_sketch: uint64(len(sr.cha))}
+			round_2_stats.AddPeerStats(round_stat_peer)
 
 			cha.Merge(cha_got)
 			cha_got.AddResponses(hash_responses)
@@ -247,6 +254,7 @@ func (src *Coord) Run() error {
 			return nil
 		}
 	}
+	access_stats.AddRound(*round_2_stats)
 	bytesRound += bytes_cha
 
 	secondthresh := uint(thresh)
@@ -291,8 +299,8 @@ func (src *Coord) Run() error {
 		bytes += bytesRound
 	}
 
+	src.Stats = *access_stats
 	src.Stats.Bytes_transferred = uint64(bytes)
-	src.Stats.Merge(*access_stats)
 
 	//fmt.Println("Sorted Global List: ", il[:src.k])
 	if disttopk.OUTPUT_RESP {
@@ -310,11 +318,13 @@ func (src *Coord) SendBloom(bloom *disttopk.Bloom, nnodes int, access_stats *dis
 		panic(err)
 	}
 
-	bytes_compressed_sample := disttopk.CompressBytes(bloom_ser)
-	bytesRound := len(bytes_compressed_sample) * nnodes
+	compressed := disttopk.CompressBytes(bloom_ser)
+	bytesRound := len(compressed) * nnodes
+	round_3_stats := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
+		round_3_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(compressed))})
 		select {
-		case ch <- disttopk.CompressBytes(bloom_ser):
+		case ch <- compressed:
 		case <-src.StopNotifier:
 			panic("should not happen")
 		}
@@ -326,7 +336,7 @@ func (src *Coord) SendBloom(bloom *disttopk.Bloom, nnodes int, access_stats *dis
 		case dobj := <-src.input:
 			tr := dobj.Obj.(ThirdRound)
 			il := tr.list
-			access_stats.Merge(*tr.stats)
+			round_3_stats.AddPeerStats(*tr.stats)
 			m = il.AddToMap(m)
 			round3items += len(il)
 			mresp = il.AddToCountMap(mresp)
@@ -334,6 +344,7 @@ func (src *Coord) SendBloom(bloom *disttopk.Bloom, nnodes int, access_stats *dis
 			panic("should not happen")
 		}
 	}
+	access_stats.AddRound(*round_3_stats)
 
 	bytesRound += round3items * disttopk.RECORD_SIZE
 

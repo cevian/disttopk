@@ -4,26 +4,95 @@ import "fmt"
 
 type AlgoStats struct {
 	Bytes_transferred uint64
-	Serial_items      int
-	Random_access     int
-	Random_items      int
+//	Serial_items      int
+//	Random_access     int
+//	Random_items      int
 	//	Length            int
 	Recall        float64
 	Abs_err       float64
 	Rel_err       float64
 	Edit_distance float64
 	Rounds        int
+	RoundStats    []AlgoStatsRoundUnion
 }
 
+type AlgoStatsRoundUnion struct {
+	Bytes_sketch_sum      uint64
+	Serial_items_sum      int
+	Random_access_sum     int
+	Random_items_sum      int
+	Serial_items_max      int
+	Random_access_max     int
+	Random_items_max      int
+	Transferred_items_sum     int
+
+}
+
+func NewAlgoStatsRoundUnion() *AlgoStatsRoundUnion {
+	return &AlgoStatsRoundUnion{}
+}
+
+func (t *AlgoStatsRoundUnion) AddPeerStats(peer AlgoStatsRound) {
+	t.Bytes_sketch_sum += peer.Bytes_sketch
+	t.Serial_items_sum += peer.Serial_items
+	t.Random_access_sum += peer.Random_access
+	t.Random_items_sum += peer.Random_items
+	t.Transferred_items_sum += peer.Transferred_items
+	
+	if (t.Serial_items_max < peer.Serial_items) {
+		t.Serial_items_max = peer.Serial_items
+	}
+	if (t.Random_access_max < peer.Random_access) {
+		t.Random_access_max = peer.Random_access
+	}
+	if (t.Random_items_max < peer.Random_items) {
+		t.Random_items_max = peer.Random_items
+	}
+}
+
+
+type AlgoStatsRound struct {
+	Bytes_sketch      uint64
+	Transferred_items int
+	Serial_items      int
+	Random_access     int
+	Random_items      int
+}
+
+func (t *AlgoStats) AddRound(round AlgoStatsRoundUnion) {
+	t.RoundStats = append(t.RoundStats, round)
+}
+
+func NewAlgoStats() *AlgoStats {
+	return &AlgoStats{RoundStats: make([]AlgoStatsRoundUnion, 0)}
+}
+
+/*
 func (t *AlgoStats) Merge(other AlgoStats) {
 	t.Bytes_transferred += other.Bytes_transferred
 	t.Serial_items += other.Serial_items
 	t.Random_access += other.Random_access
 	t.Random_items += other.Random_items
 	//t.Length += other.Length
+}*/
+
+func (t *AlgoStats) VerifySanity() {
+	bytes := 0
+	for _, round := range t.RoundStats{
+		bytes += int(round.Bytes_sketch_sum)
+		bytes += round.Transferred_items_sum*RECORD_SIZE
+	}
+	if bytes != int(t.Bytes_transferred) {
+		for k, round := range t.RoundStats{
+			total := int(round.Bytes_sketch_sum) + (round.Transferred_items_sum*RECORD_SIZE)
+			fmt.Println("Round ",k+1,": Sketch", round.Bytes_sketch_sum, "Serial Items", round.Serial_items_sum, "Random Items", round.Random_items_sum, "Transferred Items", round.Transferred_items_sum, "Total", total)
+		}
+		panic(fmt.Sprintf("Bytes dont match up, rounds %d, total %d", bytes, t.Bytes_transferred))
+	}
 }
 
 func (t *AlgoStats) CalculatePerformance(exact ItemList, approx ItemList, k int) {
+	t.VerifySanity()
 	t.Recall = getRecall(exact, approx, k)
 	t.Abs_err = getScoreError(exact, approx, k)
 	t.Rel_err = getScoreErrorRel(exact, approx, k)

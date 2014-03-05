@@ -151,7 +151,7 @@ func (s *Serialized) ByteSize() int { return len(*s) }
 type FirstRound struct {
 	list   disttopk.ItemList
 	sketch Serialized
-	stats  *disttopk.AlgoStats
+	stats  *disttopk.AlgoStatsRound
 	length uint32
 }
 
@@ -161,7 +161,7 @@ type SecondRound struct {
 
 type SecondRoundPeerReply struct {
 	list             disttopk.ItemList
-	stats            *disttopk.AlgoStats
+	stats            *disttopk.AlgoStatsRound
 	additionalSketch Serialized
 }
 
@@ -184,20 +184,24 @@ func (src *Peer) Run() error {
 
 	sketch, serialAccessOverLocaltop := src.createSketch(src.list, localtop)
 	ser := src.PeerSketchAdaptor.serialize(sketch)
-
+	compressed := src.compress(ser)
 	listlen := 0
 	if src.SendLength {
 		listlen = len(src.list)
 	}
 
-	first_round_access := &disttopk.AlgoStats{Serial_items: localtop_index + serialAccessOverLocaltop, Random_access: 0, Random_items: 0}
+	first_round_access := &disttopk.AlgoStatsRound{Serial_items: localtop_index + serialAccessOverLocaltop, Transferred_items: len(localtop)}
+	if len(ser) > 0 {
+		first_round_access.Bytes_sketch = uint64(len(compressed))
+	}
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, src.compress(ser), first_round_access, uint32(listlen)}}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, compressed, first_round_access, uint32(listlen)}}:
 	case <-src.StopNotifier:
 		return nil
 	}
 
 	for {
+		sketch_size := 0
 		var uf UnionFilter
 		select {
 		case obj, ok := <-src.back:
@@ -205,14 +209,20 @@ func (src *Peer) Run() error {
 				return nil
 			}
 			ufser := obj.(SecondRound).ufser
+			decomp := src.decompress(ufser)
+			if len(decomp) > 0 {
+				sketch_size += len(ufser)
+			}
 			if ufser != nil {
-				uf = src.UnionSketchAdaptor.deserialize(src.decompress(ufser))
+				uf = src.UnionSketchAdaptor.deserialize(decomp)
 			}
 		case <-src.StopNotifier:
 			return nil
 		}
 
 		exactlist, round2Access := src.getRoundTwoList(uf, src.list, localtop_index, sent_items)
+		round2Access.Bytes_sketch += uint64(sketch_size)
+
 		for _, item := range exactlist {
 			sent_items[item.Id] = true
 		}
@@ -224,6 +234,7 @@ func (src *Peer) Run() error {
 			round2Access.Serial_items += serialaccess
 			if addsketch != nil {
 				additionalSketch = additonalPeer.serializeAdditionalSketch(addsketch)
+				round2Access.Bytes_sketch += uint64(len(additionalSketch))
 			}
 		}
 
@@ -236,7 +247,7 @@ func (src *Peer) Run() error {
 		}*/
 
 		//fmt.Println("SR", sr.cmf.GetInfo())
-
+		round2Access.Transferred_items = len(exactlist)
 		select {
 		case src.forward <- disttopk.DemuxObject{src.id, SecondRoundPeerReply{disttopk.ItemList(exactlist), round2Access, additionalSketch}}:
 		case <-src.StopNotifier:
@@ -333,7 +344,7 @@ func (src *Coord) Run() error {
 	sketchsize := 0
 	var ucm UnionSketch
 
-	round1Access := &disttopk.AlgoStats{}
+	round1Access := disttopk.NewAlgoStatsRoundUnion()
 	listlensum := 0
 	listlenbytes := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
@@ -353,7 +364,7 @@ func (src *Coord) Run() error {
 
 			//cm := fr.cm.(*disttopk.CountMinSketch)
 			//sketchsize += cm.ByteSize()
-			round1Access.Merge(*fr.stats)
+			round1Access.AddPeerStats(*fr.stats)
 
 			if ucm == nil {
 				ucm = src.getUnionSketch(sketch, il, dobj.Id)
@@ -365,6 +376,7 @@ func (src *Coord) Run() error {
 			if src.SendLength {
 				listlensum += int(fr.length)
 				listlenbytes += 4
+				round1Access.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: 4})
 			}
 		case <-src.StopNotifier:
 			return nil
@@ -399,13 +411,13 @@ func (src *Coord) Run() error {
 	fmt.Print("Round 2 tr: got ", round2items, " items (", round2items/nnodes, "/node), bytes for records: ", round2items*disttopk.RECORD_SIZE, " bytes filter: ", total_back_bytes, ". bytes additional sketch: ", add_sketch_bytes, " BW Round: ", bytesRound, " BW total: ", bytes, "\n")
 	fmt.Printf("Round 2 tr: access %+v\n", round2Access)
 	src.Stats.Bytes_transferred = uint64(bytes)
-	src.Stats.Merge(*round1Access)
-	src.Stats.Merge(*round2Access)
+	src.Stats.AddRound(*round1Access)
+	src.Stats.AddRound(*round2Access)
 	src.Stats.Rounds = 2
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
-	fmt.Println("Sorted Global List:  top-k score", il[src.k-1].Score, "Thresh", ufThresh)
+	fmt.Println("Sorted Global List:  top-k score", il[src.k-1].Score, "Thresh of previous filter", ufThresh)
 	if uint(il[src.k-1].Score) < ufThresh {
 		if src.Approximate {
 			fmt.Println("WARNING, result may be inexact")
@@ -416,9 +428,9 @@ func (src *Coord) Run() error {
 			err, round3Access, round3items, m, ufThresh, round3_back_bytes, add_sketch_bytes := src.RunSendFilterThreshold(ucm, uint32(round3Thresh), il, m, listlensum)
 
 			if round3Access == nil {
-			   //round 3 aborted 
-			   src.Stats.Rounds = 2
-			   goto end
+				//round 3 aborted
+				src.Stats.Rounds = 2
+				goto end
 			}
 
 			if add_sketch_bytes > 0 {
@@ -439,7 +451,7 @@ func (src *Coord) Run() error {
 			fmt.Print("Round 3 tr: got ", round3items, " items (", round3items/nnodes, "/node), bytes for records: ", round3items*disttopk.RECORD_SIZE, "bytes filter: ", round3_back_bytes, ". BW Round: ", bytesRound, "BW total: ", bytes, "\n")
 			fmt.Printf("Round 3 tr: access %+v\n", round3Access)
 			src.Stats.Bytes_transferred = uint64(bytes)
-			src.Stats.Merge(*round3Access)
+			src.Stats.AddRound(*round3Access)
 			il = disttopk.MakeItemList(m)
 			il.Sort()
 			//		panic(fmt.Sprintf("topk-score < approx thresh. Need to implement third round. score %v, approxThresh %v", uint(il[src.k-1].Score), ufThresh))
@@ -457,7 +469,7 @@ end:
 	return nil
 }
 
-func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il disttopk.ItemList, m map[int]float64, listlensum int) (err error, access *disttopk.AlgoStats, items int, ret_m map[int]float64, usedThresh uint, bytes_back int, bytes_additional int) {
+func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il disttopk.ItemList, m map[int]float64, listlensum int) (err error, access *disttopk.AlgoStatsRoundUnion, items int, ret_m map[int]float64, usedThresh uint, bytes_back int, bytes_additional int) {
 
 	total_back_bytes := 0
 	uf, ufThresh := src.getUnionFilter(ucm, thresh, il, listlensum)
@@ -466,15 +478,15 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 	} else {
 		fmt.Println("Uf is Nil. ALL remaining items will be sent in second round")
 	}
-	ufe, ok :=  uf.(UnionFilterEmpty)
+	ufe, ok := uf.(UnionFilterEmpty)
 	if ok {
 		if ufe.isEmpty() {
-			fmt.Println("Uf is empty, exiting round 3");
+			fmt.Println("Uf is empty, exiting round 3")
 			return nil, nil, 0, nil, 0, 0, 0
 		}
 	}
 
-
+	round2Access := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
 		//uf := src.getUnionFilter(ucm, uint32(localthresh))
 		var ser Serialized
@@ -491,7 +503,6 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 	}
 
 	round2items := 0
-	round2Access := &disttopk.AlgoStats{}
 	groundtruthfp := -1
 	filterfp := -1
 	additionalSketchBytes := 0
@@ -502,7 +513,7 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 			il := srpr.list
 			m = il.AddToMap(m)
 			round2items += len(il)
-			round2Access.Merge(*srpr.stats)
+			round2Access.AddPeerStats(*srpr.stats)
 			if srpr.additionalSketch != nil {
 				additionalSketchBytes += len(srpr.additionalSketch)
 				padd := src.PeerSketchAdaptor.(PeerAdditionalSketchAdaptor)

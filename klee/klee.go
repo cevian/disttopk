@@ -28,7 +28,7 @@ type Peer struct {
 type FirstRound struct {
 	list  disttopk.ItemList
 	bh    []byte
-	stats *disttopk.AlgoStats
+	stats *disttopk.AlgoStatsRound
 }
 
 type ClrRoundSpec struct {
@@ -40,12 +40,12 @@ type ClrRoundSpec struct {
 type ClrRoundReply struct {
 	payload interface{}
 	list    disttopk.ItemList
-	stats   *disttopk.AlgoStats
+	stats   *disttopk.AlgoStatsRound
 }
 
 type FinalListReply struct {
 	payload disttopk.ItemList
-	stats   *disttopk.AlgoStats
+	stats   *disttopk.AlgoStatsRound
 }
 
 func getThreshIndex(list disttopk.ItemList, thresh uint32) int {
@@ -77,10 +77,11 @@ func (src *Peer) Run() error {
 		panic(err)
 	}
 
-	first_round_access := &disttopk.AlgoStats{Serial_items: src.k, Random_access: 0, Random_items: 0}
+	compressed := disttopk.CompressBytes(bhs)
+	first_round_access := &disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(compressed)), Serial_items: src.k, Transferred_items: src.k, Random_access: 0, Random_items: 0}
 
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, &FirstRound{localtop, disttopk.CompressBytes(bhs), first_round_access}}:
+	case src.forward <- disttopk.DemuxObject{src.id, &FirstRound{localtop, compressed , first_round_access}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -148,20 +149,23 @@ func (src *Peer) Run() error {
 				}
 			} */
 
-		clf_round_access := &disttopk.AlgoStats{Serial_items: len(candidate_list), Random_access: 0, Random_items: 0}
+			clf_round_access := &disttopk.AlgoStatsRound{Serial_items: len(candidate_list), Transferred_items: len(estimatelist), Random_access: 0, Random_items: 0}
 
 		if SERIALIZE_CLF {
 			payload, err := disttopk.SerializeObject(clfRow)
 			if err != nil {
 				panic(err)
 			}
+			compressed := disttopk.CompressBytes(payload)
+			clf_round_access.Bytes_sketch = uint64(len(compressed))
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{disttopk.CompressBytes(payload), estimatelist, clf_round_access}}:
+			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{compressed, estimatelist, clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
 
 		} else {
+			panic("acces bytes sketch not implemented yet")
 			select {
 			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{clfRow, estimatelist, clf_round_access}}:
 			case <-src.StopNotifier:
@@ -192,7 +196,7 @@ func (src *Peer) Run() error {
 			}
 		}
 
-		final_list_round_access := &disttopk.AlgoStats{Serial_items: len(candidate_list), Random_access: 0, Random_items: 0}
+		final_list_round_access := &disttopk.AlgoStatsRound{Serial_items: len(candidate_list), Transferred_items: len(secondlist)}
 		//fmt.Println("Secondlist ", len(secondlist))
 
 		select {
@@ -218,7 +222,7 @@ func (src *Peer) Run() error {
 		if thresh_index > src.k {
 			secondlist = src.list[src.k : thresh_index+1]
 		}
-		final_list_round_access := &disttopk.AlgoStats{Serial_items: len(secondlist), Random_access: 0, Random_items: 0}
+		final_list_round_access := &disttopk.AlgoStatsRound{Serial_items: len(secondlist), Transferred_items: len(secondlist)}
 		select {
 		case src.forward <- disttopk.DemuxObject{src.id, &FinalListReply{secondlist, final_list_round_access}}:
 		case <-src.StopNotifier:
@@ -272,11 +276,12 @@ func (src *Coord) Run() error {
 
 	access_stats := &disttopk.AlgoStats{}
 
+	round_1_stats := disttopk.NewAlgoStatsRoundUnion()
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
 			fr := dobj.Obj.(*FirstRound)
-			access_stats.Merge(*fr.stats)
+			round_1_stats.AddPeerStats(*fr.stats)
 			id := dobj.Id
 			il := fr.list
 			items += len(il)
@@ -301,6 +306,7 @@ func (src *Coord) Run() error {
 
 		}
 	}
+	access_stats.AddRound(*round_1_stats)
 
 	il_est := disttopk.MakeItemList(m)
 	//this becomes an estimate
@@ -326,6 +332,7 @@ func (src *Coord) Run() error {
 	bytes := bytesRound
 
 	bytesRound = 0
+	round_2_stats := disttopk.NewAlgoStatsRoundUnion()
 	if src.clrRound {
 		src.Stats.Rounds = 3
 		bytes_clround := 0
@@ -352,14 +359,16 @@ func (src *Coord) Run() error {
 			topk_ids_bytes = disttopk.RECORD_INDEX_SIZE * src.k
 		}
 
+		round_clf_stats := disttopk.NewAlgoStatsRoundUnion()
 		for _, ch := range src.backPointers {
+			round_clf_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(8+topk_ids_bytes)})
 			select {
 			case ch <- ClrRoundSpec{uint32(localthresh), size, topk_ids}:
 			case <-src.StopNotifier:
 				return nil
 			}
 		}
-		bytes_clround += nnodes*8 + topk_ids_bytes
+		bytes_clround += nnodes*(8 + topk_ids_bytes)
 
 		clf_map := make(map[int]*ClfRow)
 		estimate_items := 0
@@ -368,7 +377,7 @@ func (src *Coord) Run() error {
 			case dobj := <-src.input:
 				var clr *ClfRow
 				clr_reply := dobj.Obj.(*ClrRoundReply)
-				access_stats.Merge(*clr_reply.stats)
+				round_clf_stats.AddPeerStats(*clr_reply.stats)
 				if SERIALIZE_CLF {
 					compressed_payload := clr_reply.payload.([]byte)
 					bytes_clround += len(compressed_payload)
@@ -429,12 +438,14 @@ func (src *Coord) Run() error {
 		}
 		compressedBitArray := disttopk.CompressBytes(bitArraySer)
 		for _, ch := range src.backPointers {
+			round_clf_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch:uint64(len(compressedBitArray))})
 			select {
 			case ch <- compressedBitArray:
 			case <-src.StopNotifier:
 				return nil
 			}
 		}
+		access_stats.AddRound(*round_clf_stats)
 		bytes_clround += len(compressedBitArray) * nnodes
 		fmt.Println("Round CLF klee: got ", estimate_items, " estimate items. size filter", size, " round:", bytes_clround)
 		bytes += bytes_clround
@@ -442,6 +453,7 @@ func (src *Coord) Run() error {
 	} else {
 		src.Stats.Rounds = 2
 		for _, ch := range src.backPointers {
+			round_2_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch:uint64(4)})
 			select {
 			case ch <- localthresh:
 			case <-src.StopNotifier:
@@ -457,7 +469,7 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			flr := dobj.Obj.(*FinalListReply)
-			access_stats.Merge(*flr.stats)
+			round_2_stats.AddPeerStats(*flr.stats)
 			il := flr.payload
 			round2items += len(il)
 			m = il.AddToMap(m)
@@ -466,6 +478,7 @@ func (src *Coord) Run() error {
 			return nil
 		}
 	}
+	access_stats.AddRound(*round_2_stats)
 
 	bytesRound += round2items * disttopk.RECORD_SIZE
 
@@ -478,8 +491,8 @@ func (src *Coord) Run() error {
 
 	fmt.Println("Round 2 klee: got ", round2items, " items. bytes in round: ", bytesRound)
 	bytes += bytesRound
+	src.Stats = *access_stats
 	src.Stats.Bytes_transferred = uint64(bytes)
-	src.Stats.Merge(*access_stats)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()

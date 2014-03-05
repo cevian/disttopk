@@ -194,7 +194,12 @@ func (t *ExportPrinter) EnterNewN() {
 }
 func (t *ExportPrinter) Start() {
 	t.s = "--------------Start Export----------\nExport\t" + t.RowDescriptionHeaders()
-	t.s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tSerial Items\tRandom Access\tRandom Items\n"
+	t.s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance"
+	for i:=0; i<=3; i++ {
+		rs := fmt.Sprintf("Round %d", i+1)
+		t.s += fmt.Sprintf("\t%s Sketch Bytes\t%s Serial Items sum\t%s Serial Items max\t%s Random Items sum\t%s Random Items max\t%s Random Access sum\t%s Random Access max", rs, rs, rs, rs, rs, rs, rs)
+	}
+	t.s += "\n"
 }
 
 func (t *ExportPrinter) GetRowDescription(rd RowDescription) string {
@@ -206,7 +211,19 @@ func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.Algo
 	for _, proto := range t.protocols {
 		s += "Export\t" + t.GetRowDescription(rd)
 		stats := res[proto.GetName()]
-		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\t%d\t%d\t%d\n", proto.GetName(), proto.IsExact(), stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.Serial_items, stats.Random_access, stats.Random_items)
+		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f", proto.GetName(), proto.IsExact(), stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance)
+		if len(stats.RoundStats) > 4 {
+			panic("Too many rounds")
+		}
+		for i:=0; i<=3; i++ {
+			roundStat := disttopk.AlgoStatsRoundUnion{}
+			if i<len(stats.RoundStats) {
+				roundStat = stats.RoundStats[i]
+			}
+			s += fmt.Sprintf("\t%d\t%d\t%d\t%d\t%d\t%d\t%d", roundStat.Bytes_sketch_sum, roundStat.Serial_items_sum, roundStat.Serial_items_max, roundStat.Random_items_sum, roundStat.Random_items_max , roundStat.Random_access_sum, roundStat.Random_access_max)
+
+		}
+		s += "\n"
 	}
 	t.s += s
 	return ""

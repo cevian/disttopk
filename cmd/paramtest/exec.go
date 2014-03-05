@@ -303,8 +303,8 @@ func (t *Test) GetRowDescription() []RowDescription {
 func (t *Test) GetProtocols() []runner.Runner {
 	//return []Protocol{ErGcs, ErGms, GcsMerge, TputHash, Klee3, Klee4, BloomGcs}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbr2RRunner() }
-	return []runner.Runner{runner.NewMagicRunner()}
-	//return GetRunners()
+	//return []runner.Runner{runner.NewMagicRunner()}
+	return GetRunners()
 }
 
 func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStats {

@@ -83,15 +83,18 @@ func (src *NaiveCoord) Run() error {
 	src.lists = make([]disttopk.ItemList, len(src.backPointers))
 	cnt := 0
 	items := 0
+	round_1_stats := disttopk.NewAlgoStatsRoundUnion()
 	for {
 		select {
 		case dobj := <-src.input:
 			cnt++
 			list := dobj.Obj.(disttopk.ItemList)
 			src.lists[dobj.Id] = list
-			src.Stats.Serial_items += len(list)
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: len(list)}
+			round_1_stats.AddPeerStats(round_stat_peer)
 			items += len(list)
 			if cnt == len(src.backPointers) {
+				src.Stats.AddRound(*round_1_stats)
 				m := make(map[int]float64)
 				for _, l := range src.lists {
 					il := disttopk.ItemList(l)

@@ -71,7 +71,7 @@ func (*ApproximateBloomFilterAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *ApproximateBloomFilterAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStats) {
+func (t *ApproximateBloomFilterAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
 	bloom := uf.(*disttopk.Bloom)
 	exactlist := disttopk.NewItemList()
 	for index, v := range list {
@@ -87,5 +87,5 @@ func (t *ApproximateBloomFilterAdaptor) getRoundTwoList(uf UnionFilter, list dis
 		exactlist = exactlist[:maxCount]
 	}
 
-	return exactlist, &disttopk.AlgoStats{Serial_items: len(list)}
+	return exactlist, &disttopk.AlgoStatsRound{Serial_items: len(list)}
 }

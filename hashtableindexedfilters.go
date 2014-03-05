@@ -9,7 +9,7 @@ type IndexableFilter interface {
 	Query([]byte) bool
 }
 
-func GetListIndexedHashTable(filter IndexableFilter, list ItemList, sent_item_filter map[int]bool) ([]Item, *AlgoStats) {
+func GetListIndexedHashTable(filter IndexableFilter, list ItemList, sent_item_filter map[int]bool) ([]Item, *AlgoStatsRound) {
 	hvf := filter.HashValueFilter()
 
 	//create hash table
@@ -51,7 +51,7 @@ func GetListIndexedHashTable(filter IndexableFilter, list ItemList, sent_item_fi
 		}
 	}
 	//fmt.Println("Round two list items tested", items_tested, "random access", random_access, "total items", len(list))
-	return exactlist, &AlgoStats{Serial_items: 0, Random_access: random_access, Random_items: items_tested}
+	return exactlist, &AlgoStatsRound{Serial_items: 0, Random_access: random_access, Random_items: items_tested}
 
 }
 

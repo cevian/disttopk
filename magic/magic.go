@@ -117,17 +117,20 @@ func (src *Coord) Run() error {
 	nnodes := len(src.backPointers)
 
 	m := make(map[int]float64)
+	round_1_stats := disttopk.NewAlgoStatsRoundUnion()
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
 			list := dobj.Obj.(disttopk.ItemList)
 			list.AddToMap(m)
-			src.Stats.Serial_items += len(list)
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: len(list), Transferred_items: len(list)}
+			round_1_stats.AddPeerStats(round_stat_peer)
 			items += len(list)
 		case <-src.StopNotifier:
 			return nil
 		}
 	}
+	src.Stats.AddRound(*round_1_stats)
 
 	fmt.Println("Got round 1 items:", items)
 
@@ -140,12 +143,14 @@ func (src *Coord) Run() error {
 	}
 
 	items2 := 0
+	round_2_stats := disttopk.NewAlgoStatsRoundUnion()
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case dobj := <-src.input:
 			list := dobj.Obj.(disttopk.ItemList)
 			list.AddToMap(m)
-			src.Stats.Random_items += len(list)
+			round_stat_peer := disttopk.AlgoStatsRound{Random_items: len(list), Random_access: len(list), Transferred_items: len(list)}
+			round_2_stats.AddPeerStats(round_stat_peer)
 			items += len(list)
 			items2 += len(list)
 
@@ -153,6 +158,7 @@ func (src *Coord) Run() error {
 			return nil
 		}
 	}
+	src.Stats.AddRound(*round_2_stats)
 	fmt.Println("Got round 1 items:", items2)
 
 	src.Stats.Bytes_transferred = uint64(items * disttopk.RECORD_SIZE)

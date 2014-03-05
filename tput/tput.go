@@ -129,7 +129,8 @@ func (src *Coord) Run() error {
 	m := make(map[int]float64)
 	mresp := make(map[int]int)
 
-	access_stats := &disttopk.AlgoStats{}
+	access_stats := disttopk.NewAlgoStats()
+	round_1_stats := disttopk.NewAlgoStatsRoundUnion()
 	nnodes := len(src.backPointers)
 	thresh := 0.0
 	items := 0
@@ -137,7 +138,8 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			il := dobj.Obj.(disttopk.ItemList)
-			access_stats.Serial_items += len(il)
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: len(il), Transferred_items: len(il)}
+			round_1_stats.AddPeerStats(round_stat_peer)
 			items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -146,6 +148,7 @@ func (src *Coord) Run() error {
 
 		}
 	}
+	access_stats.AddRound(*round_1_stats)
 
 	il := disttopk.MakeItemList(m)
 	il.Sort()
@@ -158,7 +161,9 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 1 tput: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " bytes used", bytesRound)
 	bytes := bytesRound
 
+	round_2_stats := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
+		round_2_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: 4})
 		select {
 		case ch <- localthresh:
 		case <-src.StopNotifier:
@@ -171,7 +176,8 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			il := dobj.Obj.(disttopk.ItemList)
-			access_stats.Serial_items += len(il)
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: len(il), Transferred_items: len(il)}
+			round_2_stats.AddPeerStats(round_stat_peer)
 			round2items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -179,6 +185,7 @@ func (src *Coord) Run() error {
 			return nil
 		}
 	}
+	access_stats.AddRound(*round_2_stats)
 
 	il = disttopk.MakeItemList(m)
 	il.Sort()
@@ -201,7 +208,9 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 2 tput: got ", round2items, " items, thresh ", secondthresh, ", unique items fetching ", len(ids), " bytes ", bytesRound)
 	bytes += bytesRound
 
+	round_3_stats := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
+		round_3_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(ids)*4)})
 		select {
 		case ch <- ids:
 		case <-src.StopNotifier:
@@ -214,8 +223,8 @@ func (src *Coord) Run() error {
 		select {
 		case dobj := <-src.input:
 			il := dobj.Obj.(disttopk.ItemList)
-			access_stats.Random_items += len(il)
-			access_stats.Random_access += len(il)
+			round_stat_peer := disttopk.AlgoStatsRound{Random_items: len(il), Random_access: len(il), Transferred_items: len(il)}
+			round_3_stats.AddPeerStats(round_stat_peer)
 			m = il.AddToMap(m)
 			round3items += len(il)
 			mresp = il.AddToCountMap(mresp)
@@ -223,12 +232,13 @@ func (src *Coord) Run() error {
 			return nil
 		}
 	}
+	access_stats.AddRound(*round_3_stats)
 
 	bytesRound = round3items*disttopk.RECORD_SIZE + (nnodes * len(ids) * 4)
 	fmt.Println("Round 3 tput: got ", round3items, " items, bytes ", bytesRound)
 	bytes += bytesRound
+	src.Stats = *access_stats
 	src.Stats.Bytes_transferred = uint64(bytes)
-	src.Stats.Merge(*access_stats)
 	src.Stats.Rounds = 3
 
 	il = disttopk.MakeItemList(m)
