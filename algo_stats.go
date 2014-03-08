@@ -13,6 +13,7 @@ type AlgoStats struct {
 	Rel_err       float64
 	Edit_distance float64
 	Rounds        int
+	TrueScoreK        int
 	RoundStats    []AlgoStatsRoundUnion
 }
 
@@ -97,6 +98,7 @@ func (t *AlgoStats) CalculatePerformance(exact ItemList, approx ItemList, k int)
 	t.Abs_err = getScoreError(exact, approx, k)
 	t.Rel_err = getScoreErrorRel(exact, approx, k)
 	t.Edit_distance = JWDistance(exact, approx, k)
+	t.TrueScoreK = int(exact[k-1].Score)
 
 }
 
