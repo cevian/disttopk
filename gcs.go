@@ -206,6 +206,9 @@ func NewGcs(m int) *Gcs {
 			panic(fmt.Sprintf("Wrong size %v", m))
 		}*/
 
+	if m == 0 {
+		panic("M cannot be 0")
+	}
 	if m > math.MaxUint32 {
 		panic("m bigger than uint32")
 	}

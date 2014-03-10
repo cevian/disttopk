@@ -44,7 +44,7 @@ type RowDescription struct {
 }
 
 func (rd *RowDescription) String() string {
-	return fmt.Sprintf("k=%v nodes=%v N=%v zip=%v perms=%v overap=%v seed=%v recsize=%v", rd.k, rd.nodes, rd.N, rd.zip, rd.perms, rd.overlap, rd.seed, rd.recordSize)
+	return fmt.Sprintf("k=%v nodes=%v N=%v zip=%v perms=%v overlap=%v seed=%v recsize=%v", rd.k, rd.nodes, rd.N, rd.zip, rd.perms, rd.overlap, rd.seed, rd.recordSize)
 }
 
 type Printer interface {

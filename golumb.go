@@ -19,8 +19,8 @@ type GolumbEncoder struct {
 }
 
 func NewGolumbEncoder(w io.Writer, m_bits uint) *GolumbEncoder {
-	if m_bits < 1 || m_bits > 63 {
-		panic("m_bits needs to be between 1 and 63")
+	if m_bits > 63 {
+		panic(fmt.Sprintln("m_bits needs to be between below 63, is", m_bits))
 	}
 
 	m := uint(1 << m_bits)
@@ -52,8 +52,8 @@ type GolumbDecoder struct {
 }
 
 func NewGolumbDecoder(r io.Reader, m_bits uint) *GolumbDecoder {
-	if m_bits < 1 || m_bits > 63 {
-		panic(fmt.Sprintln("m_bits needs to be between 1 and 63. is ", m_bits))
+	if m_bits > 63 {
+		panic(fmt.Sprintln("m_bits needs to be below 63. is ", m_bits))
 	}
 	m := uint(1 << m_bits)
 	br := NewBitReader(r)
@@ -124,6 +124,7 @@ func GolumbEncodeSortedWriter(w io.Writer, sorted []int) error {
 	num_increments := uint(len(sorted))
 
 	m_bits := GolumbParameter(sum_of_increments, num_increments)
+	//fmt.Println("DBG: ", m_bits, sum_of_increments, sorted)
 	m_bits8 := uint8(m_bits)
 	if err := binary.Write(w, binary.BigEndian, &m_bits8); err != nil {
 		return err
