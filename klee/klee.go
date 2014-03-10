@@ -356,7 +356,7 @@ func (src *Coord) Run() error {
 			for k, item := range il_est[:src.k] {
 				topk_ids[k] = item.Id
 			}
-			topk_ids_bytes = disttopk.RECORD_INDEX_SIZE * src.k
+			topk_ids_bytes = disttopk.RECORD_ID_SIZE * src.k
 		}
 
 		round_clf_stats := disttopk.NewAlgoStatsRoundUnion()

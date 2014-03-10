@@ -16,6 +16,9 @@ import "github.com/cevian/disttopk"
 var suite = flag.String("suite", "Distribution", "suite to run")
 var partition = flag.Int("partition", 0, "Partition to run 0...(totalpartitions-1)")
 var totalPartitions = flag.Int("totalpartitions", 0, "Total number of partitions")
+var recordSize = flag.Int("recordsize", 100, "bytes used by each item")
+var lowZipf = flag.Bool("lowzipf", false, "do the lower zipf parameter values")
+var highZipf = flag.Bool("highzipf", false, "do the higher zipf parameter values")
 var listsize = flag.Int("listsize", 0, "listsize (0 means all)")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
@@ -27,6 +30,8 @@ func init() {
 func main() {
 	flag.Parse()
 	fmt.Printf("Running suite: %s partition: %d out of %d\n", *suite, *partition, *totalPartitions)
+
+	disttopk.RECORD_SIZE = *recordSize
 
 	var s Suite
 	if *suite == "Distribution" {
@@ -139,12 +144,20 @@ func (t *Distribution) GetRowDescription() []RowDescription {
 		Lsizes = []int{*listsize}
 	}
 
-	for _, perms := range []int{0, k, 5 * k, 10 * k, 50 * k,  100 * k} {
+	zipfParams := []float64{0.2, 0.4, 0.6,0.8,1,2}
+	if *highZipf {
+		zipfParams = []float64{0.8,1,2}
+	}
+	if *lowZipf {
+		zipfParams = []float64{0.2, 0.4, 0.6}
+	}
+
+	for _, perms := range []int{0, k, 5 * k, 10 * k, 50 * k, 100 * k} {
 		for _, overlap := range []float64{1.0, 0.99, 0.75, 0.50, 0.25, 0.01, 0} {
-			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
+			for _, zipfParam := range zipfParams {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
 					for _, Lsize := range Lsizes {
-						rd := RowDescription{k, nodes, Lsize, zipfParam, perms, overlap, seed}
+						rd := RowDescription{k, nodes, Lsize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 						rds = append(rds, rd)
 					}
 				}
@@ -188,7 +201,7 @@ func (t *DistributionLarge) GetRowDescription() []RowDescription {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
 					for _, listSize := range []int{200000} {
-						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 						rds = append(rds, rd)
 					}
 				}
@@ -211,7 +224,7 @@ func (t *OneListSize) GetRowDescription() []RowDescription {
 		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2} {
-					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 					rds = append(rds, rd)
 				}
 			}
@@ -236,7 +249,7 @@ func (t *Nestimate) GetRowDescription() []RowDescription {
 		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
-					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 					rds = append(rds, rd)
 				}
 			}
@@ -262,7 +275,7 @@ func (t *Overlap) GetRowDescription() []RowDescription {
 		for _, overlap := range []float64{1.0, 0.99, 0.75, 0.25, 0.01, 0} {
 			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
 				for _, seed := range []int64{1, 2, 3, 4, 5} {
-					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 					rds = append(rds, rd)
 				}
 			}
@@ -286,14 +299,14 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 100000
-	zipfParam := 2.0
+	listSize := 10000
+	zipfParam := 0.8
 	overlap := 1.00
 
 	rds := make([]RowDescription, 0)
-	for _, perms := range []int{0}  {
+	for _, perms := range []int{0} {
 		for _, seed := range []int64{1} {
-			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed}
+			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 			rds = append(rds, rd)
 		}
 	}
@@ -304,7 +317,8 @@ func (t *Test) GetProtocols() []runner.Runner {
 	//return []Protocol{ErGcs, ErGms, GcsMerge, TputHash, Klee3, Klee4, BloomGcs}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbr2RRunner() }
 	//return []runner.Runner{runner.NewMagicRunner()}
-	return []runner.Runner{runner.NewTputHRunner()}
+	//return []runner.Runner{runner.NewTputHRunner()}
+	return []runner.Runner{runner.NewSbrErRunner()}
 	//return GetRunners()
 }
 

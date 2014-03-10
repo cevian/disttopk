@@ -210,7 +210,7 @@ func (src *Coord) Run() error {
 
 	round_3_stats := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
-		round_3_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(ids)*4)})
+		round_3_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(ids)*disttopk.RECORD_ID_SIZE)})
 		select {
 		case ch <- ids:
 		case <-src.StopNotifier:

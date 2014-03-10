@@ -40,6 +40,7 @@ type RowDescription struct {
 	perms   int
 	overlap float64
 	seed    int64
+	recordSize int
 }
 
 func (rd *RowDescription) String() string {
@@ -63,7 +64,7 @@ func (t *OverviewPrinter) EnterNewN() {
 }
 
 func (t *OverviewPrinter) RowDescriptionHeaders() string {
-	return "N\tZip\tPerm\tOverlap\tSeed"
+	return "N\tZip\tPerm\tOverlap\tSeed\tRecord Size"
 }
 
 func (t *OverviewPrinter) Start() {
@@ -75,7 +76,7 @@ func (t *OverviewPrinter) Start() {
 }
 
 func (t *OverviewPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%4.1E\t%2.1f\t%d\t%2.2f\t%d", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap, rd.seed)
+	return fmt.Sprintf("%4.1E\t%2.1f\t%d\t%2.2f\t%d\t%d", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap, rd.seed, rd.recordSize)
 }
 
 func (t *OverviewPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
@@ -197,13 +198,13 @@ func (t *ExportPrinter) Start() {
 	t.s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tScore K"
 	for i:=0; i<=3; i++ {
 		rs := fmt.Sprintf("Round %d", i+1)
-		t.s += fmt.Sprintf("\t%s Sketch Bytes\t%s Serial Items sum\t%s Serial Items max\t%s Random Items sum\t%s Random Items max\t%s Random Access sum\t%s Random Access max", rs, rs, rs, rs, rs, rs, rs)
+		t.s += fmt.Sprintf("\t%s Sketch Bytes\t%s Serial Items sum\t%s Serial Items max\t%s Random Items sum\t%s Random Items max\t%s Random Access sum\t%s Random Access max\t%s Transferred Items sum", rs, rs, rs, rs, rs, rs, rs, rs)
 	}
 	t.s += "\n"
 }
 
 func (t *ExportPrinter) GetRowDescription(rd RowDescription) string {
-	return fmt.Sprintf("%f\t%f\t%d\t%f\t%d", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap, rd.seed)
+	return fmt.Sprintf("%f\t%f\t%d\t%f\t%d\t%d", float64(rd.N), float64(rd.zip), rd.perms, rd.overlap, rd.seed, rd.recordSize)
 }
 
 func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoStats) string {
@@ -220,7 +221,7 @@ func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.Algo
 			if i<len(stats.RoundStats) {
 				roundStat = stats.RoundStats[i]
 			}
-			s += fmt.Sprintf("\t%d\t%d\t%d\t%d\t%d\t%d\t%d", roundStat.Bytes_sketch_sum, roundStat.Serial_items_sum, roundStat.Serial_items_max, roundStat.Random_items_sum, roundStat.Random_items_max , roundStat.Random_access_sum, roundStat.Random_access_max)
+			s += fmt.Sprintf("\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", roundStat.Bytes_sketch_sum, roundStat.Serial_items_sum, roundStat.Serial_items_max, roundStat.Random_items_sum, roundStat.Random_items_max , roundStat.Random_access_sum, roundStat.Random_access_max,roundStat.Transferred_items_sum)
 
 		}
 		s += "\n"
