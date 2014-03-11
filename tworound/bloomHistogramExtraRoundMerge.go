@@ -302,12 +302,12 @@ type BhErPeerSketchAdaptor struct {
 	Multiplier int
 }
 
-func NewBhErPeerSketchAdaptor(topk int, numpeer int, N_est int, multiplier int, NestimateParameter float64) PeerSketchAdaptor {
-	return &BhErPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est, NestimateParameter}, multiplier}
+func NewBhErPeerSketchAdaptor(topk int, numpeer int, N_est int, multiplier int, EstimateParameter disttopk.EstimateParameter) PeerSketchAdaptor {
+	return &BhErPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est, EstimateParameter}, multiplier}
 }
 
 func (t *BhErPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := NewBloomHistogramSketchSplitGcs(t.topk, t.numpeer, t.N_est, t.Multiplier, t.NestimateParameter)
+	s := NewBloomHistogramSketchSplitGcs(t.topk, t.numpeer, t.N_est, t.Multiplier, t.EstimateParameter)
 	if MERGE_TOPK_AT_COORD {
 		items := s.CreateFirstRoundFromList(list, len(localtop))
 		return s, items

@@ -162,12 +162,12 @@ type BloomHistogramMergePeerSketchAdaptor struct {
 	*BloomHistogramPeerSketchAdaptor
 }
 
-func NewBloomHistogramMergePeerSketchAdaptor(topk int, numpeer int, N_est int, NestimateParameter float64) PeerSketchAdaptor {
-	return &BloomHistogramMergePeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est, NestimateParameter}}
+func NewBloomHistogramMergePeerSketchAdaptor(topk int, numpeer int, N_est int, EstimateParameter disttopk.EstimateParameter) PeerSketchAdaptor {
+	return &BloomHistogramMergePeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est, EstimateParameter}}
 }
 
 func (t *BloomHistogramMergePeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
-	s := NewBloomHistogramSketchGcs(t.topk, t.numpeer, t.N_est, t.NestimateParameter)
+	s := NewBloomHistogramSketchGcs(t.topk, t.numpeer, t.N_est, t.EstimateParameter)
 	if MERGE_TOPK_AT_COORD {
 		return s, s.CreateFromListWithScoreK(list[len(localtop):], list[t.topk-1].Score)
 	} else {

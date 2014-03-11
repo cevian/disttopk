@@ -19,8 +19,8 @@ func NewBloomHistogramSketch(bh *disttopk.BloomHistogram, topk int, numpeers int
 	return &BloomHistogramSketch{bh, topk, numpeers, N_est}
 }
 
-func NewBloomHistogramSketchGcs(topk int, numpeers int, N_est int, NestimateParameter float64) *BloomHistogramSketch {
-	bh := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{NestimateParameter})
+func NewBloomHistogramSketchGcs(topk int, numpeers int, N_est int, estimateParameter disttopk.EstimateParameter) *BloomHistogramSketch {
+	bh := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{estimateParameter})
 	return NewBloomHistogramSketch(bh, topk, numpeers, N_est)
 }
 
@@ -286,9 +286,9 @@ func (b *BloomHistogramSketchSplit) CreateSecondRoundFromList(list disttopk.Item
 	return items
 }
 
-func NewBloomHistogramSketchSplitGcs(topk int, numpeers int, N_est int, Multiplier int, NestimateParameter float64) *BloomHistogramSketchSplit {
-	first := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{NestimateParameter})
-	second := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{NestimateParameter})
+func NewBloomHistogramSketchSplitGcs(topk int, numpeers int, N_est int, Multiplier int, estimateParameter disttopk.EstimateParameter) *BloomHistogramSketchSplit {
+	first := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{estimateParameter})
+	second := disttopk.NewBloomHistogram(disttopk.GcsFilterAdaptor{estimateParameter})
 	return NewBloomHistogramSketchSplit(first, second, topk, numpeers, N_est, Multiplier)
 }
 

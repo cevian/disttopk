@@ -129,8 +129,13 @@ func (p PlainFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
 	return &Bloom{}
 }
 
-type GcsFilterAdaptor struct{
+type EstimateParameter struct{
 	NestimateParameter float64
+	Adjuster float64
+}
+
+type GcsFilterAdaptor struct{
+	Est EstimateParameter
 }
 
 func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint, listlen int) (BloomFilter, float64) {
@@ -143,10 +148,10 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	}
 
 	estimateN := N_est
-	if p.NestimateParameter >= 0 {
-		estimateN = listlen + int(p.NestimateParameter*float64(listlen)*float64(numpeers-1))
+	if p.Est.NestimateParameter >= 0 {
+		estimateN = listlen + int(p.Est.NestimateParameter*float64(listlen)*float64(numpeers-1))
 	}
-	if p.NestimateParameter == -2.0 {
+	if p.Est.NestimateParameter == -2.0 {
 		panic("wtf")
 	}
 
@@ -155,7 +160,11 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	//eps := 0.01
 	m_est := EstimateMGcs(n, eps)
 	//fmt.Println("Eps ", eps, "n", n, "m_est", m_est)
-	m := MakePowerOf2(m_est)
+	m_log := GetRoundedBits(m_est)
+	if p.Est.Adjuster != 1.0 {
+		m_log = int(float64(m_log)* p.Est.Adjuster)
+	}
+	m := GetValueFromBits(m_log)
 	if m == 0 {
 		return nil, eps
 	}
@@ -699,7 +708,7 @@ func getFilterAdaptorById(id uint8) FilterAdaptor {
 	case 1:
 		return PlainFilterAdaptor{}
 	case 2:
-		return GcsFilterAdaptor{NestimateParameter: -2.0}
+		return GcsFilterAdaptor{EstimateParameter{NestimateParameter: -2.0, Adjuster: -1.0}}
 	default:
 		panic("Unknown filter type")
 	}

@@ -50,7 +50,7 @@ func (t *TwoRoundRunner) IsExact() bool {
 
 func NewBloomSketchRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
-		return tworound.NewBloomPR(topk, numpeer, Nest, 1.0)
+		return tworound.NewBloomPR(topk, numpeer, Nest, disttopk.EstimateParameter{1.0, 1.0})
 	}
 
 	return NewTwoRoundRunner(gen, "Bloom Sketch", true)
@@ -67,7 +67,7 @@ func NewSbr2rNoMergeRunner() *TwoRoundRunner {
 
 func NewSbr2RRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList,numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList ) *tworound.ProtocolRunner{
-		return tworound.NewBloomGcsMergePR(topk, numpeer, Nest, 1.0)	
+		return tworound.NewBloomGcsMergePR(topk, numpeer, Nest, disttopk.EstimateParameter{1.0, 1.0})	
 	}
 
 	return NewTwoRoundRunner(gen, "SBR-2R", true)
@@ -101,7 +101,7 @@ func NewSbrARunner() *TwoRoundRunner {
 
 func NewSbrErNoSplitRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList,numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
-		return tworound.NewExtraRoundBloomGcsMergePR(topk, numpeer, Nest, 1.0)	
+		return tworound.NewExtraRoundBloomGcsMergePR(topk, numpeer, Nest, disttopk.EstimateParameter{1.0, 1.0})	
 	}
 
 	return NewTwoRoundRunner(gen, "SBR-ER NoSplit", true)
@@ -109,7 +109,7 @@ func NewSbrErNoSplitRunner() *TwoRoundRunner {
 
 func NewSbrErUnderNestRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
-		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, 0.0)	
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{0.0, 1.0})	
 	}
 
 	return NewTwoRoundRunner(gen, "SBR-ER Under", true)
@@ -121,7 +121,7 @@ func NewSbrErRunner() *TwoRoundRunner {
 
 func NewSbrErOverNestRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
-		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, 1.0)	
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{1.0, 1.0})	
 	}
 
 	return NewTwoRoundRunner(gen, "SBR-ER", true)
@@ -130,12 +130,27 @@ func NewSbrErOverNestRunner() *TwoRoundRunner {
 
 func NewSbrErIdealNestRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList,numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
-		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, -1.0)	
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{-1.0, 1.0})	
 	}
 
 	return NewTwoRoundRunner(gen, "SBR-ER IdealNest", true)
 }
 
+func NewSbrErIdealUnderRunner() *TwoRoundRunner {
+	gen := func(l []disttopk.ItemList,numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{-1.0, 0.8})	
+	}
+
+	return NewTwoRoundRunner(gen, "SBR-ER IU", true)
+}
+
+func NewSbrErIdealOverRunner() *TwoRoundRunner {
+	gen := func(l []disttopk.ItemList,numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{-1.0, 1.2})	
+	}
+
+	return NewTwoRoundRunner(gen, "SBR-ER IU", true)
+}
 
 
 

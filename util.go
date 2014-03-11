@@ -8,14 +8,23 @@ import (
 	"math"
 )
 
-func MakePowerOf2(m_est int) int {
+func GetRoundedBits(m_est int) int {
 	m_log := math.Log2(float64(m_est))
 	m_log_rounded, frac := math.Modf(m_log)
 	if frac >= 0.5 {
 		m_log_rounded++
 	}
-	m := (1 << (uint(m_log_rounded)))
+	return int(m_log_rounded)
+}
+
+func GetValueFromBits(bits int) int{
+	m := (1 << (uint(bits)))
 	return m
+}
+
+func MakePowerOf2(m_est int) int {
+	m_log_rounded := GetRoundedBits(m_est)
+	return GetValueFromBits(m_log_rounded)
 }
 func IntKeyToByteKey(key int) []byte {
 	tmp := make([]byte, 16)

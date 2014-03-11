@@ -36,18 +36,12 @@ func main() {
 	var s Suite
 	if *suite == "Distribution" {
 		s = &Distribution{}
-	} else if *suite == "DistributionLarge" {
-		s = &DistributionLarge{Distribution{}}
-	} else if *suite == "DistributionExact" {
-		s = &DistributionExact{Distribution{}}
-	} else if *suite == "DistributionApproximate" {
-		s = &DistributionApproximate{Distribution{}}
 	} else if *suite == "Overlap" {
 		s = &Overlap{&Distribution{}}
+	} else if *suite == "Alternatives" {
+		s = &Alternatives{Distribution{}}
 	} else if *suite == "Test" {
 		s = &Test{}
-	} else if *suite == "OneListSize" {
-		s = &OneListSize{}
 	} else {
 		panic(fmt.Sprint("Unknown suite", *suite))
 	}
@@ -172,70 +166,14 @@ func (t *Distribution) GetProtocols() []runner.Runner {
 	return GetRunners()
 }
 
-type DistributionExact struct {
+type Alternatives struct {
 	Distribution
 }
 
-func (t *DistributionExact) GetProtocols() []runner.Runner {
-	return ExactRunners()
+func (t *Alternatives) GetProtocols() []runner.Runner {
+	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner()}
 }
 
-type DistributionApproximate struct {
-	Distribution
-}
-
-func (t *DistributionApproximate) GetProtocols() []runner.Runner {
-	return ApproximateRunners()
-}
-
-type DistributionLarge struct {
-	Distribution
-}
-
-func (t *DistributionLarge) GetRowDescription() []RowDescription {
-	rds := make([]RowDescription, 0)
-	k := 10
-	nodes := 10
-	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
-		for _, overlap := range []float64{1.0, 0.99, 0.75, 0.25, 0.01, 0} {
-			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
-				for _, seed := range []int64{1, 2, 3, 4, 5} {
-					for _, listSize := range []int{200000} {
-						rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
-						rds = append(rds, rd)
-					}
-				}
-			}
-		}
-	}
-	//return PermuteList(rds)
-	return rds
-}
-
-type OneListSize struct {
-}
-
-func (t *OneListSize) GetRowDescription() []RowDescription {
-	rds := make([]RowDescription, 0)
-	k := 10
-	nodes := 10
-	listSize := 10000
-	for _, perms := range []int{0, k, 5 * k, 10 * k, 100 * k} {
-		for _, overlap := range []float64{1.0, 0.75, 0.25, 0.1, 0} {
-			for _, zipfParam := range []float64{0.2, 0.4, 0.6, 0.8, 1, 2} {
-				for _, seed := range []int64{1, 2} {
-					rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
-					rds = append(rds, rd)
-				}
-			}
-		}
-	}
-	return PermuteList(rds)
-}
-
-func (t *OneListSize) GetProtocols() []runner.Runner {
-	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErUnderNestRunner()}
-}
 
 type Nestimate struct {
 }
@@ -299,14 +237,14 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 1000
-	zipfParam := 2.0
-	overlap := 0.99
-	disttopk.RECORD_SIZE = 10
+	listSize := 1000000
+	zipfParam := 0.8
+	overlap := 0.25
+	disttopk.RECORD_SIZE = 100
 
 	rds := make([]RowDescription, 0)
-	for _, perms := range []int{500} {
-		for _, seed := range []int64{2} {
+	for _, perms := range []int{100} {
+		for _, seed := range []int64{4} {
 			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 			rds = append(rds, rd)
 		}
