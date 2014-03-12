@@ -132,6 +132,7 @@ func (p PlainFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
 type EstimateParameter struct{
 	NestimateParameter float64
 	Adjuster float64
+	DisableProbabilityAdjuster bool
 }
 
 type GcsFilterAdaptor struct{
@@ -140,7 +141,7 @@ type GcsFilterAdaptor struct{
 
 func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int, entry_max uint, scorek uint, listlen int) (BloomFilter, float64) {
 	adjuster := 1.0
-	if entry_max < scorek {
+	if !p.Est.DisableProbabilityAdjuster && entry_max < scorek {
 		//score_k = x * entry_max
 		// x = score k / entry_max
 		x := float64(scorek) / float64(entry_max)
@@ -155,6 +156,7 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 		panic("wtf")
 	}
 
+
 	//eps := EstimateEpsGcsAdjuster(N_est, n, RECORD_SIZE*8, numpeers+1, adjuster)
 	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, estimateN, 2, adjuster, listlen)
 	//eps := 0.01
@@ -168,6 +170,7 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	if m == 0 {
 		return nil, eps
 	}
+	//fmt.Println("Estimate N", estimateN, eps, m_est, m_log, m)
 	//fmt.Printf("GCS info: N_est %v, n %v, eps %v m_est %v, m_log %v (rounded %v) m %v\n", N_est, n, eps, m_est, m_log, m_log_rounded, m)
 	entry := NewGcs(m)
 	return entry, eps

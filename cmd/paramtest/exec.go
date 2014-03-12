@@ -171,7 +171,7 @@ type Alternatives struct {
 }
 
 func (t *Alternatives) GetProtocols() []runner.Runner {
-	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner()}
+	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner(), runner.NewSbrErDisablePARunner()}
 }
 
 
@@ -239,7 +239,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 	nodes := 10
 	listSize := 1000
 	zipfParam := 0.8
-	overlap := 0.25
+	overlap := 1.0
 	disttopk.RECORD_SIZE = 100
 
 	rds := make([]RowDescription, 0)
@@ -258,7 +258,9 @@ func (t *Test) GetProtocols() []runner.Runner {
 	//return []runner.Runner{runner.NewMagicRunner()}
 	//return []runner.Runner{runner.NewTputHRunner()}
 	//return []runner.Runner{runner.NewSbrErRunner()}
-	return GetRunners()
+	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner()}
+
+	//return GetRunners()
 }
 
 func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStats {
