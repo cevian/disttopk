@@ -86,6 +86,12 @@ func NewExtraRoundBloomGcsMergeSplitPR(topk int, numpeer int, N_est int, Estimat
 	return peer
 }
 
+func NewExtraRoundBloomGcsMergeSplitNoChPR(topk int, numpeer int, N_est int, EstimateParameter disttopk.EstimateParameter) *ProtocolRunner {
+	peer := NewProtocolRunner(NewBhErPeerSketchAdaptor(topk, numpeer, N_est, 5, EstimateParameter), NewBhErUnionSketchAdaptor(topk, numpeer, 0.9, false), topk, numpeer, N_est)
+	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
+	return peer
+}
+
 type ProtocolRunner struct {
 	PeerSketchAdaptor
 	UnionSketchAdaptor

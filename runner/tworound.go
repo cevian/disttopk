@@ -107,6 +107,14 @@ func NewSbrErNoSplitRunner() *TwoRoundRunner {
 	return NewTwoRoundRunner(gen, "SBR-ER NoSplit", true)
 }
 
+func NewSbrErNoChRunner() *TwoRoundRunner {
+	gen := func(l []disttopk.ItemList,numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
+		return tworound.NewExtraRoundBloomGcsMergeSplitNoChPR(topk, numpeer, Nest, disttopk.EstimateParameter{NestimateParameter:1.0, Adjuster:1.0})	
+	}
+
+	return NewTwoRoundRunner(gen, "SBR-ER NoCh", true)
+}
+
 func NewSbrErUnderNestRunner() *TwoRoundRunner {
 	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner{
 		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{NestimateParameter: 0.0, Adjuster: 1.0})	

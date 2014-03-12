@@ -171,7 +171,7 @@ type Alternatives struct {
 }
 
 func (t *Alternatives) GetProtocols() []runner.Runner {
-	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner(), runner.NewSbrErDisablePARunner()}
+	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner(), runner.NewSbrErDisablePARunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner()}
 }
 
 
