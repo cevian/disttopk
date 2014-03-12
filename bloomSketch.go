@@ -156,7 +156,7 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	}
 
 	//eps := EstimateEpsGcsAdjuster(N_est, n, RECORD_SIZE*8, numpeers+1, adjuster)
-	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, estimateN, 2, adjuster)
+	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, estimateN, 2, adjuster, listlen)
 	//eps := 0.01
 	m_est := EstimateMGcs(n, eps)
 	//fmt.Println("Eps ", eps, "n", n, "m_est", m_est)

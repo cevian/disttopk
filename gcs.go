@@ -139,7 +139,7 @@ func EstimateEpsGcsAdjuster(N_est int, n_est int, penalty_bits int, NumTransfers
 	return eps
 }
 */
-func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, items int, numTransfers int, adjuster float64) float64 {
+func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, items int, numTransfers int, adjuster float64, itemslocallist int) float64 {
 	//TODO change! -- this is base on the bloom filter approximation with k != 1
 	//for compressed filters, needs to change.
 
@@ -156,14 +156,16 @@ func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, items int, num
 	//size_adj := 0.8
 	//eps := (float64(numTransfers) * size_adj * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(items/n_est) - 1.0))
 
-	//total (t) = s*n*m + (U-x) * eps * p * A
+	//k == avg number of nodes that have each item
+	//total (t) = s*n*m + (U-x) * eps * p * A * K
 	// m = x *  1.44 * log_2(1/eps) = x * 1.44 * 1/ln(2) * ln (1/eps)
 	// dt/deps  =  s * n *x * 1.44 * 1/ln(2) * 1/(1/eps) * (-1) 1/eps^2 + (U-x) * p * A
 	// 0 =   -1  * s * n * x * 1.44 / ln (2) * 1 / eps + (U-x) * p * A
 	// ( s* n *x * (1.44 / ln (2))) / ((U -x) * p* A) = eps
-	// eps = s * n * 1.44 / (U/n -1) * p * ln (2)
+	// eps = s * n * 1.44 / (U/x -1) * p * ln (2)
+	avg_nodes_per_item := (float64(numNodes) * float64(itemslocallist)) / float64(items) 
 	size_adj := 0.8
-	eps := (float64(numTransfers) *float64(numNodes)* size_adj * 1.44) / (float64(penalty_bits) * adjuster * math.Log(2) * (float64(items/n_est) - 1.0))
+	eps := (float64(numTransfers) *float64(numNodes)* size_adj * 1.44) / (float64(penalty_bits) * avg_nodes_per_item * adjuster * math.Log(2) * (float64(items/n_est) - 1.0))
 	/*
 		effective_m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
 		sketch := (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
