@@ -149,7 +149,7 @@ func NewSbrErIdealOverRunner() *TwoRoundRunner {
 		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{-1.0, 1.2})	
 	}
 
-	return NewTwoRoundRunner(gen, "SBR-ER IU", true)
+	return NewTwoRoundRunner(gen, "SBR-ER IO", true)
 }
 
 
