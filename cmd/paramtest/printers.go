@@ -22,24 +22,25 @@ func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
 	&ExportPrinter{&OverviewPrinter{protocols, ""}},
 }*/
 
-func GetDefaultPrinters(protos []runner.Runner) []Printer{
-   return []Printer{&OverviewPrinter{GetRunners(), ""},
-	&ApproxPrinter{&OverviewPrinter{ApproximateRunners(), ""}},
-	&ExactPrinter{&OverviewPrinter{ExactRunners(), ""}},
-//	&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
-	&ExportPrinter{&OverviewPrinter{GetRunners(), ""}},
-}
-	
+func GetDefaultPrinters(protos []runner.Runner) []Printer {
+	return []Printer{
+		//&OverviewPrinter{GetRunners(), ""},
+		//	&ApproxPrinter{&OverviewPrinter{ApproximateRunners(), ""}},
+		//	&ExactPrinter{&OverviewPrinter{ExactRunners(), ""}},
+		//	&GcsTputPrinter{&OverviewPrinter{protocols, ""}},
+		&ExportPrinter{&OverviewPrinter{protos, ""}},
+	}
+
 }
 
 type RowDescription struct {
-	k       int
-	nodes   int
-	N       int
-	zip     float64
-	perms   int
-	overlap float64
-	seed    int64
+	k          int
+	nodes      int
+	N          int
+	zip        float64
+	perms      int
+	overlap    float64
+	seed       int64
 	recordSize int
 }
 
@@ -167,6 +168,7 @@ func (t *ExactPrinter) EnterRow(rd RowDescription, res map[string]disttopk.AlgoS
 	t.s += s + "\n"
 	return s
 }
+
 /*
 type GcsTputPrinter struct {
 	*OverviewPrinter
@@ -196,7 +198,7 @@ func (t *ExportPrinter) EnterNewN() {
 func (t *ExportPrinter) Start() {
 	t.s = "--------------Start Export----------\nExport\t" + t.RowDescriptionHeaders()
 	t.s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tScore K"
-	for i:=0; i<=3; i++ {
+	for i := 0; i <= 3; i++ {
 		rs := fmt.Sprintf("Round %d", i+1)
 		t.s += fmt.Sprintf("\t%s Sketch Bytes\t%s Serial Items sum\t%s Serial Items max\t%s Random Items sum\t%s Random Items max\t%s Random Access sum\t%s Random Access max\t%s Transferred Items sum", rs, rs, rs, rs, rs, rs, rs, rs)
 	}
@@ -216,12 +218,12 @@ func (t *ExportPrinter) EnterRow(rd RowDescription, res map[string]disttopk.Algo
 		if len(stats.RoundStats) > 4 {
 			panic("Too many rounds")
 		}
-		for i:=0; i<=3; i++ {
+		for i := 0; i <= 3; i++ {
 			roundStat := disttopk.AlgoStatsRoundUnion{}
-			if i<len(stats.RoundStats) {
+			if i < len(stats.RoundStats) {
 				roundStat = stats.RoundStats[i]
 			}
-			s += fmt.Sprintf("\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", roundStat.Bytes_sketch_sum, roundStat.Serial_items_sum, roundStat.Serial_items_max, roundStat.Random_items_sum, roundStat.Random_items_max , roundStat.Random_access_sum, roundStat.Random_access_max,roundStat.Transferred_items_sum)
+			s += fmt.Sprintf("\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", roundStat.Bytes_sketch_sum, roundStat.Serial_items_sum, roundStat.Serial_items_max, roundStat.Random_items_sum, roundStat.Random_items_max, roundStat.Random_access_sum, roundStat.Random_access_max, roundStat.Transferred_items_sum)
 
 		}
 		s += "\n"

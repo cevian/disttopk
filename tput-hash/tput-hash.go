@@ -297,9 +297,9 @@ func (src *Coord) Run() error {
 	fmt.Println("Round 3 tput-hash: got ", round3items, " items, score_k", score_k, "  bytes ", bytesRound)
 	bytes += bytesRound
 
-	src.Stats.Rounds = 3
+	access_stats.Rounds = 3
 	if score_k < secondthresh {
-		src.Stats.Rounds = 4
+		access_stats.Rounds = 4
 		thirdthresh := score_k
 
 		//no need to update hash_responses as stuff sent before won't be sent again anyway

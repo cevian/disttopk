@@ -237,7 +237,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 1000000
+	listSize := 1000
 	zipfParam := 0.8
 	overlap := 0.25
 	disttopk.RECORD_SIZE = 100
