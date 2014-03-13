@@ -123,9 +123,13 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 		lowestnh :=  mhm.GetCountHashesWithCutoff(topkapprox, testcut, threshforfilter)
 		for testcut > 0 {
 			nh :=  mhm.GetCountHashesWithCutoff(topkapprox, testcut, threshforfilter)
+			//fmt.Println("Cutoff:", testcut, "count", nh)
 			if nh < lowestnh {
 				lowestnh = nh
 				bestcutoff = testcut
+			}
+			if nh < t.topk {
+				break
 			}
 			testcut--
 		}
