@@ -243,7 +243,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 	disttopk.RECORD_SIZE = 100
 
 	rds := make([]RowDescription, 0)
-	for _, perms := range []int{1000} {
+	for _, perms := range []int{500} {
 		for _, seed := range []int64{4} {
 			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 			rds = append(rds, rd)

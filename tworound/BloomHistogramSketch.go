@@ -283,10 +283,12 @@ func (b *BloomHistogramSketchSplit) CreateSecondRoundFromList(list disttopk.Item
 	if rangeNeeded < current_score {
 		minscore = (current_score - rangeNeeded) + 1
 	}
-	numentries := b.totalEntries - len(b.first.Data)
+	//numentries := b.totalEntries - len(b.first.Data) + 1
+	numentries := b.totalEntries/2
 	if numentries < 1 {
 		numentries = 1
 	}
+	//fmt.Println("Creating numentries: ", numentries, "range", rangeNeeded, "minscore", minscore, "len", len(b.first.Data))
 	items := CreateFromListMinscore(b.second, list, scorek, b.nextIndex, numentries, minscore, b.N_est, b.numpeers, b.topk)
 	return items
 }
