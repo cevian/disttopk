@@ -223,11 +223,11 @@ func (src *Peer) Run() error {
 				return nil
 			}
 			ufser := obj.(SecondRound).ufser
-			decomp := src.decompress(ufser)
-			if len(decomp) > 0 {
-				sketch_size += len(ufser)
-			}
 			if ufser != nil {
+				decomp := src.decompress(ufser)
+				if len(decomp) > 0 {
+					sketch_size += len(ufser)
+				}
 				uf = src.UnionSketchAdaptor.deserialize(decomp)
 			}
 		case <-src.StopNotifier:
@@ -502,7 +502,7 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 
 	round2Access := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
-		//uf := src.getUnionFilter(ucm, uint32(localthresh))
+		//uf: := src.getUnionFilter(ucm, uint32(localthresh))
 		var ser Serialized
 		if uf != nil {
 			cuf := src.copyUnionFilter(uf)

@@ -171,7 +171,7 @@ type Alternatives struct {
 }
 
 func (t *Alternatives) GetProtocols() []runner.Runner {
-	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner(), runner.NewSbrErDisablePARunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner(), runner.NewSbrErMoreEntriesRunner()}
+	return []runner.Runner{runner.NewSbr2RRunner(), runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner(), runner.NewSbrErDisablePARunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner(), runner.NewSbrErMoreEntriesRunner()}
 }
 
 
@@ -239,12 +239,12 @@ func (t *Test) GetRowDescription() []RowDescription {
 	nodes := 10
 	listSize := 1000
 	zipfParam := 0.4
-	overlap := 0.75
+	overlap := 0.25
 	disttopk.RECORD_SIZE = 100
 
 	rds := make([]RowDescription, 0)
-	for _, perms := range []int{1000} {
-		for _, seed := range []int64{1} {
+	for _, perms := range []int{0} {
+		for _, seed := range []int64{4} {
 			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 			rds = append(rds, rd)
 		}
