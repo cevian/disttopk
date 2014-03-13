@@ -80,6 +80,14 @@ func NewExtraRoundBloomGcsMergePR(topk int, numpeer int, N_est int, EstimatePara
 	return peer
 }
 
+func NewExtraRoundBloomGcsMergeSplitMoreEntriesPR(topk int, numpeer int, N_est int, EstimateParameter disttopk.EstimateParameter) *ProtocolRunner {
+	psa := NewBhErPeerSketchAdaptor(topk, numpeer, N_est, 5, EstimateParameter)
+	psa.(*BhErPeerSketchAdaptor).totalEntries = 100
+	peer := NewProtocolRunner(psa, NewBhErUnionSketchAdaptor(topk, numpeer, 0.9, true), topk, numpeer, N_est)
+	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1
+	return peer
+}
+
 func NewExtraRoundBloomGcsMergeSplitPR(topk int, numpeer int, N_est int, EstimateParameter disttopk.EstimateParameter) *ProtocolRunner {
 	peer := NewProtocolRunner(NewBhErPeerSketchAdaptor(topk, numpeer, N_est, 5, EstimateParameter), NewBhErUnionSketchAdaptor(topk, numpeer, 0.9, true), topk, numpeer, N_est)
 	peer.Alpha = 0 // Send 0 first top-k elements from each peer. rely on sketch to give you estimate for t1

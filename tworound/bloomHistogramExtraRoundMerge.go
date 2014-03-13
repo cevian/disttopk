@@ -300,14 +300,16 @@ func (t *BhErUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.I
 type BhErPeerSketchAdaptor struct {
 	*BloomHistogramPeerSketchAdaptor
 	Multiplier int
+	totalEntries int
 }
 
 func NewBhErPeerSketchAdaptor(topk int, numpeer int, N_est int, multiplier int, EstimateParameter disttopk.EstimateParameter) PeerSketchAdaptor {
-	return &BhErPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est, EstimateParameter}, multiplier}
+	return &BhErPeerSketchAdaptor{&BloomHistogramPeerSketchAdaptor{topk, numpeer, N_est, EstimateParameter}, multiplier, 10}
 }
 
 func (t *BhErPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop disttopk.ItemList) (FirstRoundSketch, int) {
 	s := NewBloomHistogramSketchSplitGcs(t.topk, t.numpeer, t.N_est, t.Multiplier, t.EstimateParameter)
+	s.totalEntries = t.totalEntries
 	if MERGE_TOPK_AT_COORD {
 		items := s.CreateFirstRoundFromList(list, len(localtop))
 		return s, items
