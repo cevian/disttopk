@@ -83,6 +83,11 @@ func GetNumItemsMinScore(list disttopk.ItemList, start_index int, mineqscore dis
 }
 
 func CreateFromListMinscore(b *disttopk.BloomHistogram, list disttopk.ItemList, scorek disttopk.BloomHistogramScore, start_index int, total_entries int, mineqscore disttopk.BloomHistogramScore, N_est int, numpeers int, topk int) (serialAccess int) {
+	last_score := disttopk.BloomHistogramScore(list[len(list)-1].Score) 
+	if last_score > mineqscore {
+		mineqscore = last_score
+	}
+	
 	if disttopk.PRINT_BUCKETS {
 		fmt.Println("mineqscore ", mineqscore, "score-k", scorek, " entries ", total_entries)
 	}
