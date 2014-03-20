@@ -132,7 +132,7 @@ func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
 
 }
 
-func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filterThresh int64) int {
+func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filterThresh int64) (int, int64) {
 
 	mapValueThresh := thresh - cutoff
 
@@ -140,13 +140,21 @@ func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filter
 	mapValueFilter := filterThresh - int64(t.cutoff)
 
 	count := 0
+	minover := int64(0)
 	for _, mapValue := range t.data {
+		if mapValue > mapValueThresh && (minover == 0 || mapValue < minover){
+			minover = mapValue
+		}
 		if mapValue >= mapValueThresh && mapValue < mapValueFilter {
 			count += 1
 		}
 
 	}
-	return count
+	next := int64(0)
+	if minover > 0 && minover < thresh {
+		next = thresh-minover
+	}
+	return count, next
 }
 
 func (t *MaxHashMap) GetMaxCutoff(thresh int64) int64 {
