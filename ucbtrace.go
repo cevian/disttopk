@@ -78,6 +78,7 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 		r := &UcbTrace{&UcbTraceFixed{}, ""}
 		err = binary.Read(gz, binary.BigEndian, r.UcbTraceFixed)
 		if err == io.EOF {
+			fmt.Println("# servers", len(servers))
 			return
 		}
 		if err != nil {
