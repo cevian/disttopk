@@ -55,7 +55,11 @@ func (this *UcbFileSourceAdaptor) CacheFileNameSuffix() string {
 	s += "." + strconv.Itoa(this.ModServers)
 	return s
 }
+/*
 
+returns map[server][id]score
+
+*/
 func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]map[int]float64) {
 	fmt.Println("Processing UCB file", filename)
 	file, err := os.Open(filename) // For read access.
@@ -69,6 +73,7 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 	}
 	defer gz.Close()
 
+	servers := make(map[int]bool)
 	for err == nil {
 		r := &UcbTrace{&UcbTraceFixed{}, ""}
 		err = binary.Read(gz, binary.BigEndian, r.UcbTraceFixed)
@@ -92,6 +97,7 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 		}
 		r.Url = string(buf)
 
+		servers[int(r.Sip)] = true
 		s := r.Sip % uint32(this.ModServers)
 		mi, ok := m[s]
 		if !ok {
@@ -115,6 +121,6 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 			mi[int(objectid)] += 1
 		}
 	}
-	fmt.Println("end err:", err)
+	fmt.Println("end err:", err, "servers", len(servers))
 
 }
