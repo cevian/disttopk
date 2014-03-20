@@ -23,6 +23,8 @@ const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/dat
 var suite = flag.String("suite", "Distribution", "suite to run")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var keyClient = flag.Bool("keyclient", false, "key on client")
+var modServers = flag.Int("modServers", 10, "mod the servers by (UCB trace)")
 
 
 func Run(l []disttopk.ItemList, protos []runner.Runner, k int) map[string]disttopk.AlgoStats {
@@ -144,10 +146,10 @@ func main() {
 	fmt.Println("Data source is ", *suite)
 	var l []disttopk.ItemList
 	if *suite == "UCB" {
-		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: false, ModServers: 10}}
+		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: *keyClient, ModServers: *modServers}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
 	} else if *suite == "WC" {
-		fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: true}}
+		fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: *keyClient}}
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
 	} else {
 		fmt.Println("Source should be 'WC', 'zipf', or 'UCB'. Default is zipf.")
