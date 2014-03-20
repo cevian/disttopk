@@ -100,15 +100,24 @@ func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
 
 
 
+func ExportPrinterHeaders() string {
+	s := "--------------Start Export----------\nExport\tExperiment"
+	s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tScore K"
+	for i := 0; i <= 3; i++ {
+		rs := fmt.Sprintf("Round %d", i+1)
+		s += fmt.Sprintf("\t%s Sketch Bytes\t%s Serial Items sum\t%s Serial Items max\t%s Random Items sum\t%s Random Items max\t%s Random Access sum\t%s Random Access max\t%s Transferred Items sum", rs, rs, rs, rs, rs, rs, rs, rs)
+	}
+	s += "\n"
+	return s
+}
 
 
 
 
-
-func ExportPrinter(runners []runner.Runner, res map[string]disttopk.AlgoStats) string {
-	s := ""
+func ExportPrinter(name string, runners []runner.Runner, res map[string]disttopk.AlgoStats) string {
+	s := ExportPrinterHeaders()
 	for _, proto := range runners {
-		s += "Export\t"
+		s += fmt.Sprintf("Export\t%s", name)
 		stats := res[proto.GetName()]
 		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\t%d", proto.GetName(), proto.IsExact(), stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.TrueScoreK)
 		if len(stats.RoundStats) > 4 {
@@ -164,6 +173,6 @@ func main() {
 
 
 	stats := Run(l, runners, 10)
-	desc := ExportPrinter(runners,stats)
+	desc := ExportPrinter(*suite, runners,stats)
 	fmt.Println(desc)
 }
