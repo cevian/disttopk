@@ -193,7 +193,7 @@ func main() {
 		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
 	} else if *suite == "WC" {
-		rd  =  &UcbRowDesc{KeyOnClient: *keyClient}
+		rd  =  &WcRowDesc{KeyOnClient: *keyClient}
 		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
 	} else {

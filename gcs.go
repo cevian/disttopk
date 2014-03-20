@@ -264,7 +264,7 @@ func (t *Gcs) SubtractGcs(other *Gcs) {
 		panic("Other is nil")
 	}
 	if t.Columns != other.Columns{
-		panic("SNH")
+		panic(fmt.Sprintf("SNH", t.Columns, other.Columns))
 	}
 	other.Data.Eval(func (hv uint32) {t.Data.Remove(hv)})
 }
