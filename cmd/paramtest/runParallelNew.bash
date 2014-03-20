@@ -11,7 +11,7 @@ rm cmds.list
 str=""
 for (( c=0; c < $1; c++ ))
 do
-	next="./paramtest -suite $3 -listsize $2 -partition $c -totalpartitions $1 ${@:5} &> Distribution/run.$2.$c.$1.`date +%s`.result " 
+	next="./paramtest -suite $3 -listsize $2 -partition $c -totalpartitions $1 ${@:5} &> $3/run.$2.$c.$1.`date +%s`.result " 
 	#inext=`echo $next\n`
 	str=$str$next$'\n'
 done
