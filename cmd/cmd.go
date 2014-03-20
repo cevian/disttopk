@@ -102,8 +102,8 @@ func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
 
 
 
-func ExportPrinterHeaders() string {
-	s := "--------------Start Export----------\nExport\tExperiment"
+func ExportPrinterHeaders(rd RowDesc) string {
+	s := "--------------Start Export----------\nExport\t"+rd.GetHeaders()
 	s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tScore K"
 	for i := 0; i <= 3; i++ {
 		rs := fmt.Sprintf("Round %d", i+1)
@@ -116,10 +116,10 @@ func ExportPrinterHeaders() string {
 
 
 
-func ExportPrinter(name string, runners []runner.Runner, res map[string]disttopk.AlgoStats) string {
-	s := ExportPrinterHeaders()
+func ExportPrinter(rd RowDesc, runners []runner.Runner, res map[string]disttopk.AlgoStats) string {
+	s := ExportPrinterHeaders(rd)
 	for _, proto := range runners {
-		s += fmt.Sprintf("Export\t%s", name)
+		s += fmt.Sprintf("Export\t%s", rd.GetRowData())
 		stats := res[proto.GetName()]
 		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\t%d", proto.GetName(), proto.IsExact(), stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.TrueScoreK)
 		if len(stats.RoundStats) > 4 {
@@ -139,17 +139,62 @@ func ExportPrinter(name string, runners []runner.Runner, res map[string]disttopk
 }
 
 
+type RowDesc interface{
+ GetFs() *disttopk.FileSource 
+ GetHeaders() string
+GetRowData() string
+}
+
+type UcbRowDesc struct{
+	KeyOnClient bool
+	ModServers int
+}
+
+func (t *UcbRowDesc) GetFs() *disttopk.FileSource {
+	return &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: t.KeyOnClient, ModServers: t.ModServers}}
+}
+
+func (t *UcbRowDesc) GetHeaders() string {
+	return "Type\tKeyOnClient\tModServers"
+}
+
+func (t *UcbRowDesc) GetRowData() string {
+	return fmt.Sprintf("%s\t%t\t%d", "UCB", t.KeyOnClient, t.ModServers)
+}
+
+type WcRowDesc struct{
+	KeyOnClient bool
+}
+
+func (t *WcRowDesc) GetFs() *disttopk.FileSource {
+	return &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: t.KeyOnClient}}
+}
+
+func (t *WcRowDesc) GetHeaders() string {
+	return "Type\tKeyOnClient"
+}
+
+func (t *WcRowDesc) GetRowData() string {
+	return fmt.Sprintf("%s\t%t", "WC", t.KeyOnClient)
+}
+
+
+
+
 func main() {
 	flag.Parse()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	fmt.Println("Data source is ", *suite)
 	var l []disttopk.ItemList
+	var rd RowDesc
 	if *suite == "UCB" {
-		fs := &disttopk.FileSource{&disttopk.UcbFileSourceAdaptor{KeyOnClient: *keyClient, ModServers: *modServers}}
+		rd =  &UcbRowDesc{KeyOnClient: *keyClient, ModServers: *modServers}
+		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
 	} else if *suite == "WC" {
-		fs := &disttopk.FileSource{&disttopk.WcFileSourceAdaptor{KeyOnClient: *keyClient}}
+		rd  =  &UcbRowDesc{KeyOnClient: *keyClient}
+		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
 	} else {
 		fmt.Println("Source should be 'WC', 'zipf', or 'UCB'. Default is zipf.")
@@ -175,6 +220,6 @@ func main() {
 
 
 	stats := Run(l, runners, 10)
-	desc := ExportPrinter(*suite, runners,stats)
+	desc := ExportPrinter(rd, runners,stats)
 	fmt.Println(desc)
 }
