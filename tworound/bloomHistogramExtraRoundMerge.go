@@ -276,7 +276,8 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 		fmt.Println("Getting round 3 filter for: thresh=", thresh)
 
-		mhm := bs.GetMaxHashMap(int(old_filter.GetM()))
+		m_bits := int(math.Log2(float64(old_filter.GetM())))
+		mhm := bs.GetMaxHashMap(m_bits)
 		gcs, thresh := mhm.GetFilter(int64(thresh))
 		//gcs, thresh := bs.GetFilter(int64(thresh))
 		if gcs != nil {
