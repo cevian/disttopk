@@ -51,6 +51,11 @@ func (t *MaxHashMap) addData(hashValue uint, max uint, min uint, cutoff uint) {
 	t.data_under[uint32(hashValue)] += int64(min)
 }
 
+func (t *MaxHashMap) SetModulusBits(bits int) {
+		t.modulus_bits = uint32(bits)
+		t.min_modulus_bits = t.modulus_bits
+}
+
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
 	if max < min {
 		panic(fmt.Sprintf("Max < min", max, min))
@@ -62,8 +67,7 @@ func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, 
 
 	//fmt.Println("Adding ", hashValue, modulus_bits, max, cutoff)
 	if t.modulus_bits == 0 {
-		t.modulus_bits = uint32(modulus_bits)
-		t.min_modulus_bits = t.modulus_bits
+		t.SetModulusBits(int(modulus_bits))
 	}
 	/*if max <= cutoff { //this can happen when merging in exact values from top-k
 		panic(fmt.Sprintf("Wrong input max < cutoff %v %v", max, cutoff))
