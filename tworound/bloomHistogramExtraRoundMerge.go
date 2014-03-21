@@ -33,8 +33,24 @@ func (t *BhErUnionSketch) MergeSecondRound(bh *disttopk.BloomHistogram, il distt
 	t.bhs[peerId] = oldbh
 }
 
-func (t *BhErUnionSketch) GetMaxHashMap() *MaxHashMapUnionSketch {
+func (t *BhErUnionSketch) GetMinModulusBits() int {
+	min_modulus := 0
+	for _, bh := range t.bhs {
+		for _, entry := range bh.Data {
+			g := entry.GetFilter().(*disttopk.Gcs)
+			m := g.Columns
+			if min_modulus == 0 || m< min_modulus {
+				min_modulus = m
+			}
+		}
+	}
+	m_bits := int(math.Log2(float64(min_modulus)))
+	return m_bits
+}
+
+func (t *BhErUnionSketch) GetMaxHashMap(modulus_bits int) *MaxHashMapUnionSketch {
 	mhm := NewMaxHashMapUnionSketch()
+	mhm.SetModulusBits(modulus_bits)
 	for peer_id, bh := range t.bhs {
 		mhm.Merge(bh, t.ils[peer_id])
 	}
@@ -42,7 +58,7 @@ func (t *BhErUnionSketch) GetMaxHashMap() *MaxHashMapUnionSketch {
 }
 
 func (t *BhErUnionSketch) GetFilter(thresh int64) (*disttopk.Gcs, int64) {
-	mhm := t.GetMaxHashMap()
+	mhm := t.GetMaxHashMap(t.GetMinModulusBits())
 	return mhm.GetFilter(thresh)
 }
 
@@ -114,7 +130,7 @@ func (t *BhErUnionSketchAdaptor) mergeAdditionalSketchIntoUnionSketch(us UnionSk
 }
 
 func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapprox int64, threshforfilter int64) int64 {
-	mhm := bs.GetMaxHashMap()
+	mhm := bs.GetMaxHashMap(bs.GetMinModulusBits())
 	cutoff := int64(mhm.Cutoff())
 
 	bestcutoff := cutoff
@@ -161,7 +177,7 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*BhErUnionSketch)
-		mhm := bs.GetMaxHashMap()
+		mhm := bs.GetMaxHashMap(bs.GetMinModulusBits())
 
 		underApprox := mhm.UnderApprox(t.topk)
 		overApprox := mhm.OverApprox(t.topk)
@@ -253,12 +269,18 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		return &BhErGcsFilter{filter, needed_cutoff_per_node}, uint(approxthresh)
 	} else {
 		bs := us.(*BhErUnionSketch)
-		mhm := bs.GetMaxHashMap()
+		old_filter := t.firstRoundFilter
+
+		
+
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
-		fmt.Println("Getting round 3 filter for: thresh=", thresh, " Cutoff", mhm.Cutoff())
-		gcs, thresh := bs.GetFilter(int64(thresh))
+		fmt.Println("Getting round 3 filter for: thresh=", thresh)
+
+		mhm := bs.GetMaxHashMap(int(old_filter.GetM()))
+		gcs, thresh := mhm.GetFilter(int64(thresh))
+		//gcs, thresh := bs.GetFilter(int64(thresh))
 		if gcs != nil {
-			gcs.SubtractGcs(t.firstRoundFilter)
+			gcs.SubtractGcs(old_filter)
 			return &BhErGcsFilter{gcs, 0}, uint(thresh)
 		}
 		return nil, uint(thresh)
