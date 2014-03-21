@@ -35,16 +35,29 @@ func (t *BhErUnionSketch) MergeSecondRound(bh *disttopk.BloomHistogram, il distt
 
 func (t *BhErUnionSketch) GetMinModulusBits() int {
 	min_modulus := 0
+        max_modulus := 0
+        sum := 0
+        count := 0
 	for _, bh := range t.bhs {
 		for _, entry := range bh.Data {
 			g := entry.GetFilter().(*disttopk.Gcs)
 			m := g.Columns
+                        sum += m
+			count += 1
 			if min_modulus == 0 || m< min_modulus {
 				min_modulus = m
 			}
+                        if m > max_modulus {
+				max_modulus = m
+   			}
 		}
 	}
-	m_bits := int(math.Log2(float64(min_modulus)))
+	m_bits := int(math.Log2(float64(max_modulus)))
+        /*
+	fmt.Println("DBG: min", min_modulus, "avg", sum/count,"first", t.bhs[0].Data[0].GetFilter().(*disttopk.Gcs).Columns, "bits", m_bits, "max", t.bhs[0].Data[0].GetMax(), t.bhs[0].Data[1].GetMax())
+        for _, entry := range t.bhs[0].Data{
+		fmt.Println("entry", entry.GetFilter().(*disttopk.Gcs).Columns, entry.GetMax())
+	}*/
 	return m_bits
 }
 
