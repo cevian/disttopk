@@ -382,7 +382,7 @@ func (t *BhErPeerSketchAdaptor) getAdditionalSketch(uf UnionFilter, list disttop
 	s := prevSketch.(*BloomHistogramSketchSplit)
 	
 	old_cutoff := s.FirstRoundCutoff(list) 	
-	if int(old_cutoff) >= bhgcs.ExtraRange{
+	if int(old_cutoff) <= bhgcs.ExtraRange{
 		return nil, 0
 	}
 
