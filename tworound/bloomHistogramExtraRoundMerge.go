@@ -266,7 +266,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		t.firstRoundFilter = filter
 		t.numUnionFilterCalls = 1
 
-		return &BhErGcsFilter{filter, needed_cutoff_per_node}, uint(approxthresh)
+		return &BhErGcsFilter{filter, int(mincutoff)/t.numpeer}, uint(approxthresh)
 	} else {
 		bs := us.(*BhErUnionSketch)
 		old_filter := t.firstRoundFilter
@@ -363,10 +363,16 @@ func (t *BhErPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop di
 
 func (t *BhErPeerSketchAdaptor) getAdditionalSketch(uf UnionFilter, list disttopk.ItemList, prevSketch FirstRoundSketch) (sketch FirstRoundSketch, SerialAccess int) {
 	bhgcs := uf.(*BhErGcsFilter)
-	if bhgcs.ExtraRange == 0 {
+
+	
+	/* interpret extra range as new min*/
+	s := prevSketch.(*BloomHistogramSketchSplit)
+	
+	old_cutoff := s.FirstRoundCutoff(list) 	
+	if int(old_cutoff) >= bhgcs.ExtraRange{
 		return nil, 0
 	}
-	s := prevSketch.(*BloomHistogramSketchSplit)
+
 	items := s.CreateSecondRoundFromList(list, bhgcs.ExtraRange)
 	//fmt.Println("Get Additional Sketch", items, bhgcs.ExtraRange)
 	return s, items

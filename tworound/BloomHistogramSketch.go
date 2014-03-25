@@ -275,14 +275,23 @@ func (bhss *BloomHistogramSketchSplit) CreateFirstRoundFromList(list disttopk.It
 	return items
 }
 
+func (b *BloomHistogramSketchSplit) FirstRoundCutoff(list disttopk.ItemList) (disttopk.BloomHistogramScore) {
+	return disttopk.BloomHistogramScore(list[b.nextIndex].Score)
+}
+
+
 func (b *BloomHistogramSketchSplit) CreateSecondRoundFromList(list disttopk.ItemList, rangeNeededInt int) (serialAccess int) {
 	scorek := disttopk.BloomHistogramScore(list[b.topk].Score)
-	current_score := disttopk.BloomHistogramScore(list[b.nextIndex].Score)
-	rangeNeeded := disttopk.BloomHistogramScore(rangeNeededInt)
-	minscore := disttopk.BloomHistogramScore(0)
-	if rangeNeeded < current_score {
+	//current_score := b.FirstRoundCutoff()
+
+	/* interpret rangeNeeded as new minscore */
+	minscore :=  disttopk.BloomHistogramScore(rangeNeededInt)
+
+	//rangeNeeded := disttopk.BloomHistogramScore(rangeNeededInt)
+	//minscore := disttopk.BloomHistogramScore(0)
+	/*if rangeNeeded < current_score {
 		minscore = (current_score - rangeNeeded) + 1
-	}
+	}*/
 	//numentries := b.totalEntries - len(b.first.Data) + 1
 	numentries := b.totalEntries/2
 	if numentries < 1 {
