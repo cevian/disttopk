@@ -293,6 +293,14 @@ func (s *Gcs) Query(key []byte) bool {
 	return s.Data.Contains(index)
 }
 
+func (s *Gcs) GetCompressedSizeExpensive() int {
+	buf, err := SerializeObject(s)
+	if err != nil{
+		panic(err)
+	}
+	return len(buf)
+}
+
 func (p *Gcs) Serialize(w io.Writer) error {
 	m := p.CountMinHash.Columns
 
