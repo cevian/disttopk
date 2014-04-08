@@ -173,7 +173,7 @@ func CreateEntryMinscore(b *disttopk.BloomHistogram, list disttopk.ItemList, sco
 	if disttopk.PRINT_BUCKETS {
 		max := entry.GetMax()
 		min := disttopk.BloomHistogramScore(list[current_index-1].Score)
-		fmt.Println("Interval", len(b.Data), "max", max, "min (tight)", min, "range", max-min, "#", current_index-entry_start_index, "k", entry.GetFilter().NumberHashes() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
+		fmt.Println("Interval", len(b.Data), "max", max, "min (tight)", min, "range", max-min, "#", current_index-entry_start_index, "k", entry.GetFilter().NumberHashes(), "eps", eps , "size", entry.GetFilter().(*disttopk.Gcs).Columns, "comp", entry.GetFilter().(*disttopk.Gcs).GetCompressedSizeExpensive() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
 	}
 	return entry, current_index
 }
