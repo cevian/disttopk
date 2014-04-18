@@ -17,7 +17,7 @@ func GetRoundedBits(m_est int) int {
 	return int(m_log_rounded)
 }
 
-func GetValueFromBits(bits int) int{
+func GetValueFromBits(bits int) int {
 	m := (1 << (uint(bits)))
 	return m
 }
@@ -78,4 +78,12 @@ func DeserializeIntAsU32(r io.Reader, v *int) error {
 	}
 	*v = int(readv)
 	return nil
+}
+
+func MakeHashTables(ils []ItemList) []*HashTable {
+	hts := make([]*HashTable, 0, len(ils))
+	for _, v := range ils {
+		hts = append(hts, v.MakeHashTable())
+	}
+	return hts
 }

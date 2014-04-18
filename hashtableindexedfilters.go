@@ -1,23 +1,19 @@
 package disttopk
 
-import (
-	"math"
-)
-
 type IndexableFilter interface {
 	HashValueFilter() *HashValueFilter
 	Query([]byte) bool
 }
 
-func GetListIndexedHashTable(filter IndexableFilter, list ItemList, sent_item_filter map[int]bool) ([]Item, *AlgoStatsRound) {
+func GetListIndexedHashTable(filter IndexableFilter, list ItemList, ht *HashTable, sent_item_filter map[int]bool) ([]Item, *AlgoStatsRound) {
 	hvf := filter.HashValueFilter()
 
 	//create hash table
-	ht_bits := uint8(math.Ceil(math.Log2(float64(list.Len()))))
+	/*ht_bits := uint8(math.Ceil(math.Log2(float64(list.Len()))))
 	ht := NewHashTable(ht_bits)
 	for _, v := range list {
 		ht.Insert(v.Id, v.Score)
-	}
+	}*/
 
 	hvs_sent := NewHashValueSlice() //store hashes tested and sent here
 

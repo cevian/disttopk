@@ -40,6 +40,7 @@ func Run(l []disttopk.ItemList, protos []runner.Runner, k int) map[string]distto
 		defer pprof.StopCPUProfile()
 	}
 
+	hts := disttopk.MakeHashTables(l)
 	NestIdeal := getNEst(l)
 	naive_exact, _ := runner.RunNaive(l, 0)
 	ground_truth := naive_exact
@@ -60,7 +61,7 @@ func Run(l []disttopk.ItemList, protos []runner.Runner, k int) map[string]distto
 		//fmt.Printf("Start Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
 		fmt.Println("---- Running:", proto.GetName())
-		proto_list, res := proto.Run(l, k, ground_truth, NestIdeal)
+		proto_list, res := proto.Run(l, hts, k, ground_truth, NestIdeal)
 		res.CalculatePerformance(ground_truth, proto_list, k)
 		if proto.IsExact() && res.Abs_err != 0.0 {
 			PrintDiff(ground_truth, proto_list, k)

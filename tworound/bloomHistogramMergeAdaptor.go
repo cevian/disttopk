@@ -139,7 +139,7 @@ func (*BloomHistogramMergeSketchAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
+func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, ht *disttopk.HashTable, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
 	if uf == nil {
 		remaining_list := list[cutoff_sent:]
 		exactlist := make([]disttopk.Item, 0, len(remaining_list))
@@ -155,7 +155,7 @@ func (t *BloomHistogramMergeSketchAdaptor) getRoundTwoList(uf UnionFilter, list 
 
 	gcs := uf.(*disttopk.Gcs)
 	filter := disttopk.NewGcsMergeIndexableFilter(gcs)
-	return disttopk.GetListIndexedHashTable(filter, list, sent_item_filter)
+	return disttopk.GetListIndexedHashTable(filter, list, ht, sent_item_filter)
 }
 
 type BloomHistogramMergePeerSketchAdaptor struct {

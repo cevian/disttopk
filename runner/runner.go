@@ -16,11 +16,10 @@ import (
 )
 
 type Runner interface {
-	Run(l []disttopk.ItemList, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats)
+	Run(l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats)
 	GetName() string
 	IsExact() bool
 }
-
 
 type PlainRunner struct {
 	Runner func(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats)
@@ -28,17 +27,17 @@ type PlainRunner struct {
 	Exact  bool
 }
 
-func (t *PlainRunner) Run(l []disttopk.ItemList, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+func (t *PlainRunner) Run(l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
 	return t.Runner(l, topk)
 }
 
 func (t *PlainRunner) GetName() string {
 	return t.Name
-} 
+}
 
 func (t *PlainRunner) IsExact() bool {
 	return t.Exact
-} 
+}
 
 func NewNaiveK2Runner() *PlainRunner {
 	runner := func(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
@@ -89,27 +88,39 @@ func RunTput(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStat
 	return coord.FinalList, coord.Stats
 }
 
-func NewTputHRunner() *PlainRunner {
-	runner := func(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
-		return RunTputHashExtraRoundFlag(l, k, false)
-	}
-	return &PlainRunner{runner, "TPUT-H", true}
+func NewTputHRunner() *TputHashRunner {
+	return &TputHashRunner{false, "TPUT-H"}
 }
 
-func NewTputERRunner() *PlainRunner {
-	runner := func(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
-		return RunTputHashExtraRoundFlag(l, k, true)
-	}
-	return &PlainRunner{runner, "TPUT-ER", true}
+func NewTputERRunner() *TputHashRunner {
+	return &TputHashRunner{true, "TPUT-ER"}
 }
 
-func RunTputHashExtraRoundFlag(l []disttopk.ItemList, k int, extra_round bool) (disttopk.ItemList, disttopk.AlgoStats) {
+type TputHashRunner struct {
+	extraRound bool
+	Name       string
+}
+
+func (t *TputHashRunner) Run(l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+	return RunTputHashExtraRoundFlag(l, hts, topk, t.extraRound)
+}
+
+func (t *TputHashRunner) GetName() string {
+	return t.Name
+}
+
+func (t *TputHashRunner) IsExact() bool {
+	return true
+}
+
+func RunTputHashExtraRoundFlag(l []disttopk.ItemList, hts []*disttopk.HashTable, k int, extra_round bool) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*tput_hash.Peer, len(l))
 	coord := tput_hash.NewCoord(k, extra_round) //if extra round true => approximate t2 is true
 	runner.Add(coord)
 	for i, list := range l {
-		peers[i] = tput_hash.NewPeer(list, k)
+		ht := hts[i]
+		peers[i] = tput_hash.NewPeer(list, ht, k)
 		coord.Add(peers[i])
 		runner.Add(peers[i])
 	}
@@ -150,22 +161,21 @@ func RunKlee(l []disttopk.ItemList, k int, clRound bool) (disttopk.ItemList, dis
 type MagicRunner struct {
 }
 
-func NewMagicRunner() *MagicRunner{
+func NewMagicRunner() *MagicRunner {
 	return &MagicRunner{}
 }
 
-func (t *MagicRunner) Run(l []disttopk.ItemList, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+func (t *MagicRunner) Run(l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
 	return RunMagic(l, topk, GroundTruth)
 }
 
 func (t *MagicRunner) GetName() string {
 	return "Magic"
-} 
+}
 
 func (t *MagicRunner) IsExact() bool {
 	return true
-} 
-
+}
 
 func RunMagic(l []disttopk.ItemList, k int, groundTruth disttopk.ItemList) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()

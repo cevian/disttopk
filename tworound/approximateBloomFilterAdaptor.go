@@ -31,7 +31,7 @@ func (t *ApproximateBloomFilterAdaptor) getUnionFilter(us UnionSketch, thresh ui
 	}
 	//fmt.Println("guf:", t.Gamma, maxCount, len(il), orig_len)
 
-	listlen := listlensum/t.numpeer
+	listlen := listlensum / t.numpeer
 	eps := disttopk.EstimateEpsGcsAlt(len(il), disttopk.RECORD_SIZE*8, t.numpeer, listlensum, 1, 1.0, listlen)
 	//eps := 0.0000001
 	n := len(il)
@@ -72,7 +72,7 @@ func (*ApproximateBloomFilterAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *ApproximateBloomFilterAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
+func (t *ApproximateBloomFilterAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, ht *disttopk.HashTable, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
 	bloom := uf.(*disttopk.Bloom)
 	exactlist := disttopk.NewItemList()
 	for index, v := range list {

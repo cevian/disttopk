@@ -117,8 +117,8 @@ func NewProtocolRunner(psa PeerSketchAdaptor, usa UnionSketchAdaptor, k int, num
 	return &ProtocolRunner{psa, usa, k, numpeer, N_est, 1, false, true, false, nil}
 }
 
-func (t *ProtocolRunner) NewPeer(list disttopk.ItemList) *Peer {
-	return NewPeer(list, t)
+func (t *ProtocolRunner) NewPeer(list disttopk.ItemList, ht *disttopk.HashTable) *Peer {
+	return NewPeer(list, ht, t)
 }
 
 func (t *ProtocolRunner) NewCoord() *Coord {
@@ -147,11 +147,12 @@ type Peer struct {
 	forward chan<- disttopk.DemuxObject
 	back    <-chan stream.Object
 	list    disttopk.ItemList
+	ht      *disttopk.HashTable
 	id      int
 }
 
-func NewPeer(list disttopk.ItemList, pr *ProtocolRunner) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), pr, nil, nil, list, 0}
+func NewPeer(list disttopk.ItemList, ht *disttopk.HashTable, pr *ProtocolRunner) *Peer {
+	return &Peer{stream.NewHardStopChannelCloser(), pr, nil, nil, list, ht, 0}
 }
 
 type FirstRoundSketch interface {
@@ -234,7 +235,7 @@ func (src *Peer) Run() error {
 			return nil
 		}
 
-		exactlist, round2Access := src.getRoundTwoList(uf, src.list, localtop_index, sent_items)
+		exactlist, round2Access := src.getRoundTwoList(uf, src.list, src.ht, localtop_index, sent_items)
 		round2Access.Bytes_sketch += uint64(sketch_size)
 
 		for _, item := range exactlist {

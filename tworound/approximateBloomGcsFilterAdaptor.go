@@ -37,7 +37,7 @@ func (t *ApproximateBloomGcsFilterAdaptor) getUnionFilter(us UnionSketch, thresh
 	//fmt.Println("guf:", t.Gamma, maxCount, len(il), orig_len)
 
 	//eps := disttopk.EstimateEpsGcsAdjuster(t.N_est, maxCount, disttopk.RECORD_SIZE*8, 2, 1.0)
-	eps := disttopk.EstimateEpsGcsAlt(maxCount, disttopk.RECORD_SIZE*8, t.numpeer, listlensum, 1, 1.0,listlensum/t.numpeer )
+	eps := disttopk.EstimateEpsGcsAlt(maxCount, disttopk.RECORD_SIZE*8, t.numpeer, listlensum, 1, 1.0, listlensum/t.numpeer)
 
 	m_est := disttopk.EstimateMGcs(maxCount, eps)
 
@@ -86,8 +86,8 @@ func (*ApproximateBloomGcsFilterAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *ApproximateBloomGcsFilterAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
+func (t *ApproximateBloomGcsFilterAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, ht *disttopk.HashTable, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
 	gcs := uf.(*disttopk.Gcs)
 	filter := disttopk.NewGcsMergeIndexableFilter(gcs)
-	return disttopk.GetListIndexedHashTable(filter, list, sent_item_filter)
+	return disttopk.GetListIndexedHashTable(filter, list, ht, sent_item_filter)
 }

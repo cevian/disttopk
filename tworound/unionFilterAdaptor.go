@@ -14,7 +14,7 @@ type UnionSketchAdaptor interface {
 	copyUnionFilter(UnionFilter) UnionFilter //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	serialize(UnionFilter) Serialized        //disttopk.NewCountMinFilterFromSketch(ucm, uint32(localthresh)
 	deserialize(Serialized) UnionFilter
-	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound)
+	getRoundTwoList(uf UnionFilter, list disttopk.ItemList, ht *disttopk.HashTable, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound)
 }
 
 type UnionAdditonalSketchAdaptor interface {
@@ -80,7 +80,7 @@ func (*BloomHistogramUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *BloomHistogramUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
+func (t *BloomHistogramUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, ht *disttopk.HashTable, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
 	bhc := uf.(*disttopk.BloomHistogramCollection)
 	exactlist := make([]disttopk.Item, 0)
 	for index, v := range list {
@@ -99,11 +99,11 @@ func NewBloomHistogramGcsUnionSketchAdaptor() UnionSketchAdaptor {
 	return &BloomHistogramGcsUnionSketchAdaptor{&BloomHistogramUnionSketchAdaptor{}}
 }
 
-func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
+func (t *BloomHistogramGcsUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, ht *disttopk.HashTable, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
 	bhc := uf.(*disttopk.BloomHistogramCollection)
 
 	filter := disttopk.NewBloomHistogramCollectionIndexableFilter(bhc)
-	return disttopk.GetListIndexedHashTable(filter, list, sent_item_filter)
+	return disttopk.GetListIndexedHashTable(filter, list, ht, sent_item_filter)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +160,7 @@ func (*CountMinUnionSketchAdaptor) deserialize(s Serialized) UnionFilter {
 	return obj
 }
 
-func (t *CountMinUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
+func (t *CountMinUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.ItemList, ht *disttopk.HashTable, cutoff_sent int, sent_item_filter map[int]bool) ([]disttopk.Item, *disttopk.AlgoStatsRound) {
 	cmf := uf.(*disttopk.CountMinFilter)
 	exactlist := make([]disttopk.Item, 0)
 	for index, v := range list {

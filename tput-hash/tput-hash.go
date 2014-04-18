@@ -7,8 +7,8 @@ import (
 	"fmt"
 )
 
-func NewPeer(list disttopk.ItemList, k int) *Peer {
-	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0}
+func NewPeer(list disttopk.ItemList, ht *disttopk.HashTable, k int) *Peer {
+	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, ht, k, 0}
 }
 
 type Peer struct {
@@ -16,6 +16,7 @@ type Peer struct {
 	forward chan<- disttopk.DemuxObject
 	back    <-chan stream.Object
 	list    disttopk.ItemList
+	ht      *disttopk.HashTable
 	k       int
 	id      int
 }
@@ -123,7 +124,7 @@ func (src *Peer) Run() error {
 		}
 
 		bif := disttopk.NewBloomIndexableFilter(bloom)
-		exactlist, stats := disttopk.GetListIndexedHashTable(bif, src.list, sent_items)
+		exactlist, stats := disttopk.GetListIndexedHashTable(bif, src.list, src.ht, sent_items)
 		stats.Transferred_items = len(exactlist)
 
 		for _, item := range exactlist {
@@ -187,7 +188,7 @@ func (src *Coord) Run() error {
 			fr := dobj.Obj.(FirstRound)
 			il := fr.list
 			items_at_peers += int(fr.count)
-			round_stat_peer := disttopk.AlgoStatsRound{Bytes_sketch:4, Serial_items: len(il), Transferred_items: len(il)}
+			round_stat_peer := disttopk.AlgoStatsRound{Bytes_sketch: 4, Serial_items: len(il), Transferred_items: len(il)}
 			round_1_stats.AddPeerStats(round_stat_peer)
 			items += len(il)
 			m = il.AddToMap(m)
@@ -207,7 +208,7 @@ func (src *Coord) Run() error {
 	}
 	thresh = il[src.k-1].Score
 	localthresh := uint32((thresh / float64(nnodes)) * src.alpha)
-	bytesRound := items*disttopk.RECORD_SIZE + (4*nnodes)
+	bytesRound := items*disttopk.RECORD_SIZE + (4 * nnodes)
 	fmt.Println("Round 1 tput-hash: got ", items, " items, thresh ", thresh, ", local thresh will be ", localthresh, " cha size", items_at_peers, " bytes used", bytesRound)
 	bytes := bytesRound
 
@@ -241,12 +242,12 @@ func (src *Coord) Run() error {
 			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
 				panic(err)
 			}
-		
+
 			for peerlocaltopid, peerlocaltopscore := range peerm[dobj.Id] {
 				cha_got.Add(disttopk.IntKeyToByteKey(peerlocaltopid), uint(peerlocaltopscore))
 			}
-			
-			round_stat_peer := disttopk.AlgoStatsRound{Serial_items:int(sr.items_looked_at), Bytes_sketch: uint64(len(sr.cha))}
+
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: int(sr.items_looked_at), Bytes_sketch: uint64(len(sr.cha))}
 			round_2_stats.AddPeerStats(round_stat_peer)
 
 			cha.Merge(cha_got)
@@ -266,13 +267,13 @@ func (src *Coord) Run() error {
 	if secondthresh < uint(thresh) {
 		collision_detector := make(map[uint]bool, src.k)
 		collision := false
-		for _, item := range il[:src.k]{
+		for _, item := range il[:src.k] {
 			index := cha.GetIndex(disttopk.IntKeyToByteKey(item.Id))
-			if collision_detector[index]{
-				collision = true 
+			if collision_detector[index] {
+				collision = true
 				break
 			}
-			collision_detector[index]= true
+			collision_detector[index] = true
 			//fmt.Println("Item", item.Id, "score", item.Score, "cha score", cha.Query(disttopk.IntKeyToByteKey(item.Id)), "Index", cha.GetIndex(disttopk.IntKeyToByteKey(item.Id)), "collision", collision, collision_detector)
 		}
 		if collision {

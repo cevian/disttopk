@@ -81,6 +81,16 @@ func (il ItemList) AddToCountMap(m map[int]int) map[int]int {
 	return m
 }
 
+func (t ItemList) MakeHashTable() *HashTable {
+	ht_bits := uint8(math.Ceil(math.Log2(float64(t.Len()))))
+	ht := NewHashTable(ht_bits)
+	for _, v := range t {
+		ht.Insert(v.Id, v.Score)
+	}
+
+	return ht
+}
+
 func MakeItemList(m map[int]float64) ItemList {
 	il := make([]Item, len(m))
 	i := 0
