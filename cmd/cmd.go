@@ -2,6 +2,9 @@ package main
 
 import (
 	"flag"
+	"io/ioutil"
+	"strings"
+
 	"github.com/cevian/disttopk"
 	//"github.com/cevian/disttopk/cm"
 	//"github.com/cevian/disttopk/cmfilter"
@@ -18,6 +21,7 @@ import (
 )
 
 var _ = os.Exit
+
 const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
 
 var suite = flag.String("suite", "Distribution", "suite to run")
@@ -25,7 +29,6 @@ var memprofile = flag.String("memprofile", "", "write memory profile to this fil
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var keyClient = flag.Bool("keyclient", false, "key on client")
 var modServers = flag.Int("modServers", 10, "mod the servers by (UCB trace)")
-
 
 func Run(l []disttopk.ItemList, protos []runner.Runner, k int) map[string]disttopk.AlgoStats {
 	if *cpuprofile != "" {
@@ -48,7 +51,7 @@ func Run(l []disttopk.ItemList, protos []runner.Runner, k int) map[string]distto
 	}
 
 	runtime.GC()
-	
+
 	results := make(map[string]disttopk.AlgoStats)
 	for _, proto := range protos {
 		runtime.GC()
@@ -99,11 +102,8 @@ func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
 	}
 }
 
-
-
-
 func ExportPrinterHeaders(rd RowDesc) string {
-	s := "--------------Start Export----------\nExport\t"+rd.GetHeaders()
+	s := "--------------Start Export----------\nExport\t" + rd.GetHeaders()
 	s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tScore K"
 	for i := 0; i <= 3; i++ {
 		rs := fmt.Sprintf("Round %d", i+1)
@@ -112,9 +112,6 @@ func ExportPrinterHeaders(rd RowDesc) string {
 	s += "\n"
 	return s
 }
-
-
-
 
 func ExportPrinter(rd RowDesc, runners []runner.Runner, res map[string]disttopk.AlgoStats) string {
 	s := ExportPrinterHeaders(rd)
@@ -135,19 +132,18 @@ func ExportPrinter(rd RowDesc, runners []runner.Runner, res map[string]disttopk.
 		}
 		s += "\n"
 	}
-    return s
+	return s
 }
 
-
-type RowDesc interface{
- GetFs() *disttopk.FileSource 
- GetHeaders() string
-GetRowData() string
+type RowDesc interface {
+	GetFs() *disttopk.FileSource
+	GetHeaders() string
+	GetRowData() string
 }
 
-type UcbRowDesc struct{
+type UcbRowDesc struct {
 	KeyOnClient bool
-	ModServers int
+	ModServers  int
 }
 
 func (t *UcbRowDesc) GetFs() *disttopk.FileSource {
@@ -162,7 +158,7 @@ func (t *UcbRowDesc) GetRowData() string {
 	return fmt.Sprintf("%s\t%t\t%d", "UCB", t.KeyOnClient, t.ModServers)
 }
 
-type WcRowDesc struct{
+type WcRowDesc struct {
 	KeyOnClient bool
 }
 
@@ -178,8 +174,75 @@ func (t *WcRowDesc) GetRowData() string {
 	return fmt.Sprintf("%s\t%t", "WC", t.KeyOnClient)
 }
 
+type CwRowDesc struct {
+	Topic int
+}
 
+func (t *CwRowDesc) GetFs() *disttopk.FileSource {
+	return nil
+}
 
+func (t *CwRowDesc) GetHeaders() string {
+	return "Topic"
+}
+
+func (t *CwRowDesc) GetRowData() string {
+	return fmt.Sprintf("%d", t.Topic)
+}
+
+func processClueWeb() {
+	_, results := disttopk.CwGetItemLists("clueweb/webtrack2012topics.xml", "clueweb/results.txt")
+
+	queryData, err := ioutil.ReadFile("clueweb/webtrack2012topics.xml")
+	if err != nil {
+		panic("snh")
+	}
+	topics := disttopk.CwGetTopics(queryData)
+
+	for topic_id, topic := range topics[:1] {
+		lists := make([]disttopk.ItemList, 0)
+		for _, word := range strings.Split(topic, " ") {
+			wordListMap := results[word]
+			if len(wordListMap) < 1 {
+				//this is a stop word
+				continue
+			}
+
+			list := disttopk.MakeItemList(wordListMap)
+			list.Sort()
+			lists = append(lists, list)
+		}
+
+		if len(lists) == 0 {
+			panic("snh")
+		}
+
+		fmt.Println("#lists:", len(lists))
+
+		runners := getRunners()
+		stats := Run(lists, runners, 10)
+		desc := ExportPrinter(&CwRowDesc{topic_id}, runners, stats)
+		fmt.Println(desc)
+	}
+
+}
+
+func getRunners() []runner.Runner {
+	return []runner.Runner{
+		//runner.NewMagicRunner(),
+		runner.NewKlee3Runner(),
+		runner.NewKlee4Runner(),
+		runner.NewSbrARunner(),
+		runner.NewSbr2RRunner(),
+		//runner.NewSbrErNoSplitRunner(),
+		runner.NewSbrErRunner(),
+		//runner.NewSbrErIdealNestRunner(),
+		runner.NewTputRunner(),
+		runner.NewTputHRunner(),
+		runner.NewTputERRunner(),
+	}
+
+}
 
 func main() {
 	flag.Parse()
@@ -189,13 +252,16 @@ func main() {
 	var l []disttopk.ItemList
 	var rd RowDesc
 	if *suite == "UCB" {
-		rd =  &UcbRowDesc{KeyOnClient: *keyClient, ModServers: *modServers}
+		rd = &UcbRowDesc{KeyOnClient: *keyClient, ModServers: *modServers}
 		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
 	} else if *suite == "WC" {
-		rd  =  &WcRowDesc{KeyOnClient: *keyClient}
+		rd = &WcRowDesc{KeyOnClient: *keyClient}
 		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
+	} else if *suite == "clueweb" {
+		processClueWeb()
+		return
 	} else {
 		fmt.Println("Source should be 'WC', 'zipf', or 'UCB'. Default is zipf.")
 		os.Exit(1)
@@ -218,8 +284,7 @@ func main() {
 		runner.NewTputERRunner(),
 	}
 
-
 	stats := Run(l, runners, 10)
-	desc := ExportPrinter(rd, runners,stats)
+	desc := ExportPrinter(rd, runners, stats)
 	fmt.Println(desc)
 }

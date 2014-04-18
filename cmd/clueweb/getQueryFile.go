@@ -4,47 +4,19 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
-	"sort"
-	"strings"
 )
 
-func main() {
-	//	Where string `xml:"where,attr"`
-	type Topic struct {
-		Description string `xml:"description"`
-	}
-	type Result struct {
-		XMLName xml.Name `xml:"webtrack2012"`
-		Topic   []Topic  `xml:"topic"`
-	}
-	v := Result{}
+import "github.com/cevian/disttopk"
 
+func main() {
 	data, err := ioutil.ReadFile("webtrack2012topics.xml")
 	if err != nil {
 		fmt.Printf("error: %v", err)
 		return
 	}
 
-	err = xml.Unmarshal(data, &v)
-	if err != nil {
-		fmt.Printf("error: %v", err)
-		return
-	}
-
-	words := make(map[string]bool)
-	for _, topic := range v.Topic {
-		desc := strings.Replace(strings.Trim(topic.Description, "?!\n\t.\" "), "\"", "", -1)
-		//fmt.Printf("topic %v\n", desc)
-		for _, word := range strings.Split(desc, " ") {
-			words[word] = true
-		}
-	}
-
-	word_array := make([]string, 0, len(words))
-	for v, _ := range words {
-		word_array = append(word_array, v)
-	}
-	sort.Strings(word_array)
+	topics := disttopk.CwGetTopics(data)
+	word_array := disttopk.CwGetWords(topics)
 
 	type Query struct {
 		Type   string `xml:"type"`

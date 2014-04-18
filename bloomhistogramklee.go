@@ -241,7 +241,7 @@ func (s *BloomHistogramKlee) HistoCellIndex(value uint32) int {
 			return k
 		}
 	}
-	panic("Shouldn't be here")
+	panic(fmt.Sprintln("Shouldn't be here", value))
 	//return -1
 }
 
