@@ -35,29 +35,29 @@ func (t *BhErUnionSketch) MergeSecondRound(bh *disttopk.BloomHistogram, il distt
 
 func (t *BhErUnionSketch) GetMinModulusBits() int {
 	min_modulus := 0
-        max_modulus := 0
-        sum := 0
-        count := 0
+	max_modulus := 0
+	sum := 0
+	count := 0
 	for _, bh := range t.bhs {
 		for _, entry := range bh.Data {
 			g := entry.GetFilter().(*disttopk.Gcs)
 			m := g.Columns
-                        sum += m
+			sum += m
 			count += 1
-			if min_modulus == 0 || m< min_modulus {
+			if min_modulus == 0 || m < min_modulus {
 				min_modulus = m
 			}
-                        if m > max_modulus {
+			if m > max_modulus {
 				max_modulus = m
-   			}
+			}
 		}
 	}
 	m_bits := int(math.Log2(float64(max_modulus)))
-        /*
-	fmt.Println("DBG: min", min_modulus, "avg", sum/count,"first", t.bhs[0].Data[0].GetFilter().(*disttopk.Gcs).Columns, "bits", m_bits, "max", t.bhs[0].Data[0].GetMax(), t.bhs[0].Data[1].GetMax())
-        for _, entry := range t.bhs[0].Data{
-		fmt.Println("entry", entry.GetFilter().(*disttopk.Gcs).Columns, entry.GetMax())
-	}*/
+	/*
+			fmt.Println("DBG: min", min_modulus, "avg", sum/count,"first", t.bhs[0].Data[0].GetFilter().(*disttopk.Gcs).Columns, "bits", m_bits, "max", t.bhs[0].Data[0].GetMax(), t.bhs[0].Data[1].GetMax())
+		        for _, entry := range t.bhs[0].Data{
+				fmt.Println("entry", entry.GetFilter().(*disttopk.Gcs).Columns, entry.GetMax())
+			}*/
 	return m_bits
 }
 
@@ -149,9 +149,9 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 	bestcutoff := cutoff
 	if cutoff > 0 {
 		testcut := cutoff
-		lowestnh, _ :=  mhm.GetCountHashesWithCutoff(topkapprox, testcut, threshforfilter)
+		lowestnh, _ := mhm.GetCountHashesWithCutoff(topkapprox, testcut, threshforfilter)
 		for testcut > 0 {
-			nh, nextcut :=  mhm.GetCountHashesWithCutoff(topkapprox, testcut, threshforfilter)
+			nh, nextcut := mhm.GetCountHashesWithCutoff(topkapprox, testcut, threshforfilter)
 			//fmt.Println("Cutoff:", testcut, "count", nh)
 			if nh < lowestnh {
 				lowestnh = nh
@@ -279,12 +279,10 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		t.firstRoundFilter = filter
 		t.numUnionFilterCalls = 1
 
-		return &BhErGcsFilter{filter, int(mincutoff)/t.numpeer}, uint(approxthresh)
+		return &BhErGcsFilter{filter, int(mincutoff) / t.numpeer}, uint(approxthresh)
 	} else {
 		bs := us.(*BhErUnionSketch)
 		old_filter := t.firstRoundFilter
-
-		
 
 		//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
 		fmt.Println("Getting round 3 filter for: thresh=", thresh)
@@ -354,7 +352,7 @@ func (t *BhErUnionSketchAdaptor) getRoundTwoList(uf UnionFilter, list disttopk.I
 
 type BhErPeerSketchAdaptor struct {
 	*BloomHistogramPeerSketchAdaptor
-	Multiplier int
+	Multiplier   int
 	totalEntries int
 }
 
@@ -377,12 +375,11 @@ func (t *BhErPeerSketchAdaptor) createSketch(list disttopk.ItemList, localtop di
 func (t *BhErPeerSketchAdaptor) getAdditionalSketch(uf UnionFilter, list disttopk.ItemList, prevSketch FirstRoundSketch) (sketch FirstRoundSketch, SerialAccess int) {
 	bhgcs := uf.(*BhErGcsFilter)
 
-	
 	/* interpret extra range as new min*/
 	s := prevSketch.(*BloomHistogramSketchSplit)
-	
-	old_cutoff := s.FirstRoundCutoff(list) 	
-	if int(old_cutoff) <= bhgcs.ExtraRange ||  bhgcs.ExtraRange == 0  {
+
+	old_cutoff := s.FirstRoundCutoff(list)
+	if int(old_cutoff) <= bhgcs.ExtraRange || bhgcs.ExtraRange == 0 {
 		return nil, 0
 	}
 

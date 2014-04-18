@@ -83,11 +83,11 @@ func GetNumItemsMinScore(list disttopk.ItemList, start_index int, mineqscore dis
 }
 
 func CreateFromListMinscore(b *disttopk.BloomHistogram, list disttopk.ItemList, scorek disttopk.BloomHistogramScore, start_index int, total_entries int, mineqscore disttopk.BloomHistogramScore, N_est int, numpeers int, topk int) (serialAccess int) {
-	last_score := disttopk.BloomHistogramScore(list[len(list)-1].Score) 
+	last_score := disttopk.BloomHistogramScore(list[len(list)-1].Score)
 	if last_score > mineqscore {
 		mineqscore = last_score
 	}
-	
+
 	if disttopk.PRINT_BUCKETS {
 		fmt.Println("mineqscore ", mineqscore, "score-k", scorek, " entries ", total_entries)
 	}
@@ -173,7 +173,7 @@ func CreateEntryMinscore(b *disttopk.BloomHistogram, list disttopk.ItemList, sco
 	if disttopk.PRINT_BUCKETS {
 		max := entry.GetMax()
 		min := disttopk.BloomHistogramScore(list[current_index-1].Score)
-		fmt.Println("Interval", len(b.Data), "max", max, "min (tight)", min, "range", max-min, "#", current_index-entry_start_index, "k", entry.GetFilter().NumberHashes(), "eps", eps , "size", entry.GetFilter().(*disttopk.Gcs).Columns, "comp", entry.GetFilter().(*disttopk.Gcs).GetCompressedSizeExpensive() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
+		fmt.Println("Interval", len(b.Data), "max", max, "min (tight)", min, "range", max-min, "#", current_index-entry_start_index, "k", entry.GetFilter().NumberHashes(), "eps", eps, "size", entry.GetFilter().(*disttopk.Gcs).Columns, "comp", entry.GetFilter().(*disttopk.Gcs).GetCompressedSizeExpensive() /*range_left, entries_left, range_per_entry, score_after_entry, index_after_entry, list[index_after_entry].Score, entry_start_index*/)
 	}
 	return entry, current_index
 }
@@ -275,17 +275,23 @@ func (bhss *BloomHistogramSketchSplit) CreateFirstRoundFromList(list disttopk.It
 	return items
 }
 
-func (b *BloomHistogramSketchSplit) FirstRoundCutoff(list disttopk.ItemList) (disttopk.BloomHistogramScore) {
-	return disttopk.BloomHistogramScore(list[b.nextIndex].Score)
+func (b *BloomHistogramSketchSplit) FirstRoundCutoff(list disttopk.ItemList) disttopk.BloomHistogramScore {
+	ret := disttopk.BloomHistogramScore(0)
+	if b.nextIndex < len(list) {
+		ret = disttopk.BloomHistogramScore(list[b.nextIndex].Score)
+	}
+	if ret != b.first.Cutoff() {
+		panic("Dont get")
+	}
+	return ret
 }
-
 
 func (b *BloomHistogramSketchSplit) CreateSecondRoundFromList(list disttopk.ItemList, rangeNeededInt int) (serialAccess int) {
 	scorek := disttopk.BloomHistogramScore(list[b.topk].Score)
 	//current_score := b.FirstRoundCutoff()
 
 	/* interpret rangeNeeded as new minscore */
-	minscore :=  disttopk.BloomHistogramScore(rangeNeededInt)
+	minscore := disttopk.BloomHistogramScore(rangeNeededInt)
 
 	//rangeNeeded := disttopk.BloomHistogramScore(rangeNeededInt)
 	//minscore := disttopk.BloomHistogramScore(0)
@@ -293,7 +299,7 @@ func (b *BloomHistogramSketchSplit) CreateSecondRoundFromList(list disttopk.Item
 		minscore = (current_score - rangeNeeded) + 1
 	}*/
 	//numentries := b.totalEntries - len(b.first.Data) + 1
-	numentries := b.totalEntries/2
+	numentries := b.totalEntries / 2
 	if numentries < 1 {
 		numentries = 1
 	}
