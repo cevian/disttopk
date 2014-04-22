@@ -26,7 +26,7 @@ func PrintDiff(ground_truth, result disttopk.ItemList, k int) {
 
 func ExportPrinterHeaders(rd RowDesc) string {
 	s := "--------------Start Export----------\nExport\t" + rd.GetHeaders()
-	s += "\tProtocol Name\tExact\tRounds\tSize\tRel Err\tRecall\tDistance\tScore K"
+	s += "\tProtocol Name\tExact\tRounds\tSize\tExecution Time\tRel Err\tRecall\tDistance\tScore K"
 	for i := 0; i <= 3; i++ {
 		rs := fmt.Sprintf("Round %d", i+1)
 		s += fmt.Sprintf("\t%s Sketch Bytes\t%s Serial Items sum\t%s Serial Items max\t%s Random Items sum\t%s Random Items max\t%s Random Access sum\t%s Random Access max\t%s Transferred Items sum", rs, rs, rs, rs, rs, rs, rs, rs)
@@ -40,7 +40,7 @@ func ExportPrinter(rd RowDesc, runners []runner.Runner, res map[string]disttopk.
 	for _, proto := range runners {
 		s += fmt.Sprintf("Export\t%s", rd.GetRowData())
 		stats := res[proto.GetName()]
-		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%f\t%f\t%f\t%d", proto.GetName(), proto.IsExact(), stats.Rounds, stats.Bytes_transferred, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.TrueScoreK)
+		s += fmt.Sprintf("\t%s\t%t\t%d\t%d\t%d\t%f\t%f\t%f\t%d", proto.GetName(), proto.IsExact(), stats.Rounds, stats.Bytes_transferred, stats.Took, stats.Rel_err, stats.Recall, stats.Edit_distance, stats.TrueScoreK)
 		if len(stats.RoundStats) > 4 {
 			panic("Too many rounds")
 		}
