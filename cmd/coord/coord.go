@@ -9,6 +9,7 @@ import (
 	"runtime/pprof"
 
 	"github.com/cevian/disttopk"
+	"github.com/cevian/disttopk/cmd/common"
 	"github.com/cevian/disttopk/cmd/printers"
 	"github.com/cevian/disttopk/runner"
 )
@@ -45,7 +46,7 @@ func Run(ip string, l []disttopk.ItemList, protos []runner.Runner, k int) map[st
 	runtime.GC()
 
 	results := make(map[string]disttopk.AlgoStats)
-	for _, proto := range protos {
+	for i, proto := range protos {
 		runtime.GC()
 		//mem := &runtime.MemStats{}
 		//runtime.ReadMemStats(mem)
@@ -53,7 +54,7 @@ func Run(ip string, l []disttopk.ItemList, protos []runner.Runner, k int) map[st
 
 		fmt.Println("---- Running:", proto.GetName())
 		//proto_list, res := proto.RunCoord(l, hts, k, ground_truth, NestIdeal)
-		proto_list, res := proto.(*runner.TwoRoundRunner).RunCoord(ip, l, hts, k, ground_truth, NestIdeal)
+		proto_list, res := proto.(runner.NetworkRunner).RunCoord(fmt.Sprintf("%s:%d", ip, 7000+i), l, hts, k, ground_truth, NestIdeal)
 		res.CalculatePerformance(ground_truth, proto_list, k)
 		if proto.IsExact() && res.Abs_err != 0.0 {
 			printers.PrintDiff(ground_truth, proto_list, k)
@@ -102,22 +103,11 @@ func main() {
 		l = l[0:*peers]
 	}
 
+	fmt.Println("Num Peers: ", len(l))
 	fmt.Println("List Head: ", l[0][:2], l[1][:2])
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
 
-	runners := []runner.Runner{
-		//runner.NewMagicRunner(),
-		//runner.NewKlee3Runner(),
-		//runner.NewKlee4Runner(),
-		//runner.NewSbrARunner(),
-		//runner.NewSbr2RRunner(),
-		//runner.NewSbrErNoSplitRunner(),
-		runner.NewSbrErRunner(),
-		//runner.NewSbrErIdealNestRunner(),
-		//runner.NewTputRunner(),
-		//runner.NewTputHRunner(),
-		//runner.NewTputERRunner(),
-	}
+	runners := common.GetRunners()
 
 	stats := Run("127.0.0.1", l, runners, 10)
 	desc := printers.ExportPrinter(rd, runners, stats)

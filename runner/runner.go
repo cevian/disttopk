@@ -21,6 +21,8 @@ type Runner interface {
 
 type NetworkRunner interface {
 	RunNetwork(addr string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats)
+	RunPeer(addr string, numpeer int, l disttopk.ItemList, ht *disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int)
+	RunCoord(addr string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats)
 }
 
 type PlainRunner struct {

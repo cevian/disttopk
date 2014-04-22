@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/cevian/disttopk"
 	"github.com/cevian/disttopk/netchan"
@@ -96,7 +97,7 @@ func (t *TwoRoundRunner) RunNetwork(addr string, l []disttopk.ItemList, hts []*d
 	return coord.FinalList, coord.Stats
 }
 
-func (t *TwoRoundRunner) RunCoord(ip string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+func (t *TwoRoundRunner) RunCoord(addr string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	//Nest := getNEst(l)
 
@@ -107,7 +108,7 @@ func (t *TwoRoundRunner) RunCoord(ip string, l []disttopk.ItemList, hts []*distt
 	coord := pr.NewCoord()
 	runnerCoord.Add(coord)
 
-	server := netchan.NewServer(fmt.Sprintf("%s:7081", ip))
+	server := netchan.NewServer(addr)
 	//defer server.Close()
 	err := server.Listen()
 	if err != nil {
@@ -133,7 +134,7 @@ func (t *TwoRoundRunner) RunCoord(ip string, l []disttopk.ItemList, hts []*distt
 	return coord.FinalList, coord.Stats
 }
 
-func (t *TwoRoundRunner) RunPeer(ip string, numpeer int, l disttopk.ItemList, ht *disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) {
+func (t *TwoRoundRunner) RunPeer(addr string, numpeer int, l disttopk.ItemList, ht *disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) {
 	//numpeer := len(l)
 	//Nest := getNEst(l)
 
@@ -142,10 +143,17 @@ func (t *TwoRoundRunner) RunPeer(ip string, numpeer int, l disttopk.ItemList, ht
 	pr := t.runnerGenerator(nil, numpeer, Nest, topk, GroundTruth)
 	runner := stream.NewRunner()
 
-	client := netchan.NewClient(fmt.Sprintf("%s:7081", ip))
+	client := netchan.NewClient(addr)
 	defer client.Close()
 	fmt.Println("Connecting")
-	err := client.Connect()
+	var err error
+	for i := 0; i < 2; i++ {
+		time.Sleep(100 * time.Millisecond)
+		err = client.Connect()
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		panic(err)
 	}

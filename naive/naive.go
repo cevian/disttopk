@@ -9,7 +9,6 @@ import "github.com/cevian/disttopk"
 
 import (
 	"encoding/gob"
-	"errors"
 	"fmt"
 )
 
@@ -31,10 +30,8 @@ type NaivePeer struct {
 }
 
 func (src *NaivePeer) Run() error {
+	fmt.Println("Cutoff = ", src.cutoff)
 	//defer close(src.forward)
-	var rcv <-chan stream.Object
-	rcv = nil
-	sent := false
 
 	init := <-src.back
 	src.id = init.(InitRound).Id
@@ -45,21 +42,19 @@ func (src *NaivePeer) Run() error {
 		list = src.list[:src.cutoff]
 	}
 
-	for {
-		if sent == false {
-			rcv = nil
-		} else {
-			rcv = src.back
-		}
-		select {
-		case src.forward <- disttopk.DemuxObject{src.id, list}:
-			return nil
-		case <-rcv:
-			return errors.New("No second round in naive implementation")
-		case <-src.StopNotifier:
-			return nil
-		}
+	//fmt.Println("Sending", len(list))
+	select {
+	case src.forward <- disttopk.DemuxObject{src.id, list}:
+	case <-src.StopNotifier:
+		return nil
 	}
+
+	_, ok := <-src.back
+	if ok {
+		panic("shouldnt get anything but close")
+	}
+	//fmt.Println("Closing")
+	return nil
 }
 
 func NewNaiveCoord(cutoff int) *NaiveCoord {
@@ -110,6 +105,7 @@ func (src *NaiveCoord) Run() error {
 		case obj := <-src.input:
 			dobj := obj.(disttopk.DemuxObject)
 			cnt++
+			//fmt.Println("Got Input", cnt)
 			list := dobj.Obj.(disttopk.ItemList)
 			src.lists[dobj.Id] = list
 			round_stat_peer := disttopk.AlgoStatsRound{Transferred_items: len(list), Serial_items: len(list)}
@@ -135,6 +131,7 @@ func (src *NaiveCoord) Run() error {
 						fmt.Println("Resp: ", it.Id, it.Score) //, mresp[it.Id])
 					}
 				}
+				//fmt.Println("Reached end")
 				src.FinalList = il
 				src.Stats.Took = time.Since(start)
 				return nil

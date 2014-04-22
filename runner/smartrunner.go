@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/cevian/disttopk/klee"
 	"github.com/cevian/disttopk/naive"
@@ -48,7 +49,7 @@ func (t *SmartRunner) Run(l []disttopk.ItemList, hts []*disttopk.HashTable, topk
 	return coord.GetFinalList(), coord.GetStats()
 }
 
-func (t *SmartRunner) RunPeer(ip string, numpeer int, l disttopk.ItemList, ht *disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) {
+func (t *SmartRunner) RunPeer(addr string, numpeer int, l disttopk.ItemList, ht *disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) {
 	//numpeer := len(l)
 	//Nest := getNEst(l)
 
@@ -57,10 +58,17 @@ func (t *SmartRunner) RunPeer(ip string, numpeer int, l disttopk.ItemList, ht *d
 	//pr := t.runnerGenerator(nil, numpeer, Nest, topk, GroundTruth)
 	runner := stream.NewRunner()
 
-	client := netchan.NewClient(fmt.Sprintf("%s:7081", ip))
+	client := netchan.NewClient(addr)
 	defer client.Close()
 	fmt.Println("Connecting")
-	err := client.Connect()
+	var err error
+	for i := 0; i < 2; i++ {
+		time.Sleep(100 * time.Millisecond)
+		err = client.Connect()
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -86,7 +94,7 @@ func (t *SmartRunner) IsExact() bool {
 	return t.Exact
 }
 
-func (t *SmartRunner) RunCoord(ip string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+func (t *SmartRunner) RunCoord(addr string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	//Nest := getNEst(l)
 
@@ -97,7 +105,7 @@ func (t *SmartRunner) RunCoord(ip string, l []disttopk.ItemList, hts []*disttopk
 	coord := t.NewCoord(topk)
 	runnerCoord.Add(coord)
 
-	server := netchan.NewServer(fmt.Sprintf("%s:7081", ip))
+	server := netchan.NewServer(addr)
 	//defer server.Close()
 	err := server.Listen()
 	if err != nil {
@@ -193,7 +201,7 @@ func NewNaiveRunner(name string, cutoff int, exact bool) *SmartRunner {
 		Exact       bool*/
 
 	newPeer := func(list disttopk.ItemList, k int, ht *disttopk.HashTable) Peer {
-		return naive.NewNaivePeer(list, cutoff)
+		return naive.NewNaivePeer(list, cutoff*k)
 	}
 	newCoord := func(k int) Coord {
 		return naive.NewNaiveCoord(cutoff)

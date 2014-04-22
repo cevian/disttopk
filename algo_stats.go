@@ -107,6 +107,10 @@ func (t *AlgoStats) CalculatePerformance(exact ItemList, approx ItemList, k int)
 }
 
 func getRecall(exact ItemList, approx ItemList, k int) float64 {
+	if len(approx) < k {
+		fmt.Println("Results less than k long, len =", len(approx))
+		panic("err")
+	}
 	em := exact[:k].AddToMap(nil)
 	found := 0
 	for i := 0; i < k; i++ {
