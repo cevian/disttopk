@@ -1,6 +1,11 @@
 package klee
 
-import "github.com/cevian/go-stream/stream"
+import (
+	"encoding/gob"
+	"time"
+
+	"github.com/cevian/go-stream/stream"
+)
 import "github.com/cevian/disttopk"
 
 import (
@@ -15,7 +20,7 @@ func NewPeer(list disttopk.ItemList, k int, clrRound bool) *Peer {
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	forward              chan<- disttopk.DemuxObject
+	forward              chan<- stream.Object
 	back                 <-chan stream.Object
 	list                 disttopk.ItemList
 	k                    int
@@ -25,27 +30,31 @@ type Peer struct {
 	c                    float64
 }
 
+type InitRound struct {
+	Id int
+}
+
 type FirstRound struct {
-	list  disttopk.ItemList
-	bh    []byte
-	stats *disttopk.AlgoStatsRound
+	List  disttopk.ItemList
+	Bh    []byte
+	Stats *disttopk.AlgoStatsRound
 }
 
 type ClrRoundSpec struct {
-	thresh   uint32
-	cl_size  uint32
-	topk_ids []int
+	Thresh   uint32
+	Cl_size  uint32
+	Topk_ids []int
 }
 
 type ClrRoundReply struct {
-	payload interface{}
-	list    disttopk.ItemList
-	stats   *disttopk.AlgoStatsRound
+	Payload interface{}
+	List    disttopk.ItemList
+	Stats   *disttopk.AlgoStatsRound
 }
 
 type FinalListReply struct {
-	payload disttopk.ItemList
-	stats   *disttopk.AlgoStatsRound
+	Payload disttopk.ItemList
+	Stats   *disttopk.AlgoStatsRound
 }
 
 func getThreshIndex(list disttopk.ItemList, thresh uint32) int {
@@ -64,6 +73,9 @@ func (src *Peer) Run() error {
 	//src.list.Sort()
 	//fmt.Println("Sort", src.list[:10])
 
+	init := <-src.back
+	src.id = init.(InitRound).Id
+
 	if src.k > len(src.list) {
 		fmt.Println("warning tput: list shorter than k")
 		src.k = len(src.list)
@@ -81,7 +93,7 @@ func (src *Peer) Run() error {
 	first_round_access := &disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(compressed)), Serial_items: src.k, Transferred_items: src.k, Random_access: 0, Random_items: 0}
 
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, &FirstRound{localtop, compressed , first_round_access}}:
+	case src.forward <- disttopk.DemuxObject{src.id, FirstRound{localtop, compressed, first_round_access}}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -93,10 +105,10 @@ func (src *Peer) Run() error {
 		select {
 		case obj := <-src.back:
 			spec := obj.(ClrRoundSpec)
-			thresh = spec.thresh
-			cl_size = spec.cl_size
+			thresh = spec.Thresh
+			cl_size = spec.Cl_size
 			if src.clrRoundTopkEstimate {
-				topk_ids = spec.topk_ids
+				topk_ids = spec.Topk_ids
 			}
 		case <-src.StopNotifier:
 			return nil
@@ -149,7 +161,7 @@ func (src *Peer) Run() error {
 				}
 			} */
 
-			clf_round_access := &disttopk.AlgoStatsRound{Serial_items: len(candidate_list), Transferred_items: len(estimatelist), Random_access: 0, Random_items: 0}
+		clf_round_access := &disttopk.AlgoStatsRound{Serial_items: len(candidate_list), Transferred_items: len(estimatelist), Random_access: 0, Random_items: 0}
 
 		if SERIALIZE_CLF {
 			payload, err := disttopk.SerializeObject(clfRow)
@@ -159,7 +171,7 @@ func (src *Peer) Run() error {
 			compressed := disttopk.CompressBytes(payload)
 			clf_round_access.Bytes_sketch = uint64(len(compressed))
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{compressed, estimatelist, clf_round_access}}:
+			case src.forward <- disttopk.DemuxObject{src.id, ClrRoundReply{compressed, estimatelist, clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
@@ -167,7 +179,7 @@ func (src *Peer) Run() error {
 		} else {
 			panic("acces bytes sketch not implemented yet")
 			select {
-			case src.forward <- disttopk.DemuxObject{src.id, &ClrRoundReply{clfRow, estimatelist, clf_round_access}}:
+			case src.forward <- disttopk.DemuxObject{src.id, ClrRoundReply{clfRow, estimatelist, clf_round_access}}:
 			case <-src.StopNotifier:
 				return nil
 			}
@@ -200,7 +212,7 @@ func (src *Peer) Run() error {
 		//fmt.Println("Secondlist ", len(secondlist))
 
 		select {
-		case src.forward <- disttopk.DemuxObject{src.id, &FinalListReply{secondlist, final_list_round_access}}:
+		case src.forward <- disttopk.DemuxObject{src.id, FinalListReply{secondlist, final_list_round_access}}:
 		case <-src.StopNotifier:
 			return nil
 		}
@@ -233,12 +245,12 @@ func (src *Peer) Run() error {
 }
 
 func NewCoord(k int, clrRound bool) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, k, clrRound, true, disttopk.AlgoStats{}}
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan stream.Object, 3), make([]chan<- stream.Object, 0), nil, k, clrRound, true, disttopk.AlgoStats{}}
 }
 
 type Coord struct {
 	*stream.HardStopChannelCloser
-	input        chan disttopk.DemuxObject
+	input        chan stream.Object
 	backPointers []chan<- stream.Object
 	//lists        [][]disttopk.Item
 	FinalList            []disttopk.Item
@@ -248,11 +260,10 @@ type Coord struct {
 	Stats                disttopk.AlgoStats
 }
 
-func (src *Coord) Add(p *Peer) {
-	id := len(src.backPointers)
+func (src *Coord) Add(peer stream.Operator) {
+	p := peer.(*Peer)
 	back := make(chan stream.Object, 3)
 	src.backPointers = append(src.backPointers, back)
-	p.id = id
 	p.back = back
 	p.forward = src.input
 }
@@ -263,6 +274,15 @@ func (src *Coord) Run() error {
 			close(ch)
 		}
 	}()
+
+	start := time.Now()
+	for i, ch := range src.backPointers {
+		select {
+		case ch <- InitRound{i}:
+		case <-src.StopNotifier:
+			panic("wtf!")
+		}
+	}
 
 	m := make(map[int]float64)
 	mresp := make(map[int]int)
@@ -279,11 +299,12 @@ func (src *Coord) Run() error {
 	round_1_stats := disttopk.NewAlgoStatsRoundUnion()
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
-			fr := dobj.Obj.(*FirstRound)
-			round_1_stats.AddPeerStats(*fr.stats)
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
+			fr := dobj.Obj.(FirstRound)
+			round_1_stats.AddPeerStats(*fr.Stats)
 			id := dobj.Id
-			il := fr.list
+			il := fr.List
 			items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -293,8 +314,8 @@ func (src *Coord) Run() error {
 			}
 			src_resp_map[id] = resp_map
 
-			bh_bytes += len(fr.bh)
-			bhs := disttopk.DecompressBytes(fr.bh)
+			bh_bytes += len(fr.Bh)
+			bhs := disttopk.DecompressBytes(fr.Bh)
 			bh := &disttopk.BloomHistogramKlee{}
 			if err := disttopk.DeserializeObject(bh, bhs); err != nil {
 				panic(err)
@@ -361,25 +382,26 @@ func (src *Coord) Run() error {
 
 		round_clf_stats := disttopk.NewAlgoStatsRoundUnion()
 		for _, ch := range src.backPointers {
-			round_clf_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(8+topk_ids_bytes)})
+			round_clf_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(8 + topk_ids_bytes)})
 			select {
 			case ch <- ClrRoundSpec{uint32(localthresh), size, topk_ids}:
 			case <-src.StopNotifier:
 				return nil
 			}
 		}
-		bytes_clround += nnodes*(8 + topk_ids_bytes)
+		bytes_clround += nnodes * (8 + topk_ids_bytes)
 
 		clf_map := make(map[int]*ClfRow)
 		estimate_items := 0
 		for cnt := 0; cnt < nnodes; cnt++ {
 			select {
-			case dobj := <-src.input:
+			case obj := <-src.input:
+				dobj := obj.(disttopk.DemuxObject)
 				var clr *ClfRow
-				clr_reply := dobj.Obj.(*ClrRoundReply)
-				round_clf_stats.AddPeerStats(*clr_reply.stats)
+				clr_reply := dobj.Obj.(ClrRoundReply)
+				round_clf_stats.AddPeerStats(*clr_reply.Stats)
 				if SERIALIZE_CLF {
-					compressed_payload := clr_reply.payload.([]byte)
+					compressed_payload := clr_reply.Payload.([]byte)
 					bytes_clround += len(compressed_payload)
 					payload := disttopk.DecompressBytes(compressed_payload)
 					clr = &ClfRow{}
@@ -387,12 +409,12 @@ func (src *Coord) Run() error {
 						panic(err)
 					}
 				} else {
-					clr = clr_reply.payload.(*ClfRow)
+					clr = clr_reply.Payload.(*ClfRow)
 				}
 				id := dobj.Id
 				clf_map[id] = clr
 				if src.clrRoundTopkEstimate {
-					il := clr_reply.list
+					il := clr_reply.List
 					m = il.AddToMap(m)
 					bytes_clround += len(il) * disttopk.RECORD_SIZE
 					estimate_items += len(il)
@@ -438,7 +460,7 @@ func (src *Coord) Run() error {
 		}
 		compressedBitArray := disttopk.CompressBytes(bitArraySer)
 		for _, ch := range src.backPointers {
-			round_clf_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch:uint64(len(compressedBitArray))})
+			round_clf_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(compressedBitArray))})
 			select {
 			case ch <- compressedBitArray:
 			case <-src.StopNotifier:
@@ -453,7 +475,7 @@ func (src *Coord) Run() error {
 	} else {
 		src.Stats.Rounds = 2
 		for _, ch := range src.backPointers {
-			round_2_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch:uint64(4)})
+			round_2_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(4)})
 			select {
 			case ch <- localthresh:
 			case <-src.StopNotifier:
@@ -467,10 +489,11 @@ func (src *Coord) Run() error {
 	round2items := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
-			flr := dobj.Obj.(*FinalListReply)
-			round_2_stats.AddPeerStats(*flr.stats)
-			il := flr.payload
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
+			flr := dobj.Obj.(FinalListReply)
+			round_2_stats.AddPeerStats(*flr.Stats)
+			il := flr.Payload
 			round2items += len(il)
 			m = il.AddToMap(m)
 			mresp = il.AddToCountMap(mresp)
@@ -503,5 +526,35 @@ func (src *Coord) Run() error {
 		}
 	}
 	src.FinalList = il
+	src.Stats.Took = time.Since(start)
 	return nil
+}
+
+func (t *Peer) SetNetwork(readCh chan stream.Object, writeCh chan stream.Object) {
+	t.back = readCh
+	t.forward = writeCh
+}
+
+func (src *Coord) AddNetwork(channel chan stream.Object) {
+	src.backPointers = append(src.backPointers, channel)
+}
+
+func (src *Coord) GetFinalList() disttopk.ItemList {
+	return src.FinalList
+}
+func (src *Coord) GetStats() disttopk.AlgoStats {
+	return src.Stats
+}
+func (t *Coord) InputChannel() chan stream.Object {
+	return t.input
+}
+
+func RegisterGob() {
+	gob.Register(InitRound{})
+	gob.Register(FirstRound{})
+	gob.Register(ClrRoundSpec{})
+	gob.Register(ClrRoundReply{})
+	gob.Register(FinalListReply{})
+	gob.Register(disttopk.DemuxObject{})
+	gob.Register(disttopk.ItemList{})
 }

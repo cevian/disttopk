@@ -2,13 +2,11 @@ package runner
 
 import (
 	"github.com/cevian/disttopk"
+
 	//"github.com/cevian/disttopk/cm"
 	//"github.com/cevian/disttopk/cmfilter"
-	"github.com/cevian/disttopk/klee"
 	"github.com/cevian/disttopk/magic"
 	"github.com/cevian/disttopk/naive"
-	"github.com/cevian/disttopk/tput"
-	"github.com/cevian/disttopk/tput-hash"
 	"github.com/cevian/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
 	//"fmt"
@@ -19,6 +17,10 @@ type Runner interface {
 	Run(l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats)
 	GetName() string
 	IsExact() bool
+}
+
+type NetworkRunner interface {
+	RunNetwork(addr string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats)
 }
 
 type PlainRunner struct {
@@ -39,6 +41,7 @@ func (t *PlainRunner) IsExact() bool {
 	return t.Exact
 }
 
+/*
 func NewNaiveK2Runner() *PlainRunner {
 	runner := func(l []disttopk.ItemList, k int) (disttopk.ItemList, disttopk.AlgoStats) {
 		return RunNaive(l, k*2)
@@ -53,7 +56,7 @@ func NewNaiveExactRunner() *PlainRunner {
 	}
 	return &PlainRunner{runner, "Naive-exact", true}
 }
-
+*/
 func RunNaive(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.AlgoStats) {
 	runner := stream.NewRunner()
 	peers := make([]*naive.NaivePeer, len(l))
@@ -69,7 +72,7 @@ func RunNaive(l []disttopk.ItemList, cutoff int) (disttopk.ItemList, disttopk.Al
 	return coord.FinalList, coord.Stats
 }
 
-func NewTputRunner() *PlainRunner {
+/*func NewTputRunner() *PlainRunner {
 	return &PlainRunner{RunTput, "TPUT", true}
 }
 
@@ -157,7 +160,7 @@ func RunKlee(l []disttopk.ItemList, k int, clRound bool) (disttopk.ItemList, dis
 	runner.WaitGroup().Wait()
 	return coord.FinalList, coord.Stats
 }
-
+*/
 type MagicRunner struct {
 }
 

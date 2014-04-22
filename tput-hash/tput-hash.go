@@ -1,6 +1,11 @@
 package tput_hash
 
-import "github.com/cevian/go-stream/stream"
+import (
+	"encoding/gob"
+	"time"
+
+	"github.com/cevian/go-stream/stream"
+)
 import "github.com/cevian/disttopk"
 
 import (
@@ -13,7 +18,7 @@ func NewPeer(list disttopk.ItemList, ht *disttopk.HashTable, k int) *Peer {
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	forward chan<- disttopk.DemuxObject
+	forward chan<- stream.Object
 	back    <-chan stream.Object
 	list    disttopk.ItemList
 	ht      *disttopk.HashTable
@@ -21,31 +26,38 @@ type Peer struct {
 	id      int
 }
 
+type InitRound struct {
+	Id int
+}
+
 type FirstRound struct {
-	list  disttopk.ItemList
-	count uint32
+	List  disttopk.ItemList
+	Count uint32
 }
 
 type FirstRoundResponse struct {
-	thresh    uint32
-	arraySize uint32
+	Thresh    uint32
+	ArraySize uint32
 }
 
 type SecondRound struct {
-	cha             []byte
-	items_looked_at uint //only for serial access accounting
+	Cha             []byte
+	Items_looked_at uint //only for serial access accounting
 }
 
 type ThirdRound struct {
-	list disttopk.ItemList
+	List disttopk.ItemList
 	//items_looked_at uint //only for serial access accounting
-	stats *disttopk.AlgoStatsRound
+	Stats *disttopk.AlgoStatsRound
 }
 
 func (src *Peer) Run() error {
 	//defer close(src.forward)
 	//src.list.Sort()
 	//fmt.Println("Sort", src.list[:10])
+
+	init := <-src.back
+	src.id = init.(InitRound).Id
 
 	if src.k > len(src.list) {
 		fmt.Println("warning tput: list shorter than k")
@@ -64,8 +76,8 @@ func (src *Peer) Run() error {
 	select {
 	case obj := <-src.back:
 		frr := obj.(FirstRoundResponse)
-		thresh = frr.thresh
-		arraySize = uint(frr.arraySize)
+		thresh = frr.Thresh
+		arraySize = uint(frr.ArraySize)
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -141,12 +153,12 @@ func (src *Peer) Run() error {
 }
 
 func NewCoord(k int, approximate_t2 bool) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, 0.5, approximate_t2}
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan stream.Object, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, 0.5, approximate_t2}
 }
 
 type Coord struct {
 	*stream.HardStopChannelCloser
-	input          chan disttopk.DemuxObject
+	input          chan stream.Object
 	backPointers   []chan<- stream.Object
 	lists          [][]disttopk.Item
 	FinalList      []disttopk.Item
@@ -156,11 +168,10 @@ type Coord struct {
 	approximate_t2 bool
 }
 
-func (src *Coord) Add(p *Peer) {
-	id := len(src.backPointers)
+func (src *Coord) Add(peer stream.Operator) {
+	p := peer.(*Peer)
 	back := make(chan stream.Object, 3)
 	src.backPointers = append(src.backPointers, back)
-	p.id = id
 	p.back = back
 	p.forward = src.input
 }
@@ -171,6 +182,15 @@ func (src *Coord) Run() error {
 			close(ch)
 		}
 	}()
+
+	start := time.Now()
+	for i, ch := range src.backPointers {
+		select {
+		case ch <- InitRound{i}:
+		case <-src.StopNotifier:
+			panic("wtf!")
+		}
+	}
 
 	m := make(map[int]float64)
 	mresp := make(map[int]int)
@@ -184,10 +204,11 @@ func (src *Coord) Run() error {
 	round_1_stats := disttopk.NewAlgoStatsRoundUnion()
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			fr := dobj.Obj.(FirstRound)
-			il := fr.list
-			items_at_peers += int(fr.count)
+			il := fr.List
+			items_at_peers += int(fr.Count)
 			round_stat_peer := disttopk.AlgoStatsRound{Bytes_sketch: 4, Serial_items: len(il), Transferred_items: len(il)}
 			round_1_stats.AddPeerStats(round_stat_peer)
 			items += len(il)
@@ -233,10 +254,11 @@ func (src *Coord) Run() error {
 	bytes_cha := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			sr := dobj.Obj.(SecondRound)
-			bytes_cha += len(sr.cha)
-			cha_got_ser := disttopk.DecompressBytes(sr.cha)
+			bytes_cha += len(sr.Cha)
+			cha_got_ser := disttopk.DecompressBytes(sr.Cha)
 			//bytes_cha += len(cha_got_ser)
 			cha_got := &CountHashArray{}
 			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
@@ -247,7 +269,7 @@ func (src *Coord) Run() error {
 				cha_got.Add(disttopk.IntKeyToByteKey(peerlocaltopid), uint(peerlocaltopscore))
 			}
 
-			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: int(sr.items_looked_at), Bytes_sketch: uint64(len(sr.cha))}
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: int(sr.Items_looked_at), Bytes_sketch: uint64(len(sr.Cha))}
 			round_2_stats.AddPeerStats(round_stat_peer)
 
 			cha.Merge(cha_got)
@@ -326,6 +348,7 @@ func (src *Coord) Run() error {
 		}
 	}
 	src.FinalList = il
+	src.Stats.Took = time.Since(start)
 	return nil
 }
 
@@ -350,10 +373,11 @@ func (src *Coord) SendBloom(bloom *disttopk.Bloom, nnodes int, access_stats *dis
 	round3items := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			tr := dobj.Obj.(ThirdRound)
-			il := tr.list
-			round_3_stats.AddPeerStats(*tr.stats)
+			il := tr.List
+			round_3_stats.AddPeerStats(*tr.Stats)
 			m = il.AddToMap(m)
 			round3items += len(il)
 			mresp = il.AddToCountMap(mresp)
@@ -366,4 +390,33 @@ func (src *Coord) SendBloom(bloom *disttopk.Bloom, nnodes int, access_stats *dis
 	bytesRound += round3items * disttopk.RECORD_SIZE
 
 	return bytesRound, round3items, m, mresp
+}
+
+func (t *Peer) SetNetwork(readCh chan stream.Object, writeCh chan stream.Object) {
+	t.back = readCh
+	t.forward = writeCh
+}
+
+func (src *Coord) AddNetwork(channel chan stream.Object) {
+	src.backPointers = append(src.backPointers, channel)
+}
+
+func (src *Coord) GetFinalList() disttopk.ItemList {
+	return src.FinalList
+}
+func (src *Coord) GetStats() disttopk.AlgoStats {
+	return src.Stats
+}
+func (t *Coord) InputChannel() chan stream.Object {
+	return t.input
+}
+
+func RegisterGob() {
+	gob.Register(InitRound{})
+	gob.Register(disttopk.DemuxObject{})
+	gob.Register(FirstRound{})
+	gob.Register(FirstRoundResponse{})
+	gob.Register(SecondRound{})
+	gob.Register(ThirdRound{})
+	gob.Register(disttopk.ItemList{})
 }

@@ -1,11 +1,20 @@
 package tput
 
-import "github.com/cevian/go-stream/stream"
+import (
+	"encoding/gob"
+	"time"
+
+	"github.com/cevian/go-stream/stream"
+)
 import "github.com/cevian/disttopk"
 
 import (
 	"fmt"
 )
+
+type InitRound struct {
+	Id int
+}
 
 func NewPeer(list disttopk.ItemList, k int) *Peer {
 	return &Peer{stream.NewHardStopChannelCloser(), nil, nil, list, k, 0}
@@ -13,7 +22,7 @@ func NewPeer(list disttopk.ItemList, k int) *Peer {
 
 type Peer struct {
 	*stream.HardStopChannelCloser
-	forward chan<- disttopk.DemuxObject
+	forward chan<- stream.Object
 	back    <-chan stream.Object
 	list    disttopk.ItemList
 	k       int
@@ -24,6 +33,9 @@ func (src *Peer) Run() error {
 	//defer close(src.forward)
 	//src.list.Sort()
 	//fmt.Println("Sort", src.list[:10])
+
+	init := <-src.back
+	src.id = init.(InitRound).Id
 
 	if src.k > len(src.list) {
 		fmt.Println("warning tput: list shorter than k")
@@ -96,12 +108,12 @@ func (src *Peer) Run() error {
 }
 
 func NewCoord(k int) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, 0.5}
+	return &Coord{stream.NewHardStopChannelCloser(), make(chan stream.Object, 3), make([]chan<- stream.Object, 0), nil, nil, k, disttopk.AlgoStats{}, 0.5}
 }
 
 type Coord struct {
 	*stream.HardStopChannelCloser
-	input        chan disttopk.DemuxObject
+	input        chan stream.Object
 	backPointers []chan<- stream.Object
 	lists        [][]disttopk.Item
 	FinalList    []disttopk.Item
@@ -110,11 +122,10 @@ type Coord struct {
 	alpha        float64
 }
 
-func (src *Coord) Add(p *Peer) {
-	id := len(src.backPointers)
+func (src *Coord) Add(peer stream.Operator) {
+	p := peer.(*Peer)
 	back := make(chan stream.Object, 3)
 	src.backPointers = append(src.backPointers, back)
-	p.id = id
 	p.back = back
 	p.forward = src.input
 }
@@ -126,6 +137,15 @@ func (src *Coord) Run() error {
 		}
 	}()
 
+	start := time.Now()
+	for i, ch := range src.backPointers {
+		select {
+		case ch <- InitRound{i}:
+		case <-src.StopNotifier:
+			panic("wtf!")
+		}
+	}
+
 	m := make(map[int]float64)
 	mresp := make(map[int]int)
 
@@ -136,7 +156,8 @@ func (src *Coord) Run() error {
 	items := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			il := dobj.Obj.(disttopk.ItemList)
 			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: len(il), Transferred_items: len(il)}
 			round_1_stats.AddPeerStats(round_stat_peer)
@@ -174,7 +195,8 @@ func (src *Coord) Run() error {
 	round2items := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			il := dobj.Obj.(disttopk.ItemList)
 			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: len(il), Transferred_items: len(il)}
 			round_2_stats.AddPeerStats(round_stat_peer)
@@ -210,7 +232,7 @@ func (src *Coord) Run() error {
 
 	round_3_stats := disttopk.NewAlgoStatsRoundUnion()
 	for _, ch := range src.backPointers {
-		round_3_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(ids)*disttopk.RECORD_ID_SIZE)})
+		round_3_stats.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: uint64(len(ids) * disttopk.RECORD_ID_SIZE)})
 		select {
 		case ch <- ids:
 		case <-src.StopNotifier:
@@ -221,7 +243,8 @@ func (src *Coord) Run() error {
 	round3items := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			il := dobj.Obj.(disttopk.ItemList)
 			round_stat_peer := disttopk.AlgoStatsRound{Random_items: len(il), Random_access: len(il), Transferred_items: len(il)}
 			round_3_stats.AddPeerStats(round_stat_peer)
@@ -250,5 +273,31 @@ func (src *Coord) Run() error {
 		}
 	}
 	src.FinalList = il
+	src.Stats.Took = time.Since(start)
 	return nil
+}
+
+func (t *Peer) SetNetwork(readCh chan stream.Object, writeCh chan stream.Object) {
+	t.back = readCh
+	t.forward = writeCh
+}
+
+func (src *Coord) AddNetwork(channel chan stream.Object) {
+	src.backPointers = append(src.backPointers, channel)
+}
+
+func (src *Coord) GetFinalList() disttopk.ItemList {
+	return src.FinalList
+}
+func (src *Coord) GetStats() disttopk.AlgoStats {
+	return src.Stats
+}
+func (t *Coord) InputChannel() chan stream.Object {
+	return t.input
+}
+
+func RegisterGob() {
+	gob.Register(InitRound{})
+	gob.Register(disttopk.DemuxObject{})
+	gob.Register(disttopk.ItemList{})
 }

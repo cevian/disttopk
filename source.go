@@ -2,6 +2,10 @@ package disttopk
 
 import (
 	//	"fmt"
+	"bytes"
+	crand "crypto/rand"
+	"encoding/binary"
+	"io"
 	"math"
 	"math/rand"
 	"sort"
@@ -28,6 +32,70 @@ func NewZipfSource(max uint32, param float64) ZipfSource {
 type Item struct {
 	Id    int
 	Score float64
+}
+
+func (t *Item) Serialize(w io.Writer) error {
+	id := uint32(t.Id)
+	if err := binary.Write(w, binary.BigEndian, &id); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, &t.Score); err != nil {
+		return err
+	}
+	bytes := 4 + 8
+	rs := RECORD_SIZE
+	if bytes < rs {
+		//pad with random bytes
+		left := rs - bytes
+		b := make([]byte, left)
+		_, err := crand.Read(b)
+		if err != nil {
+			panic("wtf")
+		}
+		_, err = w.Write(b)
+		if err != nil {
+			panic("wtf")
+		}
+	} else {
+		panic("Really?")
+	}
+	return nil
+}
+
+func (t *Item) Deserialize(r io.Reader) error {
+	id := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &id); err != nil {
+		return err
+	}
+	t.Id = int(id)
+	if err := binary.Read(r, binary.BigEndian, &t.Score); err != nil {
+		return err
+	}
+	bytes := 4 + 8
+	rs := RECORD_SIZE
+	if bytes < rs {
+		left := rs - bytes
+		b := make([]byte, left)
+		if _, err := io.ReadFull(r, b); err != nil {
+			panic(err)
+		}
+	} else {
+		panic("Really?")
+	}
+	return nil
+}
+
+func (t Item) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := t.Serialize(buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (t *Item) UnmarshalBinary(data []byte) error {
+	buf := bytes.NewReader(data)
+	return t.Deserialize(buf)
 }
 
 func NewItemList() ItemList {
@@ -90,6 +158,19 @@ func (t ItemList) MakeHashTable() *HashTable {
 
 	return ht
 }
+
+/*
+func (t *ItemList) Serialize(w io.Writer) error {
+
+	l := uint32(len(t))
+	if err := binary.Write(w, binary.BigEndian, &l); err != nil {
+		return err
+	}
+	for _, item := range t {
+		item.Serialize(w)
+	}
+	return nil
+}*/
 
 func MakeItemList(m map[int]float64) ItemList {
 	il := make([]Item, len(m))

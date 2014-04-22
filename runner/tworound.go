@@ -42,7 +42,7 @@ func (t *TwoRoundRunner) Run(l []disttopk.ItemList, hts []*disttopk.HashTable, t
 	return coord.FinalList, coord.Stats
 }
 
-func (t *TwoRoundRunner) RunNetwork(l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+func (t *TwoRoundRunner) RunNetwork(addr string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
 	numpeer := len(l)
 	//Nest := getNEst(l)
 
@@ -55,7 +55,7 @@ func (t *TwoRoundRunner) RunNetwork(l []disttopk.ItemList, hts []*disttopk.HashT
 	coord := pr.NewCoord()
 	runnerCoord.Add(coord)
 
-	server := netchan.NewServer("127.0.0.1:7081")
+	server := netchan.NewServer(addr)
 	//defer server.Close()
 	err := server.Listen()
 	if err != nil {
@@ -65,7 +65,7 @@ func (t *TwoRoundRunner) RunNetwork(l []disttopk.ItemList, hts []*disttopk.HashT
 	serverConnChannel := server.NewConnChannel()
 
 	for i, list := range l {
-		client := netchan.NewClient("127.0.0.1:7081")
+		client := netchan.NewClient(addr)
 		defer client.Close()
 		fmt.Println("Connecting")
 		err := client.Connect()

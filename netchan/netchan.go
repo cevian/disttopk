@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/cevian/go-stream/stream"
 )
@@ -13,7 +14,8 @@ type Client struct {
 	addr   string
 	Writer *Writer
 	Reader *Reader
-	conn   net.Conn
+	c      *Conn
+	//conn   net.Conn
 }
 
 func NewClient(addr string) *Client {
@@ -27,10 +29,10 @@ func (t *Client) Connect() error {
 		return err
 	}
 
-	c := NewConn(conn)
+	c := NewConn(conn, "Client")
 	t.Writer = NewWriter(c)
 	t.Reader = NewReader(c)
-	t.conn = conn
+	t.c = c
 
 	go t.Writer.Run()
 	go t.Reader.Run()
@@ -50,7 +52,8 @@ func (t *Client) Close() error {
 		panic("Should not call closed before closing writer")
 	}
 
-	t.conn.Close()
+	//fmt.Println("Client Closed")
+	t.c.Close()
 	return nil
 }
 
@@ -59,10 +62,11 @@ type Server struct {
 	newConnChannel chan *ServerConn
 	closing        bool
 	listener       net.Listener
+	wg             *sync.WaitGroup
 }
 
 func NewServer(addr string) *Server {
-	return &Server{addr, make(chan *ServerConn, 3), false, nil}
+	return &Server{addr, make(chan *ServerConn, 3), false, nil, &sync.WaitGroup{}}
 }
 
 func (t *Server) NewConnChannel() chan *ServerConn {
@@ -88,7 +92,7 @@ func (t *Server) Listen() error {
 				return
 			}
 
-			sc := NewServerConn(conn)
+			sc := NewServerConn(conn, t.wg)
 			t.newConnChannel <- sc
 		}
 	}
@@ -98,6 +102,8 @@ func (t *Server) Listen() error {
 }
 
 func (t *Server) Close() error {
+	//fmt.Println("Listener closed")
+	t.wg.Wait()
 	t.closing = true
 	return t.listener.Close()
 }
@@ -105,32 +111,41 @@ func (t *Server) Close() error {
 type ServerConn struct {
 	Writer *Writer
 	Reader *Reader
-	conn   net.Conn
+	wg     *sync.WaitGroup
+	//conn   net.Conn
 }
 
-func NewServerConn(conn net.Conn) *ServerConn {
-	c := NewConn(conn)
-	return &ServerConn{NewWriter(c), NewReader(c), conn}
+func NewServerConn(conn net.Conn, wg *sync.WaitGroup) *ServerConn {
+	c := NewConn(conn, "Server")
+	return &ServerConn{NewWriter(c), NewReader(c), wg}
 }
 
 func (t ServerConn) Start() error {
-	go t.Writer.Run()
-	go t.Reader.Run()
+	t.wg.Add(2)
+	go func() {
+		defer t.wg.Done()
+		t.Writer.Run()
+	}()
+	go func() {
+		defer t.wg.Done()
+		t.Reader.Run()
+	}()
 	return nil
 }
 
 type Conn struct {
 	conn     net.Conn
 	isClosed bool
+	typ      string
 }
 
-func NewConn(c net.Conn) *Conn {
-	return &Conn{c, false}
+func NewConn(c net.Conn, typ string) *Conn {
+	return &Conn{c, false, typ}
 }
 
 func (t *Conn) Close() error {
-	t.conn.Close()
 	t.isClosed = true
+	t.conn.Close()
 	return nil
 }
 
@@ -156,6 +171,7 @@ func (t *Writer) Run() error {
 		//fmt.Println("writer: Got Message")
 		if !ok {
 			//channel closed
+			//fmt.Println("Writer Closed", t.conn.typ)
 			t.conn.Close()
 			return nil
 		}
@@ -195,7 +211,7 @@ func (t *Reader) Run() error {
 			if err == io.EOF || t.conn.IsClosed() {
 				return nil
 			}
-			fmt.Println("Decoder error 1", err)
+			fmt.Println("Decoder error 1", t.conn.typ, err)
 			return err
 		}
 		//fmt.Println("reader: sent Message")

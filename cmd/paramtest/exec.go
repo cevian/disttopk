@@ -237,7 +237,7 @@ func (t *Test) GetRowDescription() []RowDescription {
 	k := 10
 	nodes := 10
 	listSize := 1000
-	zipfParam := 0.4
+	zipfParam := 1.0
 	overlap := 0.50
 	disttopk.RECORD_SIZE = 100
 
@@ -256,7 +256,7 @@ func (t *Test) GetProtocols() []runner.Runner {
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbr2RRunner() }
 	//return []runner.Runner{runner.NewMagicRunner()}
 	//return []runner.Runner{runner.NewTputHRunner()}
-	return []runner.Runner{runner.NewSbrErRunner()}
+	return []runner.Runner{runner.NewTputRunner(), runner.NewTputHRunner(), runner.NewTputERRunner(), runner.NewSbrErRunner(), runner.NewSbr2RRunner(), runner.NewNaiveK2Runner(), runner.NewNaiveExactRunner(), runner.NewKlee3Runner(), runner.NewKlee4Runner()}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner()}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner()}
 	//return GetRunners()
@@ -288,7 +288,7 @@ func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStat
 	runtime.GC()
 	//n := Getn(l[0], k, Nnodes)
 	results := make(map[string]disttopk.AlgoStats)
-	for _, proto := range protos {
+	for i, proto := range protos {
 		runtime.GC()
 		mem := &runtime.MemStats{}
 		runtime.ReadMemStats(mem)
@@ -296,7 +296,7 @@ func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStat
 
 		fmt.Println("---- Running:", proto.GetName(), rd.String())
 		//proto_list, res := proto.Run(l, hts, rd.k, ground_truth, NestIdeal)
-		proto_list, res := proto.(*runner.TwoRoundRunner).RunNetwork(l, hts, rd.k, ground_truth, NestIdeal)
+		proto_list, res := proto.(runner.NetworkRunner).RunNetwork(fmt.Sprintf("127.0.0.1:%d", 7000+i), l, hts, rd.k, ground_truth, NestIdeal)
 		res.CalculatePerformance(ground_truth, proto_list, rd.k)
 		if proto.IsExact() && res.Abs_err != 0.0 {
 			PrintDiff(ground_truth, proto_list, rd.k)
