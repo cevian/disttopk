@@ -104,6 +104,11 @@ func (src *Peer) Run() error {
 	case <-src.StopNotifier:
 		return nil
 	}
+
+	_, ok := <-src.back
+	if ok {
+		panic("shouldnt get anything but close")
+	}
 	return nil
 }
 

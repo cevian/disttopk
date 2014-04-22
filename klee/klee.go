@@ -241,6 +241,10 @@ func (src *Peer) Run() error {
 			return nil
 		}
 	}
+	_, ok := <-src.back
+	if ok {
+		panic("shouldnt get anything but close")
+	}
 	return nil
 }
 
