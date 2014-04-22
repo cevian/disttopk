@@ -1,20 +1,25 @@
 package disttopk
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type AlgoStats struct {
 	Bytes_transferred uint64
-//	Serial_items      int
-//	Random_access     int
-//	Random_items      int
+	//	Serial_items      int
+	//	Random_access     int
+	//	Random_items      int
 	//	Length            int
 	Recall        float64
+	K_err         float64
 	Abs_err       float64
 	Rel_err       float64
 	Edit_distance float64
 	Rounds        int
-	TrueScoreK        int
+	TrueScoreK    int
 	RoundStats    []AlgoStatsRoundUnion
+	Took          time.Duration
 }
 
 type AlgoStatsRoundUnion struct {
@@ -25,8 +30,7 @@ type AlgoStatsRoundUnion struct {
 	Serial_items_max      int
 	Random_access_max     int
 	Random_items_max      int
-	Transferred_items_sum     int
-
+	Transferred_items_sum int
 }
 
 func NewAlgoStatsRoundUnion() *AlgoStatsRoundUnion {
@@ -39,18 +43,17 @@ func (t *AlgoStatsRoundUnion) AddPeerStats(peer AlgoStatsRound) {
 	t.Random_access_sum += peer.Random_access
 	t.Random_items_sum += peer.Random_items
 	t.Transferred_items_sum += peer.Transferred_items
-	
-	if (t.Serial_items_max < peer.Serial_items) {
+
+	if t.Serial_items_max < peer.Serial_items {
 		t.Serial_items_max = peer.Serial_items
 	}
-	if (t.Random_access_max < peer.Random_access) {
+	if t.Random_access_max < peer.Random_access {
 		t.Random_access_max = peer.Random_access
 	}
-	if (t.Random_items_max < peer.Random_items) {
+	if t.Random_items_max < peer.Random_items {
 		t.Random_items_max = peer.Random_items
 	}
 }
-
 
 type AlgoStatsRound struct {
 	Bytes_sketch      uint64
@@ -79,14 +82,14 @@ func (t *AlgoStats) Merge(other AlgoStats) {
 
 func (t *AlgoStats) VerifySanity() {
 	bytes := 0
-	for _, round := range t.RoundStats{
+	for _, round := range t.RoundStats {
 		bytes += int(round.Bytes_sketch_sum)
-		bytes += round.Transferred_items_sum*RECORD_SIZE
+		bytes += round.Transferred_items_sum * RECORD_SIZE
 	}
 	if bytes != int(t.Bytes_transferred) {
-		for k, round := range t.RoundStats{
-			total := int(round.Bytes_sketch_sum) + (round.Transferred_items_sum*RECORD_SIZE)
-			fmt.Println("Round ",k+1,": Sketch", round.Bytes_sketch_sum, "Serial Items", round.Serial_items_sum, "Random Items", round.Random_items_sum, "Transferred Items", round.Transferred_items_sum, "Total", total)
+		for k, round := range t.RoundStats {
+			total := int(round.Bytes_sketch_sum) + (round.Transferred_items_sum * RECORD_SIZE)
+			fmt.Println("Round ", k+1, ": Sketch", round.Bytes_sketch_sum, "Serial Items", round.Serial_items_sum, "Random Items", round.Random_items_sum, "Transferred Items", round.Transferred_items_sum, "Total", total)
 		}
 		panic(fmt.Sprintf("Bytes dont match up, rounds %d, total %d", bytes, t.Bytes_transferred))
 	}
@@ -95,6 +98,7 @@ func (t *AlgoStats) VerifySanity() {
 func (t *AlgoStats) CalculatePerformance(exact ItemList, approx ItemList, k int) {
 	t.VerifySanity()
 	t.Recall = getRecall(exact, approx, k)
+	t.K_err = getKErr(exact, approx, k)
 	t.Abs_err = getScoreError(exact, approx, k)
 	t.Rel_err = getScoreErrorRel(exact, approx, k)
 	t.Edit_distance = JWDistance(exact, approx, k)
@@ -113,6 +117,12 @@ func getRecall(exact ItemList, approx ItemList, k int) float64 {
 		}
 	}
 	return float64(found) / float64(k)
+}
+
+func getKErr(exact ItemList, approx ItemList, k int) float64 {
+	exact_k := exact[k-1].Score
+	approx_k := approx[k-1].Score //smaller
+	return (exact_k - approx_k) / exact_k
 }
 
 func getMatches(exact ItemList, approx ItemList, k int) (ItemList, ItemList) {
@@ -164,15 +174,13 @@ func getScoreErrorRel(exact ItemList, approx ItemList, k int) float64 {
 		} else {
 			e = eitem.Score - aitem.Score
 		}
-		err += ( e / eitem.Score)
+		err += (e / eitem.Score)
 	}
 	return err / float64(k)
 
-
 }
 
-
-/* this is closest to the klee paper but is a bad metric 
+/* this is closest to the klee paper but is a bad metric
 func getScoreError(exact ItemList, approx ItemList, k int) float64 {
 	err := 0.0
 	for i := 0; i < k; i++ {

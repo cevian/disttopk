@@ -1,7 +1,10 @@
 package runner
 
 import (
+	"fmt"
+
 	"github.com/cevian/disttopk"
+	"github.com/cevian/disttopk/netchan"
 	"github.com/cevian/disttopk/tworound"
 	"github.com/cevian/go-stream/stream"
 	//"github.com/cloudflare/go-stream/util/slog";
@@ -38,6 +41,128 @@ func (t *TwoRoundRunner) Run(l []disttopk.ItemList, hts []*disttopk.HashTable, t
 	runner.WaitGroup().Wait()
 	return coord.FinalList, coord.Stats
 }
+
+func (t *TwoRoundRunner) RunNetwork(l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+	numpeer := len(l)
+	//Nest := getNEst(l)
+
+	tworound.RegisterGob()
+
+	pr := t.runnerGenerator(l, numpeer, Nest, topk, GroundTruth)
+	runner := stream.NewRunner()
+	runnerCoord := stream.NewRunner()
+	peers := make([]*tworound.Peer, len(l))
+	coord := pr.NewCoord()
+	runnerCoord.Add(coord)
+
+	server := netchan.NewServer("127.0.0.1:7081")
+	//defer server.Close()
+	err := server.Listen()
+	if err != nil {
+		panic(err)
+	}
+
+	serverConnChannel := server.NewConnChannel()
+
+	for i, list := range l {
+		client := netchan.NewClient("127.0.0.1:7081")
+		defer client.Close()
+		fmt.Println("Connecting")
+		err := client.Connect()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Getting serverch")
+		serverConn := <-serverConnChannel
+		serverConn.Reader.SetChannel(coord.InputChannel())
+		serverConn.Start()
+		fmt.Println("started server conn")
+
+		ht := hts[i]
+		peers[i] = pr.NewPeer(list, ht)
+		coord.AddNetwork(serverConn.Writer.Channel())
+		peers[i].SetNetwork(client.Reader.Channel(), client.Writer.Channel())
+		runner.Add(peers[i])
+		defer close(client.Writer.Channel())
+	}
+	fmt.Println("Starting Protocol")
+	runnerCoord.AsyncRunAll()
+	runner.AsyncRunAll()
+	runnerCoord.WaitGroup().Wait()
+	fmt.Println("Returned coord Protocol")
+	server.Close()
+	runner.WaitGroup().Wait()
+	fmt.Println("Returned Protocol")
+	return coord.FinalList, coord.Stats
+}
+
+func (t *TwoRoundRunner) RunCoord(ip string, l []disttopk.ItemList, hts []*disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) (disttopk.ItemList, disttopk.AlgoStats) {
+	numpeer := len(l)
+	//Nest := getNEst(l)
+
+	tworound.RegisterGob()
+
+	pr := t.runnerGenerator(l, numpeer, Nest, topk, GroundTruth)
+	runnerCoord := stream.NewRunner()
+	coord := pr.NewCoord()
+	runnerCoord.Add(coord)
+
+	server := netchan.NewServer(fmt.Sprintf("%s:7081", ip))
+	//defer server.Close()
+	err := server.Listen()
+	if err != nil {
+		panic(err)
+	}
+
+	serverConnChannel := server.NewConnChannel()
+
+	for i, _ := range l {
+		fmt.Println("Getting serverch", i)
+		serverConn := <-serverConnChannel
+		serverConn.Reader.SetChannel(coord.InputChannel())
+		serverConn.Start()
+		fmt.Println("started server conn")
+		coord.AddNetwork(serverConn.Writer.Channel())
+	}
+	fmt.Println("Starting Protocol")
+	runnerCoord.AsyncRunAll()
+	runnerCoord.WaitGroup().Wait()
+	fmt.Println("Returned coord Protocol")
+	server.Close()
+	fmt.Println("Returned Protocol")
+	return coord.FinalList, coord.Stats
+}
+
+func (t *TwoRoundRunner) RunPeer(ip string, numpeer int, l disttopk.ItemList, ht *disttopk.HashTable, topk int, GroundTruth disttopk.ItemList, Nest int) {
+	//numpeer := len(l)
+	//Nest := getNEst(l)
+
+	tworound.RegisterGob()
+
+	pr := t.runnerGenerator(nil, numpeer, Nest, topk, GroundTruth)
+	runner := stream.NewRunner()
+
+	client := netchan.NewClient(fmt.Sprintf("%s:7081", ip))
+	defer client.Close()
+	fmt.Println("Connecting")
+	err := client.Connect()
+	if err != nil {
+		panic(err)
+	}
+
+	//ht := hts[index]
+	peer := pr.NewPeer(l, ht)
+	peer.SetNetwork(client.Reader.Channel(), client.Writer.Channel())
+	runner.Add(peer)
+	defer close(client.Writer.Channel())
+
+	fmt.Println("Starting Protocol")
+	runner.AsyncRunAll()
+	runner.WaitGroup().Wait()
+	fmt.Println("Returned Protocol")
+	return
+}
+
 func (t *TwoRoundRunner) GetName() string {
 	return t.Name
 }

@@ -1,12 +1,16 @@
 package tworound
 
-import "github.com/cevian/go-stream/stream"
+import (
+	"encoding/gob"
+	"time"
+
+	"github.com/cevian/go-stream/stream"
+)
 import "github.com/cevian/disttopk"
 
 import (
 	"fmt"
 	"math"
-	"runtime"
 )
 
 var _ = math.Log2
@@ -125,6 +129,14 @@ func (t *ProtocolRunner) NewCoord() *Coord {
 	return NewCoord(t)
 }
 
+func RegisterGob() {
+	gob.Register(InitRound{})
+	gob.Register(FirstRound{})
+	gob.Register(SecondRound{})
+	gob.Register(SecondRoundPeerReply{})
+	gob.Register(disttopk.DemuxObject{})
+}
+
 func (t *ProtocolRunner) compress(in []byte) []byte {
 	if t.CompressSketches {
 		return disttopk.CompressBytes(in)
@@ -144,7 +156,7 @@ func (t *ProtocolRunner) decompress(in []byte) []byte {
 type Peer struct {
 	*stream.HardStopChannelCloser
 	*ProtocolRunner
-	forward chan<- disttopk.DemuxObject
+	forward chan<- stream.Object
 	back    <-chan stream.Object
 	list    disttopk.ItemList
 	ht      *disttopk.HashTable
@@ -163,21 +175,30 @@ type Serialized []byte
 
 func (s *Serialized) ByteSize() int { return len(*s) }
 
+type InitRound struct {
+	Id int
+}
+
 type FirstRound struct {
-	list   disttopk.ItemList
-	sketch Serialized
-	stats  *disttopk.AlgoStatsRound
-	length uint32
+	List   disttopk.ItemList
+	Sketch Serialized
+	Stats  *disttopk.AlgoStatsRound
+	Length uint32
 }
 
 type SecondRound struct {
-	ufser Serialized
+	Ufser Serialized
 }
 
 type SecondRoundPeerReply struct {
-	list             disttopk.ItemList
-	stats            *disttopk.AlgoStatsRound
-	additionalSketch Serialized
+	List             disttopk.ItemList
+	Stats            *disttopk.AlgoStatsRound
+	AdditionalSketch Serialized
+}
+
+func (t *Peer) SetNetwork(readCh chan stream.Object, writeCh chan stream.Object) {
+	t.back = readCh
+	t.forward = writeCh
 }
 
 func (src *Peer) Run() error {
@@ -189,6 +210,9 @@ func (src *Peer) Run() error {
 		fmt.Println("warning cmfilter: list shorter than k")
 		src.k = len(src.list)
 	}
+
+	init := <-src.back
+	src.id = init.(InitRound).Id
 
 	sent_items := make(map[int]bool)
 	localtop_index := int(float64(src.k) * src.Alpha)
@@ -223,7 +247,7 @@ func (src *Peer) Run() error {
 			if !ok {
 				return nil
 			}
-			ufser := obj.(SecondRound).ufser
+			ufser := obj.(SecondRound).Ufser
 			if ufser != nil {
 				decomp := src.decompress(ufser)
 				if len(decomp) > 0 {
@@ -253,7 +277,7 @@ func (src *Peer) Run() error {
 			}
 		}
 
-		runtime.GC()
+		//runtime.GC()
 		/*exactlist := make([]disttopk.Item, 0)
 		for index, v := range src.list {
 			if index >= src.k && uf.PassesInt(v.Id) == true {
@@ -324,24 +348,35 @@ type UnionFilterEmpty interface {
 type Coord struct {
 	*stream.HardStopChannelCloser
 	*ProtocolRunner
-	input        chan disttopk.DemuxObject
+	input        chan stream.Object
 	backPointers []chan<- stream.Object
 	lists        [][]disttopk.Item
 	FinalList    []disttopk.Item
 	Stats        disttopk.AlgoStats
 }
 
+func (t *Coord) InputChannel() chan stream.Object {
+	return t.input
+}
+
 func NewCoord(pr *ProtocolRunner) *Coord {
-	return &Coord{stream.NewHardStopChannelCloser(), pr, make(chan disttopk.DemuxObject, 3), make([]chan<- stream.Object, 0), nil, nil, disttopk.AlgoStats{}}
+	return &Coord{stream.NewHardStopChannelCloser(), pr, make(chan stream.Object, 3), make([]chan<- stream.Object, 0), nil, nil, disttopk.AlgoStats{}}
 }
 
 func (src *Coord) Add(p *Peer) {
-	id := len(src.backPointers)
+	//id := len(src.backPointers)
 	back := make(chan stream.Object, 3)
 	src.backPointers = append(src.backPointers, back)
-	p.id = id
+	//p.id = id
 	p.back = back
 	p.forward = src.input
+}
+
+func (src *Coord) AddNetwork(channel chan stream.Object) {
+	//id := len(src.backPointers)
+	src.backPointers = append(src.backPointers, channel)
+	//return id
+	//p.forward = src.input
 }
 
 func (src *Coord) Run() error {
@@ -351,6 +386,7 @@ func (src *Coord) Run() error {
 		}
 	}()
 
+	start := time.Now()
 	m := make(map[int]float64)
 
 	nnodes := len(src.backPointers)
@@ -359,19 +395,28 @@ func (src *Coord) Run() error {
 	sketchsize := 0
 	var ucm UnionSketch
 
+	for i, ch := range src.backPointers {
+		select {
+		case ch <- InitRound{i}:
+		case <-src.StopNotifier:
+			panic("wtf!")
+		}
+	}
+
 	round1Access := disttopk.NewAlgoStatsRoundUnion()
 	listlensum := 0
 	listlenbytes := 0
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			fr := dobj.Obj.(FirstRound)
-			il := fr.list
+			il := fr.List
 			items += len(il)
 			m = il.AddToMap(m)
 
-			compressedsize := fr.sketch.ByteSize()
-			decompressed := src.decompress(fr.sketch)
+			compressedsize := fr.Sketch.ByteSize()
+			decompressed := src.decompress(fr.Sketch)
 			if len(decompressed) > 0 {
 				sketchsize += compressedsize
 			}
@@ -379,7 +424,7 @@ func (src *Coord) Run() error {
 
 			//cm := fr.cm.(*disttopk.CountMinSketch)
 			//sketchsize += cm.ByteSize()
-			round1Access.AddPeerStats(*fr.stats)
+			round1Access.AddPeerStats(*fr.Stats)
 
 			if ucm == nil {
 				ucm = src.getUnionSketch(sketch, il, dobj.Id)
@@ -389,7 +434,7 @@ func (src *Coord) Run() error {
 			}
 
 			if src.SendLength {
-				listlensum += int(fr.length)
+				listlensum += int(fr.Length)
 				listlenbytes += 4
 				round1Access.AddPeerStats(disttopk.AlgoStatsRound{Bytes_sketch: 4})
 			}
@@ -480,6 +525,7 @@ end:
 		}
 	}
 
+	src.Stats.Took = time.Since(start)
 	src.FinalList = il
 	return nil
 }
@@ -523,16 +569,17 @@ func (src *Coord) RunSendFilterThreshold(ucm UnionSketch, thresh uint32, il dist
 	additionalSketchBytes := 0
 	for cnt := 0; cnt < len(src.backPointers); cnt++ {
 		select {
-		case dobj := <-src.input:
+		case obj := <-src.input:
+			dobj := obj.(disttopk.DemuxObject)
 			srpr := dobj.Obj.(SecondRoundPeerReply)
-			il := srpr.list
+			il := srpr.List
 			m = il.AddToMap(m)
 			round2items += len(il)
-			round2Access.AddPeerStats(*srpr.stats)
-			if srpr.additionalSketch != nil {
-				additionalSketchBytes += len(srpr.additionalSketch)
+			round2Access.AddPeerStats(*srpr.Stats)
+			if srpr.AdditionalSketch != nil {
+				additionalSketchBytes += len(srpr.AdditionalSketch)
 				padd := src.PeerSketchAdaptor.(PeerAdditionalSketchAdaptor)
-				addsketch := padd.deserializeAdditionalSketch(srpr.additionalSketch)
+				addsketch := padd.deserializeAdditionalSketch(srpr.AdditionalSketch)
 				uadd := src.UnionSketchAdaptor.(UnionAdditonalSketchAdaptor)
 				uadd.mergeAdditionalSketchIntoUnionSketch(ucm, addsketch, il, dobj.Id)
 			}

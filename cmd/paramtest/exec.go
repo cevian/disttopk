@@ -256,10 +256,10 @@ func (t *Test) GetProtocols() []runner.Runner {
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbr2RRunner() }
 	//return []runner.Runner{runner.NewMagicRunner()}
 	//return []runner.Runner{runner.NewTputHRunner()}
-	//return []runner.Runner{runner.NewSbrErRunner()}
+	return []runner.Runner{runner.NewSbrErRunner()}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner()}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner()}
-	return GetRunners()
+	//return GetRunners()
 }
 
 func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStats {
@@ -295,14 +295,15 @@ func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStat
 		fmt.Printf("Start Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
 		fmt.Println("---- Running:", proto.GetName(), rd.String())
-		proto_list, res := proto.Run(l, hts, rd.k, ground_truth, NestIdeal)
+		//proto_list, res := proto.Run(l, hts, rd.k, ground_truth, NestIdeal)
+		proto_list, res := proto.(*runner.TwoRoundRunner).RunNetwork(l, hts, rd.k, ground_truth, NestIdeal)
 		res.CalculatePerformance(ground_truth, proto_list, rd.k)
 		if proto.IsExact() && res.Abs_err != 0.0 {
 			PrintDiff(ground_truth, proto_list, rd.k)
 			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.GetName(), res.Abs_err))
 		}
 		results[proto.GetName()] = res
-		fmt.Println("Result:", proto.GetName(), "Bytes", res.Bytes_transferred, "Rounds", res.Rounds)
+		fmt.Println("Result:", proto.GetName(), "Bytes", res.Bytes_transferred, "Rounds", res.Rounds, "Duration", res.Took)
 		runtime.ReadMemStats(mem)
 		fmt.Printf("Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
