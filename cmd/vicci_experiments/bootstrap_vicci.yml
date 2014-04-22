@@ -1,0 +1,15 @@
+---
+- hosts: setup
+#  serial: 2
+  tasks:
+    #- service: name=network state=restarted
+    - name: install packages
+      yum: name=$item state=present
+      with_items:
+        - python-setuptools
+        - gcc
+    - action: easy_install name=pip
+    - action: pip name=$item state=present extra_args='--pre'
+      with_items:
+        - python-keyczar
+
