@@ -90,7 +90,9 @@ func (t Item) MarshalBinary() ([]byte, error) {
 	if err := t.Serialize(buf); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	out := buf.Bytes()
+	//fmt.Println("Serializing", len(out))
+	return out, nil
 }
 
 func (t *Item) UnmarshalBinary(data []byte) error {

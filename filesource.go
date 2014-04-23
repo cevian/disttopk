@@ -53,7 +53,9 @@ func (this *FileSource) ReadFilesAndCache(fileglob string, cachebase string) []I
 			panic(err)
 		}
 		enc := gob.NewEncoder(f)
-		enc.Encode(l)
+		if err := enc.Encode(l); err != nil {
+			panic(err)
+		}
 		f.Close()
 		fmt.Println("Finished Generating cache", cachefilename)
 	}
