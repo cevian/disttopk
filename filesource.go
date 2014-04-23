@@ -3,6 +3,7 @@ package disttopk
 import (
 	"encoding/gob"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -53,8 +54,10 @@ func (this *FileSource) ReadFilesAndCache(fileglob string, cachebase string) []I
 			panic(err)
 		}
 		enc := gob.NewEncoder(f)
-		if err := enc.Encode(l); err != nil {
-			panic(err)
+		for _, item := range l {
+			if err := enc.Encode(item); err != nil {
+				panic(err)
+			}
 		}
 		f.Close()
 		fmt.Println("Finished Generating cache", cachefilename)
@@ -65,8 +68,16 @@ func (this *FileSource) ReadFilesAndCache(fileglob string, cachebase string) []I
 	}
 	dec := gob.NewDecoder(f)
 	var l []ItemList
-	if err = dec.Decode(&l); err != nil {
-		panic(err)
+	var i ItemList
+	for {
+		err = dec.Decode(&i)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
+		l = append(l, i)
 	}
 	return l
 }
