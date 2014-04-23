@@ -54,9 +54,18 @@ func (this *FileSource) ReadFilesAndCache(fileglob string, cachebase string) []I
 			panic(err)
 		}
 		enc := gob.NewEncoder(f)
-		for _, item := range l {
-			if err := enc.Encode(item); err != nil {
+		for _, itemlist := range l {
+			if err := enc.Encode(len(itemlist)); err != nil {
 				panic(err)
+			}
+			for _, item := range itemlist {
+				if err := enc.Encode(item.Id); err != nil {
+					panic(err)
+				}
+				if err := enc.Encode(item.Score); err != nil {
+					panic(err)
+				}
+
 			}
 		}
 		f.Close()
@@ -68,16 +77,28 @@ func (this *FileSource) ReadFilesAndCache(fileglob string, cachebase string) []I
 	}
 	dec := gob.NewDecoder(f)
 	var l []ItemList
-	var i ItemList
 	for {
-		err = dec.Decode(&i)
+		length := 0
+		err = dec.Decode(&length)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
 			panic(err)
 		}
-		l = append(l, i)
+		il := NewItemList()
+		for i := 0; i < length; i++ {
+			item := Item{}
+			if err := dec.Decode(&item.Id); err != nil {
+				panic(err)
+			}
+			if err := dec.Decode(&item.Score); err != nil {
+				panic(err)
+			}
+
+			il = append(il, item)
+		}
+		l = append(l, il)
 	}
 	return l
 }
