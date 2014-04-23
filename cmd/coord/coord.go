@@ -16,6 +16,7 @@ import (
 
 var suite = flag.String("suite", "Distribution", "suite to run")
 var peers = flag.Int("peers", 0, "Num Peers")
+var coord_ip = flag.String("coordIp", "", "IP of coord")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var keyClient = flag.Bool("keyclient", false, "key on client")
@@ -109,7 +110,7 @@ func main() {
 
 	runners := common.GetRunners()
 
-	stats := Run("127.0.0.1", l, runners, 10)
+	stats := Run(*coord_ip, l, runners, 10)
 	desc := printers.ExportPrinter(rd, runners, stats)
 	fmt.Println(desc)
 }
