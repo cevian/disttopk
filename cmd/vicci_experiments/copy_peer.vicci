@@ -1,0 +1,8 @@
+---
+- hosts: setup
+#- connection: fireball
+  tasks:
+  - name: copy deploy key
+    copy: src=/home/arye/goprojects/src/github.com/cevian/disttopk/cmd/peer/peer dest=/root/peer mode=0700
+
+

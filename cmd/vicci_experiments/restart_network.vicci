@@ -1,0 +1,8 @@
+---
+- hosts: setup
+#- connection: fireball
+  tasks:
+  - name: restart network
+    service: name=network state=restarted
+
+
