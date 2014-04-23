@@ -1,0 +1,6 @@
+---
+- hosts: setup
+#- connection: fireball
+  tasks:
+  - name: copy data
+    shell: nohup ./peer -suite WC -dataPath /root/ -coordIp 128.112.7.149 -index={{ server_index }} 0<&- &> peer.out & chdir=/root/

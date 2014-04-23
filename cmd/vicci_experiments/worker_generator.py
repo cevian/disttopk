@@ -5,17 +5,16 @@ servers = []
 #  servers.append("node"+str(i)+".mpisws.vicci.org")
 #  servers.append("node"+str(i)+".gt.vicci.org")
 
-s_as_str = """node10.gt.vicci.org
-node1.gt.vicci.org
-node2.gt.vicci.org
-node14.gt.vicci.org
-node3.gt.vicci.org
-node5.gt.vicci.org
-node6.gt.vicci.org
-node20.gt.vicci.org
-node8.gt.vicci.org
-node32.gt.vicci.org
-node24.gt.vicci.org
+s_as_str = """node1.washington.vicci.org
+node2.washington.vicci.org
+node3.washington.vicci.org
+node21.washington.vicci.org
+node5.washington.vicci.org
+node22.washington.vicci.org
+node23.washington.vicci.org
+node27.washington.vicci.org
+node25.washington.vicci.org
+node10.washington.vicci.org
 node10.mpisws.vicci.org
 node11.mpisws.vicci.org
 node30.mpisws.vicci.org
@@ -38,6 +37,7 @@ node3.mpisws.vicci.org
 node4.mpisws.vicci.org
 node5.mpisws.vicci.org
 node6.mpisws.vicci.org
+node7.mpisws.vicci.org
 """
 #node31.washington.vicci.org
 #node35.washington.vicci.org
@@ -61,9 +61,15 @@ servers = [s for s in s_as_str.splitlines()]
 
 #servers=["node1.mpisws.vicci.org"]
 
+print """[workers:children]
+setup
+
+[setup]"""
+
 for index, server in enumerate(servers):
   print server + " public_ip=" +socket.gethostbyname(server)+" server_index="+str(index)
 
-print "---------------"
+print "#---------------"
+print "#",
 for server in servers:
   print server,

@@ -1,0 +1,6 @@
+---
+- hosts: setup
+#- connection: fireball
+  tasks:
+  - name: start peer
+    shell: nohup ./peer -suite WC -dataPath /home/arye/disttopk_sns_experiment/cache/ -coordIp 128.112.7.149 -index={{ server_index }} 0<&- &> peer.out & chdir=/home/arye/disttopk_sns_experiment/

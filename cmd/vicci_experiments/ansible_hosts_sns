@@ -1,0 +1,39 @@
+[workers:children]
+setup
+
+[setup]
+sns1.cs.princeton.edu public_ip=128.112.7.80 server_index=0
+sns2.cs.princeton.edu public_ip=128.112.7.31 server_index=1
+sns3.cs.princeton.edu public_ip=128.112.7.38 server_index=2
+sns5.cs.princeton.edu public_ip=128.112.7.47 server_index=3
+sns6.cs.princeton.edu public_ip=128.112.7.34 server_index=4
+sns9.cs.princeton.edu public_ip=128.112.7.44 server_index=5
+sns10.cs.princeton.edu public_ip=128.112.7.40 server_index=6
+sns12.cs.princeton.edu public_ip=128.112.7.55 server_index=7
+sns13.cs.princeton.edu public_ip=128.112.7.71 server_index=8
+sns14.cs.princeton.edu public_ip=128.112.7.68 server_index=9
+sns15.cs.princeton.edu public_ip=128.112.7.58 server_index=10
+sns16.cs.princeton.edu public_ip=128.112.7.52 server_index=11
+sns17.cs.princeton.edu public_ip=128.112.7.77 server_index=12
+sns18.cs.princeton.edu public_ip=128.112.7.76 server_index=13
+sns19.cs.princeton.edu public_ip=128.112.7.61 server_index=14
+sns20.cs.princeton.edu public_ip=128.112.7.54 server_index=15
+sns21.cs.princeton.edu public_ip=128.112.7.45 server_index=16
+sns22.cs.princeton.edu public_ip=128.112.7.64 server_index=17
+sns23.cs.princeton.edu public_ip=128.112.7.70 server_index=18
+sns24.cs.princeton.edu public_ip=128.112.7.74 server_index=19
+sns25.cs.princeton.edu public_ip=128.112.7.36 server_index=20
+sns26.cs.princeton.edu public_ip=128.112.7.93 server_index=21
+sns27.cs.princeton.edu public_ip=128.112.7.90 server_index=22
+sns38.cs.princeton.edu public_ip=128.112.7.128 server_index=23
+sns39.cs.princeton.edu public_ip=128.112.7.129 server_index=24
+sns40.cs.princeton.edu public_ip=128.112.7.82 server_index=25
+sns42.cs.princeton.edu public_ip=128.112.7.132 server_index=26
+sns47.cs.princeton.edu public_ip=128.112.7.137 server_index=27
+sns48.cs.princeton.edu public_ip=128.112.7.136 server_index=28
+sns49.cs.princeton.edu public_ip=128.112.7.139 server_index=29
+sns50.cs.princeton.edu public_ip=128.112.7.140 server_index=30
+sns51.cs.princeton.edu public_ip=128.112.7.141 server_index=31
+sns53.cs.princeton.edu public_ip=128.112.7.143 server_index=32
+#---------------
+# sns1.cs.princeton.edu sns2.cs.princeton.edu sns3.cs.princeton.edu sns5.cs.princeton.edu sns6.cs.princeton.edu sns9.cs.princeton.edu sns10.cs.princeton.edu sns12.cs.princeton.edu sns13.cs.princeton.edu sns14.cs.princeton.edu sns15.cs.princeton.edu sns16.cs.princeton.edu sns17.cs.princeton.edu sns18.cs.princeton.edu sns19.cs.princeton.edu sns20.cs.princeton.edu sns21.cs.princeton.edu sns22.cs.princeton.edu sns23.cs.princeton.edu sns24.cs.princeton.edu sns25.cs.princeton.edu sns26.cs.princeton.edu sns27.cs.princeton.edu sns38.cs.princeton.edu sns39.cs.princeton.edu sns40.cs.princeton.edu sns42.cs.princeton.edu sns47.cs.princeton.edu sns48.cs.princeton.edu sns49.cs.princeton.edu sns50.cs.princeton.edu sns51.cs.princeton.edu sns53.cs.princeton.edu
