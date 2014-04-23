@@ -17,6 +17,7 @@ import (
 
 var suite = flag.String("suite", "Distribution", "suite to run")
 var data_path = flag.String("dataPath", BASE_DATA_PATH, "base data path")
+var coord_ip = flag.String("coordIp", "127.0.0.1", "Ip of coordinator")
 var index = flag.Int("index", 0, "index of peer")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
@@ -109,6 +110,6 @@ func main() {
 	fmt.Println("List Tail: ", l[0][len(l[0])-3:], l[1][len(l[1])-3:])
 
 	runners := common.GetRunners()
-	Run("127.0.0.1", *index, l, runners, 10)
+	Run(*coord_ip, *index, l, runners, 10)
 	fmt.Println("Done")
 }
