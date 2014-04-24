@@ -88,7 +88,7 @@ func NewBloomHistogramMergeSketchAdaptor() UnionSketchAdaptor {
 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
 	bs := frs.(*disttopk.BloomHistogram)
-	mhm := &MaxHashMapUnionSketch{disttopk.NewMaxHashMap(len(il))}
+	mhm := &MaxHashMapUnionSketch{disttopk.NewMaxHashMap(bs.SumLen() * len(il))}
 	mhm.Merge(bs, il)
 	return mhm
 }
