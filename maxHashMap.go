@@ -7,6 +7,8 @@ import (
 
 import typesort "github.com/cevian/disttopk/sort"
 
+/*
+
 type MaxHashMap struct {
 	data             map[uint32]int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
 	data_under       map[uint32]int64 //the unse-approximation
@@ -19,6 +21,78 @@ type MaxHashMap struct {
 func NewMaxHashMap(length_hint int) *MaxHashMap {
 	fmt.Println("Mhm Length hint", length_hint)
 	return &MaxHashMap{make(map[uint32]int64, length_hint), make(map[uint32]int64, length_hint), 0, make(map[uint32]bool, length_hint), 0, 0}
+}
+
+
+func (t *MaxHashMap) SetModulusBits(bits int) {
+	t.modulus_bits = uint32(bits)
+	t.min_modulus_bits = t.modulus_bits
+}
+
+func (t *MaxHashMap) resetCutoffMap() {
+	t.cutoff_map = make(map[uint32]bool)
+
+}
+
+func (t *MaxHashMap) GetMinModulusBitsMap(m map[uint32]int64) map[uint32]int64 {
+	min_modulus := uint32(1 << t.min_modulus_bits)
+	res := make(map[uint32]int64)
+	for hv, count := range m {
+		//max and not addition is the right thing here.
+		//it prevent double counting thing that were a smaller modulus and then copied to several times in the larger modulus
+		//not sure this is conservative, things that should have been added, already were in the larger modulus
+		if res[hv%min_modulus] < count {
+			res[hv%min_modulus] = count
+		}
+	}
+	return res
+}
+
+*/
+
+type MaxHashMap struct {
+	data             []int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
+	data_under       []int64 //the unse-approximation
+	cutoff           uint32
+	cutoff_map       []bool
+	modulus_bits     uint32
+	min_modulus_bits uint32
+}
+
+func NewMaxHashMap(length_hint int) *MaxHashMap {
+	fmt.Println("Mhm Length hint", length_hint)
+	return &MaxHashMap{nil, nil, 0, nil, 0, 0}
+}
+
+func (t *MaxHashMap) SetModulusBits(bits int) {
+	t.modulus_bits = uint32(bits)
+	t.min_modulus_bits = t.modulus_bits
+
+	modulus := 1 << uint32(bits)
+	t.data = make([]int64, modulus)
+	t.data_under = make([]int64, modulus)
+	t.cutoff_map = make([]bool, modulus)
+
+}
+
+func (t *MaxHashMap) resetCutoffMap() {
+	modulus := 1 << uint32(t.modulus_bits)
+	t.cutoff_map = make([]bool, modulus)
+
+}
+
+func (t *MaxHashMap) GetMinModulusBitsMap(m []int64) []int64 {
+	min_modulus := (1 << t.min_modulus_bits)
+	res := make([]int64, min_modulus)
+	for hv, count := range m {
+		//max and not addition is the right thing here.
+		//it prevent double counting thing that were a smaller modulus and then copied to several times in the larger modulus
+		//not sure this is conservative, things that should have been added, already were in the larger modulus
+		if res[hv%min_modulus] < count {
+			res[hv%min_modulus] = count
+		}
+	}
+	return res
 }
 
 func (t *MaxHashMap) GetInfo() string {
@@ -50,11 +124,6 @@ func (t *MaxHashMap) addData(hashValue uint, max uint, min uint, cutoff uint) {
 
 	}
 	t.data_under[uint32(hashValue)] += int64(min)
-}
-
-func (t *MaxHashMap) SetModulusBits(bits int) {
-	t.modulus_bits = uint32(bits)
-	t.min_modulus_bits = t.modulus_bits
 }
 
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
@@ -102,7 +171,7 @@ func (t *MaxHashMap) AddCutoff(c uint) {
 		panic("Overflow")
 	}
 	t.cutoff += uint32(c)
-	t.cutoff_map = make(map[uint32]bool)
+	t.resetCutoffMap()
 }
 
 func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
@@ -120,7 +189,7 @@ func (t *MaxHashMap) GetFilter(thresh int64) (*Gcs, int64) {
 	for hashValue, mapValue := range t.data {
 		if mapValue >= mapValueThresh {
 			//fmt.Println("Diff", mapValue-mapValueThresh, mapValue, mapValueThresh, count)
-			gcs.Data.Insert(hashValue)
+			gcs.Data.Insert(uint32(hashValue))
 		} else {
 			value := mapValue + int64(t.cutoff)
 			if value > maxNotIncluded {
@@ -173,20 +242,6 @@ func (t *MaxHashMap) GetMaxCutoff(thresh int64) int64 {
 	//x = thresh-max
 
 	return (max - 1) + int64(t.cutoff)
-}
-
-func (t *MaxHashMap) GetMinModulusBitsMap(m map[uint32]int64) map[uint32]int64 {
-	min_modulus := uint32(1 << t.min_modulus_bits)
-	res := make(map[uint32]int64)
-	for hv, count := range m {
-		//max and not addition is the right thing here.
-		//it prevent double counting thing that were a smaller modulus and then copied to several times in the larger modulus
-		//not sure this is conservative, things that should have been added, already were in the larger modulus
-		if res[hv%min_modulus] < count {
-			res[hv%min_modulus] = count
-		}
-	}
-	return res
 }
 
 func (t *MaxHashMap) UnderApprox(maxNumberHashValues int) int64 {
