@@ -259,7 +259,7 @@ func (t *Test) GetProtocols() []runner.Runner {
 
 	//return []runner.Runner{runner.NewTputRunner(), runner.NewTputHRunner(), runner.NewTputERRunner(), runner.NewSbrErRunner(), runner.NewSbr2RRunner(), runner.NewNaiveK2Runner(), runner.NewNaiveExactRunner(), runner.NewKlee3Runner(), runner.NewKlee4Runner()}
 
-	return []runner.Runner{runner.NewNaiveExactRunner()}
+	return []runner.Runner{runner.NewSbr2RRunner()}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner()}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner()}
 	//return GetRunners()

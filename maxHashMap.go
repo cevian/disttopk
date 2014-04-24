@@ -17,6 +17,7 @@ type MaxHashMap struct {
 }
 
 func NewMaxHashMap(length_hint int) *MaxHashMap {
+	fmt.Println("Mhm Length hint", length_hint)
 	return &MaxHashMap{make(map[uint32]int64, length_hint), make(map[uint32]int64, length_hint), 0, make(map[uint32]bool, length_hint), 0, 0}
 }
 

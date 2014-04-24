@@ -78,6 +78,7 @@ func (t *BhErUnionSketch) GetMaxHashMap(modulus_bits int) *MaxHashMapUnionSketch
 
 func (t *BhErUnionSketch) GetFilter(thresh int64) (*disttopk.Gcs, int64) {
 	mhm := t.GetMaxHashMap(t.GetMinModulusBits())
+	fmt.Println("Mhm info on get filter", mhm.GetInfo())
 	return mhm.GetFilter(thresh)
 }
 

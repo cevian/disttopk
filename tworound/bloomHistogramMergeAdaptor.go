@@ -88,25 +88,42 @@ func NewBloomHistogramMergeSketchAdaptor() UnionSketchAdaptor {
 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
 	bs := frs.(*disttopk.BloomHistogram)
-	mhm := &MaxHashMapUnionSketch{disttopk.NewMaxHashMap(bs.SumLen() * len(il))}
-	mhm.Merge(bs, il)
-	return mhm
+	bhers := NewBhErUnionSketch()
+	bhers.MergeFirstRound(bs, il, peerId)
+	return bhers
+	/*
+		bs := frs.(*disttopk.BloomHistogram)
+		mhm := &MaxHashMapUnionSketch{disttopk.NewMaxHashMap(bs.SumLen() * len(il))}
+		mhm.Merge(bs, il)
+		return mhm
+	*/
 }
 
 func (t *BloomHistogramMergeSketchAdaptor) mergeIntoUnionSketch(us UnionSketch, frs FirstRoundSketch, il disttopk.ItemList, peerId int) {
-	mhm := us.(*MaxHashMapUnionSketch)
+	bhers := us.(*BhErUnionSketch)
 	bs := frs.(*disttopk.BloomHistogram)
-	mhm.Merge(bs, il)
+	bhers.MergeFirstRound(bs, il, peerId)
+	/*mhm := us.(*MaxHashMapUnionSketch)
+	bs := frs.(*disttopk.BloomHistogram)
+	mhm.Merge(bs, il)*/
 }
 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
-	bs := us.(*MaxHashMapUnionSketch)
-	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
+	bs := us.(*BhErUnionSketch)
+
 	flt, v := bs.GetFilter(int64(thresh))
 	if flt != nil {
 		return flt, uint(v)
 	}
 	return nil, uint(v)
+
+	/*bs := us.(*MaxHashMapUnionSketch)
+	//fmt.Println("Uf info before set thresh: ", bs.GetInfo())
+	flt, v := bs.GetFilter(int64(thresh))
+	if flt != nil {
+		return flt, uint(v)
+	}
+	return nil, uint(v)*/
 }
 
 func (t *BloomHistogramMergeSketchAdaptor) copyUnionFilter(uf UnionFilter) UnionFilter {
