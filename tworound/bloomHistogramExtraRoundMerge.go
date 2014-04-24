@@ -62,7 +62,13 @@ func (t *BhErUnionSketch) GetMinModulusBits() int {
 }
 
 func (t *BhErUnionSketch) GetMaxHashMap(modulus_bits int) *MaxHashMapUnionSketch {
-	mhm := NewMaxHashMapUnionSketch()
+
+	length_hint := 0
+	for _, bh := range t.bhs {
+		length_hint += bh.SumLen()
+	}
+
+	mhm := NewMaxHashMapUnionSketch(length_hint)
 	mhm.SetModulusBits(modulus_bits)
 	for peer_id, bh := range t.bhs {
 		mhm.Merge(bh, t.ils[peer_id])

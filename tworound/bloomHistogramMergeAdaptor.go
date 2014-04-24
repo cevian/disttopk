@@ -60,8 +60,8 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 	//fmt.Println("Cutoff after", b.Cutoff(), count, len(test))
 }
 
-func NewMaxHashMapUnionSketch() *MaxHashMapUnionSketch {
-	return &MaxHashMapUnionSketch{disttopk.NewMaxHashMap()}
+func NewMaxHashMapUnionSketch(length_hint int) *MaxHashMapUnionSketch {
+	return &MaxHashMapUnionSketch{disttopk.NewMaxHashMap(length_hint)}
 }
 
 /*type BloomHistogramSketchWraper struct {
@@ -88,7 +88,7 @@ func NewBloomHistogramMergeSketchAdaptor() UnionSketchAdaptor {
 
 func (t *BloomHistogramMergeSketchAdaptor) getUnionSketch(frs FirstRoundSketch, il disttopk.ItemList, peerId int) UnionSketch {
 	bs := frs.(*disttopk.BloomHistogram)
-	mhm := &MaxHashMapUnionSketch{disttopk.NewMaxHashMap()}
+	mhm := &MaxHashMapUnionSketch{disttopk.NewMaxHashMap(len(il))}
 	mhm.Merge(bs, il)
 	return mhm
 }

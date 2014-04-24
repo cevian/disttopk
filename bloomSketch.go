@@ -129,13 +129,13 @@ func (p PlainFilterAdaptor) CreateBloomFilterToDeserialize() BloomFilter {
 	return &Bloom{}
 }
 
-type EstimateParameter struct{
-	NestimateParameter float64
-	Adjuster float64
+type EstimateParameter struct {
+	NestimateParameter         float64
+	Adjuster                   float64
 	DisableProbabilityAdjuster bool
 }
 
-type GcsFilterAdaptor struct{
+type GcsFilterAdaptor struct {
 	Est EstimateParameter
 }
 
@@ -156,7 +156,6 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 		panic("wtf")
 	}
 
-
 	//eps := EstimateEpsGcsAdjuster(N_est, n, RECORD_SIZE*8, numpeers+1, adjuster)
 	eps := EstimateEpsGcsAlt(n, RECORD_SIZE*8, numpeers, estimateN, 2, adjuster, listlen)
 	//eps := 0.01
@@ -164,7 +163,7 @@ func (p GcsFilterAdaptor) CreateBloomEntryFilter(N_est int, n int, numpeers int,
 	//fmt.Println("Eps ", eps, "n", n, "m_est", m_est)
 	m_log := GetRoundedBits(m_est)
 	if p.Est.Adjuster != 1.0 {
-		m_log = int(float64(m_log)* p.Est.Adjuster)
+		m_log = int(float64(m_log) * p.Est.Adjuster)
 	}
 	m := GetValueFromBits(m_log)
 	if m == 0 {
@@ -361,6 +360,15 @@ func (s *BloomSketch) GetIndexes(key []byte) []uint32 {
 	return nil
 }
 */
+
+func (s *BloomHistogram) SumLen() int {
+	length := 0
+	for _, entry := range s.Data {
+		length += entry.filter.Len()
+	}
+	return length
+}
+
 func (s *BloomHistogram) NumberHashes() int {
 	max := 0
 	for _, entry := range s.Data {

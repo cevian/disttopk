@@ -18,6 +18,7 @@ type BloomFilter interface {
 	QueryHashValues(hvs []uint32) bool
 	Query(key []byte) bool
 	NumberHashes() int
+	Len() int
 	GetHashValues(key []byte) []uint32
 }
 

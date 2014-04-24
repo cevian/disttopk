@@ -16,8 +16,8 @@ type MaxHashMap struct {
 	min_modulus_bits uint32
 }
 
-func NewMaxHashMap() *MaxHashMap {
-	return &MaxHashMap{make(map[uint32]int64), make(map[uint32]int64), 0, make(map[uint32]bool), 0, 0}
+func NewMaxHashMap(length_hint int) *MaxHashMap {
+	return &MaxHashMap{make(map[uint32]int64, length_hint), make(map[uint32]int64, length_hint), 0, make(map[uint32]bool, length_hint), 0, 0}
 }
 
 func (t *MaxHashMap) GetInfo() string {
@@ -52,8 +52,8 @@ func (t *MaxHashMap) addData(hashValue uint, max uint, min uint, cutoff uint) {
 }
 
 func (t *MaxHashMap) SetModulusBits(bits int) {
-		t.modulus_bits = uint32(bits)
-		t.min_modulus_bits = t.modulus_bits
+	t.modulus_bits = uint32(bits)
+	t.min_modulus_bits = t.modulus_bits
 }
 
 func (t *MaxHashMap) Add(hashValue uint, modulus_bits uint, max uint, min uint, cutoff uint) {
@@ -146,7 +146,7 @@ func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filter
 	count := 0
 	minover := int64(0)
 	for _, mapValue := range t.data {
-		if mapValue >= mapValueThresh && (minover == 0 || mapValue < minover){
+		if mapValue >= mapValueThresh && (minover == 0 || mapValue < minover) {
 			minover = mapValue
 		}
 		if mapValue >= mapValueThresh && mapValue < mapValueFilter {
@@ -156,7 +156,7 @@ func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filter
 	}
 	next := int64(0)
 	if minover > 0 && minover < thresh {
-		next = thresh-(minover+1)
+		next = thresh - (minover + 1)
 	}
 	return count, next
 }

@@ -6,7 +6,7 @@ import (
 	"io"
 	"math"
 
-//	"sort"
+	//	"sort"
 )
 
 type Gcs struct {
@@ -82,7 +82,6 @@ func (t *HashValueSlice) Insert(v uint32) {
 func (t *HashValueSlice) Remove(v uint32) {
 	delete(t.hvs, v)
 }
-
 
 func (t *HashValueSlice) InsertAll(n *HashValueSlice) {
 	for k, _ := range n.hvs {
@@ -163,9 +162,9 @@ func EstimateEpsGcsAlt(n_est int, penalty_bits int, numNodes int, items int, num
 	// 0 =   -1  * s * n * x * 1.44 / ln (2) * 1 / eps + (U-x) * p * A
 	// ( s* n *x * (1.44 / ln (2))) / ((U -x) * p* A) = eps
 	// eps = s * n * 1.44 / (U/x -1) * p * ln (2)
-	avg_nodes_per_item := (float64(numNodes) * float64(itemslocallist)) / float64(items) 
+	avg_nodes_per_item := (float64(numNodes) * float64(itemslocallist)) / float64(items)
 	size_adj := 0.8
-	eps := (float64(numTransfers) *float64(numNodes)* size_adj * 1.44) / (float64(penalty_bits) * avg_nodes_per_item * adjuster * math.Log(2) * (float64(items/n_est) - 1.0))
+	eps := (float64(numTransfers) * float64(numNodes) * size_adj * 1.44) / (float64(penalty_bits) * avg_nodes_per_item * adjuster * math.Log(2) * (float64(items/n_est) - 1.0))
 	/*
 		effective_m := float64(n_est) * size_adj * 1.44 * (1.0 / math.Log(2)) * math.Log(1.0/eps)
 		sketch := (effective_m + (9.0 * 8.0)) * float64(numNodes) //9 bytes is the overhead
@@ -233,6 +232,10 @@ func (b *Gcs) ByteSize() int {
 	return (b.Data.Len() * 4)
 }
 
+func (b *Gcs) Len() int {
+	return (b.Data.Len())
+}
+
 func (s *Gcs) AddString(key string) {
 	s.Add([]byte(key))
 }
@@ -263,10 +266,10 @@ func (t *Gcs) SubtractGcs(other *Gcs) {
 	if other == nil {
 		panic("Other is nil")
 	}
-	if t.Columns != other.Columns{
+	if t.Columns != other.Columns {
 		panic(fmt.Sprintf("SNH", t.Columns, other.Columns))
 	}
-	other.Data.Eval(func (hv uint32) {t.Data.Remove(hv)})
+	other.Data.Eval(func(hv uint32) { t.Data.Remove(hv) })
 }
 
 func (s *Gcs) NumberHashes() int {
@@ -295,7 +298,7 @@ func (s *Gcs) Query(key []byte) bool {
 
 func (s *Gcs) GetCompressedSizeExpensive() int {
 	buf, err := SerializeObject(s)
-	if err != nil{
+	if err != nil {
 		panic(err)
 	}
 	return len(buf)
