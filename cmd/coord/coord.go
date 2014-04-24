@@ -24,14 +24,6 @@ var keyClient = flag.Bool("keyclient", false, "key on client")
 const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
 
 func Run(ip string, l []disttopk.ItemList, protos []runner.Runner, k int) map[string]disttopk.AlgoStats {
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
 
 	hts := disttopk.MakeHashTables(l)
 	NestIdeal := printers.GetNEst(l)
@@ -55,7 +47,21 @@ func Run(ip string, l []disttopk.ItemList, protos []runner.Runner, k int) map[st
 
 		fmt.Println("---- Running:", proto.GetName())
 		//proto_list, res := proto.RunCoord(l, hts, k, ground_truth, NestIdeal)
+
+		if *cpuprofile != "" {
+			profname := fmt.Sprintf("%s.%s", *cpuprofile, proto.GetName())
+			f, err := os.Create(profname)
+			if err != nil {
+				log.Fatal(err)
+			}
+			pprof.StartCPUProfile(f)
+		}
 		proto_list, res := proto.(runner.NetworkRunner).RunCoord(fmt.Sprintf("%s:%d", ip, 7000+i), l, hts, k, ground_truth, NestIdeal)
+		if *cpuprofile != "" {
+
+			pprof.StopCPUProfile()
+		}
+
 		res.CalculatePerformance(ground_truth, proto_list, k)
 		if proto.IsExact() && res.Abs_err != 0.0 {
 			printers.PrintDiff(ground_truth, proto_list, k)
@@ -102,6 +108,10 @@ func main() {
 
 	if *peers > 0 {
 		l = l[0:*peers]
+	}
+
+	for i, il := range l {
+		fmt.Println("Peer length: ", i, len(il))
 	}
 
 	fmt.Println("Num Peers: ", len(l))

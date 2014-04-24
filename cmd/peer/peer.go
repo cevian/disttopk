@@ -26,15 +26,6 @@ var keyClient = flag.Bool("keyclient", false, "key on client")
 const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
 
 func Run(ip string, index int, l []disttopk.ItemList, protos []runner.Runner, k int) {
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-
 	my_l := l[index]
 
 	ht := my_l.MakeHashTable()
@@ -61,7 +52,18 @@ func Run(ip string, index int, l []disttopk.ItemList, protos []runner.Runner, k 
 
 		fmt.Println("---- Running:", proto.GetName())
 		//proto_list, res := proto.RunCoord(l, hts, k, ground_truth, NestIdeal)
+		if *cpuprofile != "" {
+			profname := fmt.Sprintf("%s.%s", *cpuprofile, proto.GetName())
+			f, err := os.Create(profname)
+			if err != nil {
+				log.Fatal(err)
+			}
+			pprof.StartCPUProfile(f)
+		}
 		proto.(runner.NetworkRunner).RunPeer(fmt.Sprintf("%s:%d", ip, 7000+i), len(l), my_l, ht, k, nil, NestIdeal)
+		if *cpuprofile != "" {
+			pprof.StopCPUProfile()
+		}
 		//res.CalculatePerformance(ground_truth, proto_list, k)
 		/*if proto.IsExact() && res.Abs_err != 0.0 {
 			printers.PrintDiff(ground_truth, proto_list, k)
