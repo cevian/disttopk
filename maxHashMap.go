@@ -76,9 +76,11 @@ func (t *MaxHashMap) SetModulusBits(bits int) {
 }
 
 func (t *MaxHashMap) resetCutoffMap() {
-	modulus := 1 << uint32(t.modulus_bits)
-	t.cutoff_map = make([]bool, modulus)
-
+	//modulus := 1 << uint32(t.modulus_bits)
+	//t.cutoff_map = make([]bool, modulus)
+	for i, _ := range t.cutoff_map {
+		t.cutoff_map[i] = false
+	}
 }
 
 func (t *MaxHashMap) GetMinModulusBitsMap(m []int64) []int64 {
