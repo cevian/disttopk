@@ -9,6 +9,7 @@ func GetRunners() []runner.Runner {
 		runner.NewTputERRunner(),
 		runner.NewSbrErRunner(),
 		runner.NewSbr2RRunner(),
+		runner.NewSbrARunner(),
 		runner.NewNaiveK2Runner(),
 		runner.NewNaiveExactRunner(),
 		runner.NewKlee3Runner(),
