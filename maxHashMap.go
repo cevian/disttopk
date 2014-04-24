@@ -219,6 +219,9 @@ func (t *MaxHashMap) GetCountHashesWithCutoff(thresh int64, cutoff int64, filter
 	count := 0
 	minover := int64(0)
 	for _, mapValue := range t.data {
+		if mapValue == 0 {
+			continue
+		}
 		if mapValue >= mapValueThresh && (minover == 0 || mapValue < minover) {
 			minover = mapValue
 		}
