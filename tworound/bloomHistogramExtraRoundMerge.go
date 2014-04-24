@@ -65,7 +65,7 @@ func (t *BhErUnionSketch) GetMaxHashMap(modulus_bits int) *MaxHashMapUnionSketch
 
 	length_hint := 0
 	for _, bh := range t.bhs {
-		length_hint += bh.SumLen()
+		length_hint += bh.SumLen(modulus_bits)
 	}
 
 	mhm := NewMaxHashMapUnionSketch(length_hint)

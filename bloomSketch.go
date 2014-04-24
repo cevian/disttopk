@@ -361,10 +361,15 @@ func (s *BloomSketch) GetIndexes(key []byte) []uint32 {
 }
 */
 
-func (s *BloomHistogram) SumLen() int {
+func (s *BloomHistogram) SumLen(modulus_bits int) int {
 	length := 0
 	for _, entry := range s.Data {
-		length += entry.filter.Len()
+		mod := int(math.Log2(float64(entry.filter.NumberHashes())))
+		mult := 1
+		if mod < modulus_bits {
+			mult = (modulus_bits - mod) + 1
+		}
+		length += entry.filter.Len() * mult
 	}
 	return length
 }
