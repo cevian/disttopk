@@ -85,6 +85,9 @@ func (t *MaxHashMap) GetMinModulusBitsMap(m []int64) []int64 {
 	min_modulus := (1 << t.min_modulus_bits)
 	res := make([]int64, min_modulus)
 	for hv, count := range m {
+		if count == 0 {
+			continue
+		}
 		//max and not addition is the right thing here.
 		//it prevent double counting thing that were a smaller modulus and then copied to several times in the larger modulus
 		//not sure this is conservative, things that should have been added, already were in the larger modulus
