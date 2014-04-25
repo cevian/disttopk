@@ -7,8 +7,6 @@ import (
 
 import typesort "github.com/cevian/disttopk/sort"
 
-/*
-
 type MaxHashMap struct {
 	data             map[uint32]int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
 	data_under       map[uint32]int64 //the unse-approximation
@@ -22,7 +20,6 @@ func NewMaxHashMap(length_hint int) *MaxHashMap {
 	fmt.Println("Mhm Length hint", length_hint)
 	return &MaxHashMap{make(map[uint32]int64, length_hint), make(map[uint32]int64, length_hint), 0, make(map[uint32]bool, length_hint), 0, 0}
 }
-
 
 func (t *MaxHashMap) SetModulusBits(bits int) {
 	t.modulus_bits = uint32(bits)
@@ -48,8 +45,7 @@ func (t *MaxHashMap) GetMinModulusBitsMap(m map[uint32]int64) map[uint32]int64 {
 	return res
 }
 
-*/
-
+/*
 type MaxHashMap struct {
 	data             []int64 //the over-approximation should be data[hash] + cutoff. maps hashValue => mapValue (max-cutoff)
 	data_under       []int64 //the unse-approximation
@@ -76,11 +72,8 @@ func (t *MaxHashMap) SetModulusBits(bits int) {
 }
 
 func (t *MaxHashMap) resetCutoffMap() {
-	//modulus := 1 << uint32(t.modulus_bits)
-	//t.cutoff_map = make([]bool, modulus)
-	for i, _ := range t.cutoff_map {
-		t.cutoff_map[i] = false
-	}
+	modulus := 1 << uint32(t.modulus_bits)
+	t.cutoff_map = make([]bool, modulus)
 }
 
 func (t *MaxHashMap) GetMinModulusBitsMap(m []int64) []int64 {
@@ -98,7 +91,7 @@ func (t *MaxHashMap) GetMinModulusBitsMap(m []int64) []int64 {
 		}
 	}
 	return res
-}
+}*/
 
 func (t *MaxHashMap) GetInfo() string {
 	return fmt.Sprintf("MaxHashMap, %v items, cutoff: %v, modulus_bits: %v", len(t.data), t.cutoff, t.modulus_bits)
@@ -126,7 +119,6 @@ func (t *MaxHashMap) addData(hashValue uint, max uint, min uint, cutoff uint) {
 		t.cutoff_map[uint32(hashValue)] = true
 	} else {
 		t.data[uint32(hashValue)] += int64(max)
-
 	}
 	t.data_under[uint32(hashValue)] += int64(min)
 }
