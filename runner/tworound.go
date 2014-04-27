@@ -306,3 +306,35 @@ func NewSbrErIdealOverRunner() *TwoRoundRunner {
 
 	return NewTwoRoundRunner(gen, "SBR-ER IO", true)
 }
+
+func NewSbrEr20OverRunner() *TwoRoundRunner {
+	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner {
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{NestimateParameter: 1.0, Adjuster: 1.2})
+	}
+
+	return NewTwoRoundRunner(gen, "SBR-ER 20 Over", true)
+}
+
+func NewSbrEr10OverRunner() *TwoRoundRunner {
+	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner {
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{NestimateParameter: 1.0, Adjuster: 1.1})
+	}
+
+	return NewTwoRoundRunner(gen, "SBR-ER 10 Over", true)
+}
+
+func NewSbrEr20UnderRunner() *TwoRoundRunner {
+	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner {
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{NestimateParameter: 1.0, Adjuster: 0.8})
+	}
+
+	return NewTwoRoundRunner(gen, "SBR-ER 20 Under", true)
+}
+
+func NewSbrEr10UnderRunner() *TwoRoundRunner {
+	gen := func(l []disttopk.ItemList, numpeer int, Nest int, topk int, GroundTruth disttopk.ItemList) *tworound.ProtocolRunner {
+		return tworound.NewExtraRoundBloomGcsMergeSplitPR(topk, numpeer, Nest, disttopk.EstimateParameter{NestimateParameter: 1.0, Adjuster: 0.9})
+	}
+
+	return NewTwoRoundRunner(gen, "SBR-ER 10 Under", true)
+}

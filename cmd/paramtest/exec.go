@@ -171,7 +171,8 @@ type Alternatives struct {
 }
 
 func (t *Alternatives) GetProtocols() []runner.Runner {
-	return []runner.Runner{runner.NewSbr2RRunner(), runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner(), runner.NewSbrErDisablePARunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner(), runner.NewSbrErMoreEntriesRunner()}
+	//return []runner.Runner{runner.NewSbr2RRunner(), runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner(), runner.NewSbrErDisablePARunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner(), runner.NewSbrErMoreEntriesRunner()}
+	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrEr20OverRunner(), runner.NewSbrEr10OverRunner(), runner.NewSbrEr20UnderRunner(), runner.NewSbrEr10UnderRunner()}
 }
 
 type Nestimate struct {
