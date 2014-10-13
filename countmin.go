@@ -20,6 +20,9 @@ const SERIALIZE_BAG = false //this is innefctive if using standard compression a
 const SERIALIZE_GCS = true
 const ADD_VALUES_ON_ADD = false
 
+var hasha []uint32 = nil
+var hashb []uint32 = nil
+
 type Sketch interface {
 	//Add([]byte, uint32)
 	Query([]byte) uint32
@@ -44,8 +47,10 @@ func NewCountMinHash(hashes int, columns int) *CountMinHash {
 		Columns: columns,
 	}
 
-	s.generateArrays()
+	generateArrays(s.Hashes)
 
+	s.hasha = hasha[:s.Hashes]
+	s.hashb = hashb[:s.Hashes]
 	return &s
 }
 
@@ -54,19 +59,18 @@ type countMinHashSerialized struct {
 	Columns *int
 }
 
-func (s *CountMinHash) generateArrays() {
-	r := rand.New(rand.NewSource(99))
+func generateArrays(hashes int) {
+	if hasha == nil || len(hasha) < hashes {
+		r := rand.New(rand.NewSource(99))
 
-	hasha := make([]uint32, s.Hashes)
-	hashb := make([]uint32, s.Hashes)
+		hasha = make([]uint32, hashes)
+		hashb = make([]uint32, hashes)
 
-	for k, _ := range hasha {
-		hasha[k] = r.Uint32()
-		hashb[k] = r.Uint32()
+		for k, _ := range hasha {
+			hasha[k] = r.Uint32()
+			hashb[k] = r.Uint32()
+		}
 	}
-
-	s.hasha = hasha
-	s.hashb = hashb
 }
 
 func (s *CountMinHash) GetHashValues(key []byte) []uint32 {
@@ -501,7 +505,9 @@ func (p *CountMinHash) Deserialize(r io.Reader) error {
 	}
 	p.Hashes = int(hashes)
 	p.Columns = int(columns)
-	p.generateArrays()
+	generateArrays(int(hashes))
+	p.hasha = hasha[:p.Hashes]
+	p.hashb = hashb[:p.Hashes]
 	return nil
 }
 
