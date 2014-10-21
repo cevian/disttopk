@@ -12,6 +12,7 @@ import (
 	"io"
 	"math"
 	"math/rand"
+	"sync"
 )
 
 const USE_NORMALIZATION = false //this saves a lot of bandwidth without gcs. With gcs (and maybe thresholding) not effective.
@@ -20,6 +21,7 @@ const SERIALIZE_BAG = false //this is innefctive if using standard compression a
 const SERIALIZE_GCS = true
 const ADD_VALUES_ON_ADD = false
 
+var hashmutex = &sync.Mutex{}
 var hasha []uint32 = nil
 var hashb []uint32 = nil
 
@@ -47,10 +49,11 @@ func NewCountMinHash(hashes int, columns int) *CountMinHash {
 		Columns: columns,
 	}
 
+	hashmutex.Lock()
 	generateArrays(s.Hashes)
-
 	s.hasha = hasha[:s.Hashes]
 	s.hashb = hashb[:s.Hashes]
+	hashmutex.Unlock()
 	return &s
 }
 
@@ -505,9 +508,12 @@ func (p *CountMinHash) Deserialize(r io.Reader) error {
 	}
 	p.Hashes = int(hashes)
 	p.Columns = int(columns)
+
+	hashmutex.Lock()
 	generateArrays(int(hashes))
 	p.hasha = hasha[:p.Hashes]
 	p.hashb = hashb[:p.Hashes]
+	hashmutex.Unlock()
 	return nil
 }
 
