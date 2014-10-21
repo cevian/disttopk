@@ -2,7 +2,9 @@
 - hosts: setup
 #- connection: fireball
   tasks:
-  - name: copy data
+  - name: copy data object
     copy: src=/home/arye/goprojects/src/github.com/cevian/disttopk/data/cache.wc.object dest=/root/cache.wc.object mode=0700
+#  - name: copy data client
+#    copy: src=/home/arye/goprojects/src/github.com/cevian/disttopk/data/cache.wc.client dest=/root/cache.wc.client mode=0700
 
 

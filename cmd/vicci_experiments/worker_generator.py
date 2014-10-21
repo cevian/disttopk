@@ -5,15 +5,15 @@ servers = []
 #  servers.append("node"+str(i)+".mpisws.vicci.org")
 #  servers.append("node"+str(i)+".gt.vicci.org")
 
-s_as_str = """node1.washington.vicci.org
+s_as_str = """node52.washington.vicci.org
 node2.washington.vicci.org
 node3.washington.vicci.org
 node21.washington.vicci.org
-node5.washington.vicci.org
-node22.washington.vicci.org
+node55.washington.vicci.org
+node56.washington.vicci.org
 node23.washington.vicci.org
-node27.washington.vicci.org
-node25.washington.vicci.org
+node58.washington.vicci.org
+node57.washington.vicci.org
 node10.washington.vicci.org
 node10.mpisws.vicci.org
 node11.mpisws.vicci.org

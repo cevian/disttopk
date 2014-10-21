@@ -236,7 +236,7 @@ func (src *Peer) Run() error {
 		}
 		final_list_round_access := &disttopk.AlgoStatsRound{Serial_items: len(secondlist), Transferred_items: len(secondlist)}
 		select {
-		case src.forward <- disttopk.DemuxObject{src.id, &FinalListReply{secondlist, final_list_round_access}}:
+		case src.forward <- disttopk.DemuxObject{src.id, FinalListReply{secondlist, final_list_round_access}}:
 		case <-src.StopNotifier:
 			return nil
 		}
