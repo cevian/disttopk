@@ -7,7 +7,6 @@ import (
 	"github.com/cevian/disttopk/klee"
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
-	"github.com/cevian/disttopk/tput-hash"
 
 	"github.com/cevian/disttopk"
 	"github.com/cevian/disttopk/netchan"
@@ -62,8 +61,8 @@ func (t *SmartRunner) RunPeer(addr string, numpeer int, l disttopk.ItemList, ht 
 	defer client.Close()
 	fmt.Println("Connecting")
 	var err error
-	for i := 0; i < 2; i++ {
-		time.Sleep(100 * time.Millisecond)
+	for i := 0; i < 3; i++ {
+		time.Sleep(1000 * time.Millisecond)
 		err = client.Connect()
 		if err == nil {
 			break
