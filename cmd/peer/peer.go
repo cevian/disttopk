@@ -15,7 +15,7 @@ import (
 	"github.com/cevian/disttopk/runner"
 )
 
-var suite = flag.String("suite", "Distribution", "suite to run")
+var suite = flag.String("suite", "WC", "suite to run")
 var data_path = flag.String("dataPath", BASE_DATA_PATH, "base data path")
 var coord_ip = flag.String("coordIp", "127.0.0.1", "Ip of coordinator")
 var index = flag.Int("index", 0, "index of peer")
