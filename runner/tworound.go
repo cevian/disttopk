@@ -147,8 +147,8 @@ func (t *TwoRoundRunner) RunPeer(addr string, numpeer int, l disttopk.ItemList, 
 	defer client.Close()
 	fmt.Println("Connecting")
 	var err error
-	for i := 0; i < 2; i++ {
-		time.Sleep(100 * time.Millisecond)
+	for i := 0; i < 3; i++ {
+		time.Sleep(1000 * time.Millisecond)
 		err = client.Connect()
 		if err == nil {
 			break
