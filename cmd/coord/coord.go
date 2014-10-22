@@ -17,6 +17,7 @@ import (
 var suite = flag.String("suite", "Distribution", "suite to run")
 var peers = flag.Int("peers", 0, "Num Peers")
 var coord_ip = flag.String("coordIp", "", "IP of coord")
+var modServers = flag.Int("modServers", 33, "Number of servers for UCB")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var keyClient = flag.Bool("keyclient", false, "key on client")
@@ -97,6 +98,10 @@ func main() {
 		rd = &printers.WcRowDesc{KeyOnClient: *keyClient}
 		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"wc/wc_day*", BASE_DATA_PATH+"cache")
+	} else if *suite == "UCB" {
+		rd = &printers.UcbRowDesc{KeyOnClient: *keyClient, ModServers: *modServers}
+		fs := rd.GetFs()
+		l = fs.ReadFilesAndCache(BASE_DATA_PATH+"ucb/UCB-home*", BASE_DATA_PATH+"cache")
 	} else if *suite == "SYN" {
 		r := &printers.SynRowDesc{10, 10, 1000, 2.0, 10, 1.0, 1, 100}
 		l = disttopk.GetFullOverlapOrderPermutedSimpleListSeedOverlap(r.Nodes, uint32(r.N), r.Zip, r.Perms, r.Seed, r.Overlap)
