@@ -46,6 +46,7 @@ func (this *FileSource) ReadFiles(fileglob string) []ItemList {
 
 func (this *FileSource) ReadFilesAndCache(fileglob string, cachebase string) []ItemList {
 	cachefilename := cachebase + this.CacheFileNameSuffix()
+	fmt.Println("Cache file name", cachefilename)
 	if _, err := os.Stat(cachefilename); os.IsNotExist(err) {
 		fmt.Println("Generating cache", cachefilename)
 		l := this.ReadFiles(fileglob)
