@@ -7,6 +7,7 @@ import (
 	"github.com/cevian/disttopk/klee"
 	"github.com/cevian/disttopk/naive"
 	"github.com/cevian/disttopk/tput"
+	tput_hash "github.com/cevian/disttopk/tput-hash"
 
 	"github.com/cevian/disttopk"
 	"github.com/cevian/disttopk/netchan"
