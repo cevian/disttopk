@@ -116,11 +116,18 @@ func (this *UcbFileSourceAdaptor) FillMapFromFile(filename string, m map[uint32]
 				stringid = stringid[:18]
 			}
 			objectid, err := strconv.ParseUint(stringid, 10, 64)
+			
+                        cobjectid := int(uint32(objectid)) //prevents negative ids
+                        if objectid < 0 || cobjectid < 0 {
+				fmt.Println("(2) Object id < 0: ", objectid, cobjectid, r.Url)
+                                panic("snh");
+                        }			
+
 			if err != nil {
 				panic(err)
 			}
-			//fmt.Println("data:", r.Sip, objectid, int(objectid))
-			mi[int(objectid)] += 1
+			//fmt.Println("data:", r.Sip, objectid, cobjectid)
+			mi[cobjectid] += 1
 		}
 	}
 	fmt.Println("end err:", err, "servers", len(servers))
