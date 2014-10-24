@@ -126,7 +126,7 @@ func (t *CountArray) Deserialize(r io.Reader) error {
 
 	t.Data = make([]uint32, length)
 
-	br := NewBitReader(r)
+	br := NewBitReaderSize(r, int(length))
 	for k, _ := range t.Data {
 		val, err := br.ReadBits64(uint(bits))
 		if err != nil {
