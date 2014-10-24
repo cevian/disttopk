@@ -91,7 +91,45 @@ func (t *CountArray) GetValueBits() uint8 {
 }
 
 func (t *CountArray) Serialize(w io.Writer) error {
-	return t.SerializeBits(w, t.GetValueBits())
+	//return t.SerializeBits(w, t.GetValueBits())
+	return t.SerializeSimple(w)
+}
+
+func (t *CountArray) Deserialize(r io.Reader) error {
+	//return t.DeserializeBits(r)
+	return t.DeserializeSimple(r)
+}
+
+func (t *CountArray) SerializeSimple(w io.Writer) error {
+	length := uint32(len(t.Data))
+	if err := binary.Write(w, binary.BigEndian, &length); err != nil {
+		return err
+	}
+	for _, v := range t.Data {
+		if err := binary.Write(w, binary.BigEndian, &v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (t *CountArray) DeserializeSimple(r io.Reader) error {
+	length := uint32(0)
+	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
+		return err
+	}
+
+	t.Data = make([]uint32, length)
+
+	for k, _ := range t.Data {
+		val := uint32(0)
+		if err := binary.Read(r, binary.BigEndian, &val); err != nil {
+			return err
+		}
+
+		t.Data[k] = val
+	}
+	return nil
 }
 
 func (t *CountArray) SerializeBits(w io.Writer, bits uint8) error {
@@ -114,7 +152,7 @@ func (t *CountArray) SerializeBits(w io.Writer, bits uint8) error {
 	return bw.Close(true)
 }
 
-func (t *CountArray) Deserialize(r io.Reader) error {
+func (t *CountArray) DeserializeBits(r io.Reader) error {
 	length := uint32(0)
 	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
 		return err
