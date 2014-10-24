@@ -91,13 +91,13 @@ func (t *CountArray) GetValueBits() uint8 {
 }
 
 func (t *CountArray) Serialize(w io.Writer) error {
-	//return t.SerializeBits(w, t.GetValueBits())
-	return t.SerializeSimple(w)
+	return t.SerializeBits(w, t.GetValueBits())
+	//return t.SerializeSimple(w)
 }
 
 func (t *CountArray) Deserialize(r io.Reader) error {
-	//return t.DeserializeBits(r)
-	return t.DeserializeSimple(r)
+	return t.DeserializeBits(r)
+	//return t.DeserializeSimple(r)
 }
 
 func (t *CountArray) SerializeSimple(w io.Writer) error {

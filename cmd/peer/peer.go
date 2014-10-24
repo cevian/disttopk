@@ -105,7 +105,7 @@ func main() {
 		fs := rd.GetFs()
 		l = fs.ReadFilesAndCache(*data_path+"ucb/UCB-home*", *data_path+"cache")
 	} else if *suite == "SYN" {
-		r := &printers.SynRowDesc{10, 10, 1000, 2.0, 10, 1.0, 1, 100}
+		r := &printers.SynRowDesc{10, 10, 10000000, 2.0, 10, 1.0, 1, 100}
 		l = disttopk.GetFullOverlapOrderPermutedSimpleListSeedOverlap(r.Nodes, uint32(r.N), r.Zip, r.Perms, r.Seed, r.Overlap)
 		rd = r
 	} else {
