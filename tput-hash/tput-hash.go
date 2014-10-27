@@ -279,7 +279,10 @@ func (src *Coord) Run() error {
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case obj := <-src.input:
-			sr := obj.(*SecondRoundDeserialized)
+			sr, isSr := obj.(*SecondRoundDeserialized)
+			if !isSr {
+				sr = obj.(SecondRound).ParallelDeserialize().(*SecondRoundDeserialized)
+			}
 			bytes_cha += sr.BytesCha
 			cha_got := sr.Cha
 

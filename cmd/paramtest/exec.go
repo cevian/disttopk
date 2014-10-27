@@ -300,7 +300,7 @@ func Run(rd RowDescription, protos []runner.Runner) map[string]disttopk.AlgoStat
 
 		fmt.Println("---- Running:", proto.GetName(), rd.String())
 		proto_list, res := proto.Run(l, hts, rd.k, ground_truth, NestIdeal)
-		 _ = i
+		_ = i
 		//proto_list, res := proto.(runner.NetworkRunner).RunNetwork(fmt.Sprintf("127.0.0.1:%d", 7000+i), l, hts, rd.k, ground_truth, NestIdeal)
 		res.CalculatePerformance(ground_truth, proto_list, rd.k)
 		if proto.IsExact() && res.Abs_err != 0.0 {
