@@ -41,8 +41,32 @@ type FirstRoundResponse struct {
 }
 
 type SecondRound struct {
+	Id              int
 	Cha             []byte
 	Items_looked_at uint //only for serial access accounting
+}
+
+func (t SecondRound) ParallelDeserialize() interface{} {
+	d := &SecondRoundDeserialized{}
+	d.Id = t.Id
+	d.BytesCha = len(t.Cha)
+	d.Items_looked_at = t.Items_looked_at
+
+	cha_got_ser := disttopk.DecompressBytes(t.Cha)
+	cha_got := &CountHashArray{}
+	if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
+		panic(err)
+	}
+
+	d.Cha = cha_got
+	return d
+}
+
+type SecondRoundDeserialized struct {
+	Id              int
+	Cha             *CountHashArray
+	Items_looked_at uint //only for serial access accounting
+	BytesCha        int
 }
 
 type ThirdRound struct {
@@ -109,7 +133,7 @@ func (src *Peer) Run() error {
 	//fmt.Println("Compressed size", len(cha_comp), items_looked_at)
 
 	select {
-	case src.forward <- disttopk.DemuxObject{src.id, SecondRound{cha_comp, items_looked_at}}:
+	case src.forward <- SecondRound{src.id, cha_comp, items_looked_at}:
 	case <-src.StopNotifier:
 		return nil
 	}
@@ -255,21 +279,15 @@ func (src *Coord) Run() error {
 	for cnt := 0; cnt < nnodes; cnt++ {
 		select {
 		case obj := <-src.input:
-			dobj := obj.(disttopk.DemuxObject)
-			sr := dobj.Obj.(SecondRound)
-			bytes_cha += len(sr.Cha)
-			cha_got_ser := disttopk.DecompressBytes(sr.Cha)
-			//bytes_cha += len(cha_got_ser)
-			cha_got := &CountHashArray{}
-			if err := disttopk.DeserializeObject(cha_got, cha_got_ser); err != nil {
-				panic(err)
-			}
+			sr := obj.(*SecondRoundDeserialized)
+			bytes_cha += sr.BytesCha
+			cha_got := sr.Cha
 
-			for peerlocaltopid, peerlocaltopscore := range peerm[dobj.Id] {
+			for peerlocaltopid, peerlocaltopscore := range peerm[sr.Id] {
 				cha_got.Add(disttopk.IntKeyToByteKey(peerlocaltopid), uint(peerlocaltopscore))
 			}
 
-			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: int(sr.Items_looked_at), Bytes_sketch: uint64(len(sr.Cha))}
+			round_stat_peer := disttopk.AlgoStatsRound{Serial_items: int(sr.Items_looked_at), Bytes_sketch: uint64(sr.BytesCha)}
 			round_2_stats.AddPeerStats(round_stat_peer)
 
 			cha.Merge(cha_got)

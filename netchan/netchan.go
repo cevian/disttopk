@@ -185,6 +185,10 @@ func (t *Writer) Run() error {
 	}
 }
 
+type ParallelDeserializer interface {
+	ParallelDeserialize() interface{}
+}
+
 type Reader struct {
 	reader       io.Reader
 	channel      chan stream.Object
@@ -214,8 +218,14 @@ func (t *Reader) Run() error {
 			fmt.Println("Decoder error 1", t.conn.typ, err)
 			return err
 		}
-		//fmt.Println("reader: sent Message")
-		t.channel <- v
+
+		pd, isPd := v.(ParallelDeserializer)
+		if isPd {
+			t.channel <- pd.ParallelDeserialize()
+		} else {
+			//fmt.Println("reader: sent Message")
+			t.channel <- v
+		}
 	}
 }
 
