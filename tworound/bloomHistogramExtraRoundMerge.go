@@ -52,7 +52,7 @@ func (t *BhErUnionSketch) GetMinModulusBits() int {
 			}
 		}
 	}
-	m_bits := int(math.Log2(float64(min_modulus)))
+	m_bits := int(math.Log2(float64(max_modulus)))
 	/*
 			fmt.Println("DBG: min", min_modulus, "avg", sum/count,"first", t.bhs[0].Data[0].GetFilter().(*disttopk.Gcs).Columns, "bits", m_bits, "max", t.bhs[0].Data[0].GetMax(), t.bhs[0].Data[1].GetMax())
 		        for _, entry := range t.bhs[0].Data{
