@@ -149,8 +149,8 @@ func (t *BhErUnionSketchAdaptor) mergeAdditionalSketchIntoUnionSketch(us UnionSk
 	bhers.MergeSecondRound(bs, il, peerId)
 }
 
-func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapprox int64, threshforfilter int64) int64 {
-	mhm := bs.GetMaxHashMap(bs.GetMinModulusBits())
+func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapprox int64, threshforfilter int64, mhm *MaxHashMapUnionSketch) int64 {
+	//mhm := bs.GetMaxHashMap(bs.GetMinModulusBits())
 	cutoff := int64(mhm.Cutoff())
 
 	bestcutoff := cutoff
@@ -218,7 +218,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		mincutoff := cutoff
 		needed_cutoff_per_node := 0
 		if t.useCutoffHeuristic {
-			heur := t.GetCutoffHeuristic(bs, underLow, approxthresh)
+			heur := t.GetCutoffHeuristic(bs, underLow, approxthresh, mhm)
 			fmt.Println("Using cutoff heuristic. Got: ", heur, "current cutoff:", cutoff)
 			if heur < cutoff {
 				mincutoff = heur
@@ -279,7 +279,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 			}
 		*/
 
-		filter, approxthresh := bs.GetFilter(approxthresh)
+		filter, approxthresh := mhm.GetFilter(approxthresh)
 		if filter == nil {
 			panic("Should never get nil filter here")
 		}
