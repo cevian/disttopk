@@ -215,7 +215,7 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*BhErUnionSketch)
-		mhm := bs.GetMaxHashMap(bs.GetMaxModulusBits(), nil)
+		mhm := bs.GetMaxHashMap(bs.GetMinModulusBits(), nil)
 
 		underApprox := mhm.UnderApprox(t.topk)
 		overApprox := mhm.OverApprox(t.topk)
@@ -297,7 +297,11 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 			}
 		*/
 
+		filtergcs, _ := mhm.GetFilter(approxthresh)
+
+		mhm = bs.GetMaxHashMap(bs.GetMaxModulusBits(), filtergcs)
 		filter, approxthresh := mhm.GetFilter(approxthresh)
+
 		if filter == nil {
 			panic("Should never get nil filter here")
 		}
@@ -313,8 +317,13 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		fmt.Println("Getting round 3 filter for: thresh=", thresh)
 
 		m_bits := int(math.Log2(float64(old_filter.GetM())))
-		mhm := bs.GetMaxHashMap(m_bits, nil)
+
+		mhm := bs.GetMaxHashMap(bs.GetMinModulusBits(), nil)
+		filtergcs, _ := mhm.GetFilter(int64(thresh))
+
+		mhm = bs.GetMaxHashMap(m_bits, filtergcs)
 		gcs, thresh := mhm.GetFilter(int64(thresh))
+
 		//gcs, thresh := bs.GetFilter(int64(thresh))
 		if gcs != nil {
 			gcs.SubtractGcs(old_filter)
