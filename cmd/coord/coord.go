@@ -21,6 +21,7 @@ var modServers = flag.Int("modServers", 33, "Number of servers for UCB")
 var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var keyClient = flag.Bool("keyclient", false, "key on client")
+var numRuns = flag.Int("numRuns", 1, "Number Of Runs")
 
 const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
 
@@ -125,7 +126,16 @@ func main() {
 
 	runners := common.GetRunners()
 
-	stats := Run(*coord_ip, l, runners, 10)
-	desc := printers.ExportPrinter(rd, runners, stats)
+	statsCol := make([]map[string]disttopk.AlgoStats, 0)
+
+	for i := 0; i < *numRuns; i++ {
+		stats := Run(*coord_ip, l, runners, 10)
+		statsCol = append(statsCol, stats)
+	}
+
+	desc := printers.ExportPrinterHeaders(rd)
+	for _, stats := range statsCol {
+		desc += printers.ExportPrinterNoHeader(rd, runners, stats)
+	}
 	fmt.Println(desc)
 }

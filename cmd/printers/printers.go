@@ -36,7 +36,11 @@ func ExportPrinterHeaders(rd RowDesc) string {
 }
 
 func ExportPrinter(rd RowDesc, runners []runner.Runner, res map[string]disttopk.AlgoStats) string {
-	s := ExportPrinterHeaders(rd)
+	return ExportPrinterHeaders(rd) + ExportPrinterNoHeader(rd, runners, res)
+}
+
+func ExportPrinterNoHeader(rd RowDesc, runners []runner.Runner, res map[string]disttopk.AlgoStats) string {
+	s := ""
 	for _, proto := range runners {
 		s += fmt.Sprintf("Export\t%s", rd.GetRowData())
 		stats := res[proto.GetName()]
