@@ -62,7 +62,7 @@ func (t *SmartRunner) RunPeer(addr string, numpeer int, l disttopk.ItemList, ht 
 	defer client.Close()
 	fmt.Println("Connecting")
 	var err error
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 15; i++ {
 		time.Sleep(1000 * time.Millisecond)
 		err = client.Connect()
 		if err == nil {
