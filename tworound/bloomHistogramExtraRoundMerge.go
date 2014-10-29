@@ -61,8 +61,22 @@ func (t *BhErUnionSketch) GetMinModulusBits() int {
 	return m_bits
 }
 
-func (t *BhErUnionSketch) GetMaxHashMap(modulus_bits int) *MaxHashMapUnionSketch {
+func (t *BhErUnionSketch) GetMaxModulusBits() int {
+	max_modulus := 0
+	for _, bh := range t.bhs {
+		for _, entry := range bh.Data {
+			g := entry.GetFilter().(*disttopk.Gcs)
+			m := g.Columns
+			if m > max_modulus {
+				max_modulus = m
+			}
+		}
+	}
+	m_bits := int(math.Log2(float64(max_modulus)))
+	return m_bits
+}
 
+func (t *BhErUnionSketch) GetMaxHashMap(modulus_bits int, filtergcs *disttopk.Gcs) *MaxHashMapUnionSketch {
 	length_hint := 0
 	for _, bh := range t.bhs {
 		length_hint += bh.SumLen(modulus_bits)
@@ -71,14 +85,17 @@ func (t *BhErUnionSketch) GetMaxHashMap(modulus_bits int) *MaxHashMapUnionSketch
 	mhm := NewMaxHashMapUnionSketch(length_hint)
 	mhm.SetModulusBits(modulus_bits)
 	for peer_id, bh := range t.bhs {
-		mhm.Merge(bh, t.ils[peer_id])
+		mhm.Merge(bh, t.ils[peer_id], filtergcs)
 	}
 	return mhm
 }
 
 func (t *BhErUnionSketch) GetFilter(thresh int64) (*disttopk.Gcs, int64) {
-	mhm := t.GetMaxHashMap(t.GetMinModulusBits())
+	mhm := t.GetMaxHashMap(t.GetMinModulusBits(), nil)
 	fmt.Println("Mhm info on get filter", mhm.GetInfo())
+	filtergcs, _ := mhm.GetFilter(thresh)
+
+	mhm = t.GetMaxHashMap(t.GetMaxModulusBits(), filtergcs)
 	return mhm.GetFilter(thresh)
 }
 
@@ -197,7 +214,7 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*BhErUnionSketch)
-		mhm := bs.GetMaxHashMap(bs.GetMinModulusBits())
+		mhm := bs.GetMaxHashMap(bs.GetMinModulusBits(), nil)
 
 		underApprox := mhm.UnderApprox(t.topk)
 		overApprox := mhm.OverApprox(t.topk)
@@ -295,7 +312,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		fmt.Println("Getting round 3 filter for: thresh=", thresh)
 
 		m_bits := int(math.Log2(float64(old_filter.GetM())))
-		mhm := bs.GetMaxHashMap(m_bits)
+		mhm := bs.GetMaxHashMap(m_bits, nil)
 		gcs, thresh := mhm.GetFilter(int64(thresh))
 		//gcs, thresh := bs.GetFilter(int64(thresh))
 		if gcs != nil {

@@ -288,6 +288,18 @@ func (s *Gcs) QueryHashValues(hvs []uint32) bool {
 	return s.Data.Contains(index)
 }
 
+func (s *Gcs) QueryHashValue(hv uint32) bool {
+	if s.NumberHashes() != 1 {
+		panic("wrong num idx")
+	}
+	cols := s.Columns
+	if cols == 0 {
+		return true
+	}
+	index := hv % uint32(cols)
+	return s.Data.Contains(index)
+}
+
 func (s *Gcs) Query(key []byte) bool {
 	if s.Columns == 0 {
 		return true

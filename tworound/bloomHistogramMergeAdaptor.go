@@ -17,12 +17,12 @@ type MaxHashMapUnionSketch struct {
 	*disttopk.MaxHashMap
 }
 
-func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemList) {
+func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemList, filtergcs *disttopk.Gcs) {
 	b := sketch.(*disttopk.BloomHistogram)
 	//fmt.Println("Cutoff before", b.Cutoff())
 	//b.Pop() //todo: change
 	count := 0
-	test := make(map[uint32]bool)
+	//test := make(map[uint32]bool)
 	cutoff := uint(b.Cutoff())
 
 	//fmt.Println("Cutoff", b.Cutoff())
@@ -39,12 +39,28 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 		min := entry.GetMin()
 		//fmt.Println("m = ", m)
 
-		g.Data.Eval(func(hv uint32) {
+		filterFunc := func(hv uint32) {
 			count += 1
 			//fmt.Println("Hv ", hv, count)
-			test[hv] = true
+			//test[hv] = true
 			t.Add(uint(hv), uint(m_bits), uint(max), uint(min), cutoff)
-		})
+		}
+		if filtergcs != nil {
+			if filtergcs.Columns > g.Columns {
+				panic("snh")
+			}
+			filterFunc = func(hv uint32) {
+				count += 1
+				//fmt.Println("Hv ", hv, count)
+				//test[hv] = true
+				if filtergcs.QueryHashValue(hv) {
+					t.Add(uint(hv), uint(m_bits), uint(max), uint(min), cutoff)
+				}
+			}
+
+		}
+
+		g.Data.Eval(filterFunc)
 	}
 	if MERGE_TOPK_AT_COORD {
 		m_bits := t.GetModulusBits()
