@@ -25,7 +25,7 @@ var numRuns = flag.Int("numRuns", 1, "Number Of Runs")
 
 const BASE_DATA_PATH = "/home/arye/goprojects/src/github.com/cevian/disttopk/data/"
 
-func Run(ip string, l []disttopk.ItemList, protos []runner.Runner, k int) map[string]disttopk.AlgoStats {
+func Run(ip string, l []disttopk.ItemList, protos []runner.Runner, k int, numRuns int) []map[string]disttopk.AlgoStats {
 
 	hts := disttopk.MakeHashTables(l)
 	NestIdeal := printers.GetNEst(l)
@@ -34,58 +34,62 @@ func Run(ip string, l []disttopk.ItemList, protos []runner.Runner, k int) map[st
 
 	if ground_truth[k-1] == ground_truth[k] {
 		fmt.Println("WARNING_ERROR: no difference between the kth and k+1st element")
-		return make(map[string]disttopk.AlgoStats)
+		return make([]map[string]disttopk.AlgoStats, 0)
 
 	}
 
 	runtime.GC()
 
-	results := make(map[string]disttopk.AlgoStats)
-	for i, proto := range protos {
-		runtime.GC()
-		//mem := &runtime.MemStats{}
-		//runtime.ReadMemStats(mem)
-		//fmt.Printf("Start Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
+	resultsColl := make([]map[string]disttopk.AlgoStats, 0)
+	for w := 0; w < numRuns; w++ {
+		results := make(map[string]disttopk.AlgoStats)
+		for i, proto := range protos {
+			runtime.GC()
+			//mem := &runtime.MemStats{}
+			//runtime.ReadMemStats(mem)
+			//fmt.Printf("Start Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
 
-		fmt.Println("---- Running:", proto.GetName())
-		//proto_list, res := proto.RunCoord(l, hts, k, ground_truth, NestIdeal)
+			fmt.Println("---- Running:", proto.GetName())
+			//proto_list, res := proto.RunCoord(l, hts, k, ground_truth, NestIdeal)
 
-		if *cpuprofile != "" {
-			profname := fmt.Sprintf("%s.%s", *cpuprofile, proto.GetName())
-			f, err := os.Create(profname)
-			if err != nil {
-				log.Fatal(err)
+			if *cpuprofile != "" {
+				profname := fmt.Sprintf("%s.%s", *cpuprofile, proto.GetName())
+				f, err := os.Create(profname)
+				if err != nil {
+					log.Fatal(err)
+				}
+				pprof.StartCPUProfile(f)
 			}
-			pprof.StartCPUProfile(f)
-		}
-		proto_list, res := proto.(runner.NetworkRunner).RunCoord(fmt.Sprintf("%s:%d", ip, 7000+i), l, hts, k, ground_truth, NestIdeal)
-		if *cpuprofile != "" {
+			proto_list, res := proto.(runner.NetworkRunner).RunCoord(fmt.Sprintf("%s:%d", ip, 7000+i), l, hts, k, ground_truth, NestIdeal)
+			if *cpuprofile != "" {
 
-			pprof.StopCPUProfile()
-		}
-
-		res.CalculatePerformance(ground_truth, proto_list, k)
-		if proto.IsExact() && res.Abs_err != 0.0 {
-			printers.PrintDiff(ground_truth, proto_list, k)
-			panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.GetName(), res.Abs_err))
-		}
-		results[proto.GetName()] = res
-		fmt.Println("Result:", proto.GetName(), "Bytes", res.Bytes_transferred, "Rounds", res.Rounds, "Execution Time", res.Took)
-		//runtime.ReadMemStats(mem)
-		//fmt.Printf("Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
-
-		if *memprofile != "" {
-			f, err := os.Create(fmt.Sprintf("%s.%s", *memprofile, proto.GetName()))
-			if err != nil {
-				log.Fatal(err)
+				pprof.StopCPUProfile()
 			}
-			pprof.WriteHeapProfile(f)
-			f.Close()
 
+			res.CalculatePerformance(ground_truth, proto_list, k)
+			if proto.IsExact() && res.Abs_err != 0.0 {
+				printers.PrintDiff(ground_truth, proto_list, k)
+				panic(fmt.Sprintf("Protocol %v should be exact but has error %v", proto.GetName(), res.Abs_err))
+			}
+			results[proto.GetName()] = res
+			fmt.Println("Result:", proto.GetName(), "Bytes", res.Bytes_transferred, "Rounds", res.Rounds, "Execution Time", res.Took)
+			//runtime.ReadMemStats(mem)
+			//fmt.Printf("Memstats %e %e %e %e %e %e\n", float64(mem.Alloc), float64(mem.TotalAlloc), float64(mem.Sys), float64(mem.Lookups), float64(mem.Mallocs), float64(mem.Frees))
+
+			if *memprofile != "" {
+				f, err := os.Create(fmt.Sprintf("%s.%s", *memprofile, proto.GetName()))
+				if err != nil {
+					log.Fatal(err)
+				}
+				pprof.WriteHeapProfile(f)
+				f.Close()
+
+			}
 		}
+		resultsColl = append(resultsColl, results)
 	}
 
-	return results
+	return resultsColl
 }
 
 func main() {
@@ -126,12 +130,7 @@ func main() {
 
 	runners := common.GetRunners()
 
-	statsCol := make([]map[string]disttopk.AlgoStats, 0)
-
-	for i := 0; i < *numRuns; i++ {
-		stats := Run(*coord_ip, l, runners, 10)
-		statsCol = append(statsCol, stats)
-	}
+	statsCol := Run(*coord_ip, l, runners, 10, *numRuns)
 
 	desc := printers.ExportPrinterHeaders(rd)
 	for _, stats := range statsCol {
