@@ -47,6 +47,7 @@ func (t *MaxHashMapUnionSketch) Merge(sketch disttopk.Sketch, il disttopk.ItemLi
 		}
 		if filtergcs != nil {
 			if filtergcs.Columns > g.Columns {
+				fmt.Println("SNH ", filtergcs.Columns, g.Columns, m_bits)
 				panic("snh")
 			}
 			filterFunc = func(hv uint32) {
