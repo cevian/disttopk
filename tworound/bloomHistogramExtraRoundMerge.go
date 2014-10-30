@@ -308,7 +308,10 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		t.firstRoundFilter = filter
 		t.numUnionFilterCalls = 1
 
-		return &BhErGcsFilter{filter, int(mincutoff) / t.numpeer}, uint(approxthresh)
+		/* extra range parameter interpreted as new minimim cutoff at each node */
+		minscore_at_peer := int(math.Ceil(float64(mincutoff) / float64(t.numpeer)))
+		//fmt.Println("Minscore at each peer ", minscore_at_peer, mincutoff, t.numpeer)
+		return &BhErGcsFilter{filter, minscore_at_peer}, uint(approxthresh)
 	} else {
 		bs := us.(*BhErUnionSketch)
 		old_filter := t.firstRoundFilter
