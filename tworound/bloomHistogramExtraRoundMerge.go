@@ -215,7 +215,11 @@ func (t *BhErUnionSketchAdaptor) GetCutoffHeuristic(bs *BhErUnionSketch, topkapp
 func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, il disttopk.ItemList, listlensum int) (UnionFilter, uint) {
 	if t.numUnionFilterCalls == 0 {
 		bs := us.(*BhErUnionSketch)
+
+		//runtime optimization: use a lower resolution mhm to get filter for the higher resolution mhm
 		mhm := bs.GetMaxHashMap(bs.GetMinModulusBits(), nil)
+		filtergcs, _ := mhm.GetFilter(int64(thresh))
+		mhm = bs.GetMaxHashMap(bs.GetMaxModulusBits(), filtergcs)
 
 		underApprox := mhm.UnderApprox(t.topk)
 		overApprox := mhm.OverApprox(t.topk)
@@ -297,9 +301,6 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 			}
 		*/
 
-		filtergcs, _ := mhm.GetFilter(approxthresh)
-
-		mhm = bs.GetMaxHashMap(bs.GetMaxModulusBits(), filtergcs)
 		filter, approxthresh := mhm.GetFilter(approxthresh)
 
 		if filter == nil {

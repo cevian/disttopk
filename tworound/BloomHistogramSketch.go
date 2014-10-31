@@ -253,10 +253,12 @@ func (bhss *BloomHistogramSketchSplit) CreateFirstRoundFromList(list disttopk.It
 	minscore := GetMinScoreEqExact(scorek, bhss.numpeers)
 	exact_index := GetIndexAfter(list, 0, minscore)
 
-	//fmt.Println("Scorek", scorek, "minscore", minscore, "exact_index", exact_index)
+	//fmt.Println("Scorek", scorek, "minscore", minscore, "exact_index", exact_index, " multiplier ", bhss.Multiplier)
 
 	numentries := bhss.totalEntries
-	//bhss.Multiplier := 5 //TODO: change to 5
+
+	//when splitting a sketch, the first round does not go lower than the bhss.topk*bhss.Multiplier (mult usually 5) position in the sketch of first round.
+
 	if exact_index > bhss.topk*bhss.Multiplier && bhss.Multiplier != 0 {
 		//fmt.Println("Here!")
 		index := bhss.topk * bhss.Multiplier
