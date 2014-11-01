@@ -294,6 +294,7 @@ func (b *BloomHistogramSketchSplit) CreateSecondRoundFromList(list disttopk.Item
 
 	/* interpret rangeNeeded as new minscore */
 	minscore := disttopk.BloomHistogramScore(rangeNeededInt)
+	//fmt.Println("Minscore at peer", minscore)
 
 	//rangeNeeded := disttopk.BloomHistogramScore(rangeNeededInt)
 	//minscore := disttopk.BloomHistogramScore(0)

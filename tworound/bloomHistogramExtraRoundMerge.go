@@ -310,8 +310,8 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		t.numUnionFilterCalls = 1
 
 		/* extra range parameter interpreted as new minimim cutoff at each node */
-		minscore_at_peer := int(math.Ceil(float64(mincutoff) / float64(t.numpeer)))
-		//fmt.Println("Minscore at each peer ", minscore_at_peer, mincutoff, t.numpeer)
+		minscore_at_peer := int(math.Floor(float64(mincutoff) / float64(t.numpeer)))
+		//fmt.Println("Minscore at each peer will be ", minscore_at_peer, mincutoff, t.numpeer)
 		return &BhErGcsFilter{filter, minscore_at_peer}, uint(approxthresh)
 	} else {
 		bs := us.(*BhErUnionSketch)
@@ -331,7 +331,7 @@ func (t *BhErUnionSketchAdaptor) getUnionFilter(us UnionSketch, thresh uint32, i
 		//gcs, thresh := bs.GetFilter(int64(thresh))
 		if gcs != nil {
 			gcs.SubtractGcs(old_filter)
-			return &BhErGcsFilter{gcs, 0}, uint(thresh)
+			return &BhErGcsFilter{gcs, -1}, uint(thresh)
 		}
 		return nil, uint(thresh)
 	}
@@ -417,7 +417,7 @@ func (t *BhErPeerSketchAdaptor) getAdditionalSketch(uf UnionFilter, list disttop
 	s := prevSketch.(*BloomHistogramSketchSplit)
 
 	old_cutoff := s.FirstRoundCutoff(list)
-	if int(old_cutoff) <= bhgcs.ExtraRange || bhgcs.ExtraRange == 0 {
+	if int(old_cutoff) <= bhgcs.ExtraRange || bhgcs.ExtraRange < 0 {
 		return nil, 0
 	}
 
