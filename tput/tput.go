@@ -225,7 +225,7 @@ func (src *Coord) Run() error {
 	for id, score := range m {
 		resp := mresp[id]
 		missing := nnodes - resp
-		upperBound := (float64(missing) * thresh) + score
+		upperBound := (float64(missing) * localthresh) + score
 		if upperBound >= secondthresh {
 			ids = append(ids, id)
 		}

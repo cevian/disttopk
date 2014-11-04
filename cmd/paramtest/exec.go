@@ -237,14 +237,14 @@ func (t *Test) GetRowDescription() []RowDescription {
 		seed := int64(1)*/
 	k := 10
 	nodes := 10
-	listSize := 1000
-	zipfParam := 0.4
-	overlap := 0.25
+	listSize := 1000000
+	zipfParam := 0.8
+	overlap := 0.99
 	disttopk.RECORD_SIZE = 100
 
 	rds := make([]RowDescription, 0)
-	for _, perms := range []int{100} {
-		for _, seed := range []int64{2} {
+	for _, perms := range []int{500} {
+		for _, seed := range []int64{4} {
 			rd := RowDescription{k, nodes, listSize, zipfParam, perms, overlap, seed, disttopk.RECORD_SIZE}
 			rds = append(rds, rd)
 		}
@@ -259,10 +259,11 @@ func (t *Test) GetProtocols() []runner.Runner {
 	//return []runner.Runner{runner.NewTputHRunner()}
 
 	//return []runner.Runner{runner.NewTputRunner(), runner.NewTputHRunner(), runner.NewTputERRunner(), runner.NewSbrErRunner(), runner.NewSbr2RRunner(), runner.NewNaiveK2Runner(), runner.NewNaiveExactRunner(), runner.NewKlee3Runner(), runner.NewKlee4Runner()}
+	return []runner.Runner{runner.NewTputRunner(), runner.NewTputHRunner(), runner.NewTputERRunner()}
 
 	//return []runner.Runner{runner.NewSbr2RRunner(), runner.NewTputRunner()}
 	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErIdealNestRunner(), runner.NewSbrErIdealOverRunner(), runner.NewSbrErIdealUnderRunner()}
-	return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner()}
+	//return []runner.Runner{runner.NewSbrErRunner(), runner.NewSbrErNoSplitRunner(), runner.NewSbrErNoChRunner()}
 	//return GetRunners()
 }
 
